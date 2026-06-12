@@ -4,31 +4,35 @@ Last updated: 2026-06-12
 
 ## Current stopping point
 
-Stopped after the first two R6 repository-layout reconciliation splits from
+Stopped after the third R6 repository-layout reconciliation split from
 `PROGRESS_REVIEW.md`: the public query API now retains `resolver.py` as a thin
 entry-point layer while citation assembly, condition payload shaping, PS3.3
 graph traversal, recursive macro expansion, and SQLite FTS query construction
 live in the spec-aligned `query/citations.py`, `query/conditions.py`,
-`query/graph.py`, and `query/search.py` modules, and the MCP adapter now keeps
+`query/graph.py`, and `query/search.py` modules; the MCP adapter now keeps
 `mcp/server.py` focused on configuration, dependency loading, and stdio
-transport while tool metadata and resolver dispatch live in
-`mcp/schemas.py` and `mcp/tools.py`. Official `current` was fetched and
-resolved to concrete edition `2026b`, the local KB builds from real
-PS3.3/PS3.4/PS3.6 DocBook XML, `make test-integration` has a real-download
-integration tier that passes with local artifacts and skips cleanly without
-them, and the §15.2 golden entity set now has real-KB integration assertions.
-The agent regression prompt set now has 65 edition-pinned cases, covers all
-nine v1 query tools, and includes an offline guard for the ≥50-case, unique-ID,
-edition-pin, all-tool, and error-case floors. `dicom-kb eval run` now records
-deterministic reference-agent transcripts in the existing compact scorecard
-schema, and both synthetic-fixture and real-KB tests score those transcripts
-without committing bulk real-KB outputs. The MCP server now has an offline
-protocol-level smoke test using the official Python MCP stdio client against
-the synthetic fixture KB, and `dicom-kb mcp serve` fails early with fetch/build
-guidance when the configured SQLite KB is missing. Two R2 parser limitations
-remain captured as strict xfails: real PS3.3 include rows are not yet persisted
-as macro include provenance, and Enhanced CT functional-group usage rows are
-not yet persisted. The repository now has a working v1 foundation through:
+transport while tool metadata and resolver dispatch live in `mcp/schemas.py`
+and `mcp/tools.py`; and DocBook `<variablelist>` parsing now lives in
+`docbook/variablelists.py` with synthetic fixture coverage for term,
+definition, reference, and source-context preservation. Storage/import wiring
+for parsed variable lists remains intentionally pending for a later
+value-constraint slice. Official `current` was fetched and resolved to concrete
+edition `2026b`, the local KB builds from real PS3.3/PS3.4/PS3.6 DocBook XML,
+`make test-integration` has a real-download integration tier that passes with
+local artifacts and skips cleanly without them, and the §15.2 golden entity set
+now has real-KB integration assertions. The agent regression prompt set now has
+65 edition-pinned cases, covers all nine v1 query tools, and includes an
+offline guard for the ≥50-case, unique-ID, edition-pin, all-tool, and
+error-case floors. `dicom-kb eval run` now records deterministic reference-agent
+transcripts in the existing compact scorecard schema, and both
+synthetic-fixture and real-KB tests score those transcripts without committing
+bulk real-KB outputs. The MCP server now has an offline protocol-level smoke
+test using the official Python MCP stdio client against the synthetic fixture
+KB, and `dicom-kb mcp serve` fails early with fetch/build guidance when the
+configured SQLite KB is missing. Two R2 parser limitations remain captured as
+strict xfails: real PS3.3 include rows are not yet persisted as macro include
+provenance, and Enhanced CT functional-group usage rows are not yet persisted.
+The repository now has a working v1 foundation through:
 
 1. Work Order A: repository/build/legal scaffold.
 2. Work Order B: local source acquisition primitives.
@@ -153,6 +157,11 @@ not yet persisted. The repository now has a working v1 foundation through:
     runtime configuration and stdio transport helpers while tool-name metadata
     lives in `mcp/schemas.py` and resolver dispatch plus FastMCP registration
     live in `mcp/tools.py`, preserving the public CLI and MCP behavior.
+37. R6 DocBook variable-list parser, third slice. `docbook/variablelists.py`
+    parses `<variablelist>` entries into term/definition IR with parent section
+    context, stable XML ids, row order, and embedded references; `ParsedDocument`
+    exposes the parsed lists for future enumerated-value and defined-term
+    storage.
 
 ## Completed commits
 
@@ -207,11 +216,14 @@ not yet persisted. The repository now has a working v1 foundation through:
 - `336544f docs(progress): record R4 reference runner`
 - `e7569ca test(mcp): add stdio protocol smoke coverage`
 - `4910279 refactor(query): split resolver internals by concern`
+- `3fd10ed docs(progress): record R6 query layout split`
 - `5ea3d2c refactor(mcp): split server transport from tool mapping`
+- `1cb59ec docs(progress): record R6 MCP layout split`
+- `6190d63 feat(docbook): parse variable lists`
 
 ## Verification at stop
 
-The following checks passed after the R6 query-layout refactor:
+The following checks passed after the R6 DocBook variable-list parser:
 
 ```bash
 uv run --dev ruff check .
@@ -219,7 +231,7 @@ uv run --dev mypy
 uv run --dev pytest
 ```
 
-Observed local test result with the built real KB present: 152 passed and 2
+Observed local test result with the built real KB present: 153 passed and 2
 strict xfailed tests.
 
 Observed R3 prompt-case metrics:
@@ -299,6 +311,9 @@ Accepted R2 strict-xfail limitations:
   `--format chtml` is requested, preserving each mirrored file as a separate
   manifest artifact and rejecting traversal outside the selected part tree.
 - Namespace-aware DocBook section, table, span, xref, and include-row parsing.
+- DocBook variable-list parsing into term/definition IR with parent section,
+  XML id, entry order, and embedded reference preservation; persistence remains
+  pending for the later value-constraint slice.
 - DocBook section/table parent and ordinal metadata for persistent structure
   storage.
 - Zero-width character removal and normalized text helpers.
