@@ -4,7 +4,7 @@ Last updated: 2026-06-12
 
 ## Current stopping point
 
-Stopped after completing the public JSON Schema contract slice. The repository
+Stopped after organizing the synthetic parser fixture directory. The repository
 now has a working offline foundation through:
 
 1. Work Order A: repository/build/legal scaffold.
@@ -28,6 +28,9 @@ now has a working offline foundation through:
 10. Spec-mandated JSON Schema files for public tool responses, standard
     references, source manifests, and condition facts, plus offline drift tests
     against the implemented Python contracts.
+11. Spec-mandated `tests/fixtures_synthetic/` directory containing shared
+    synthetic DocBook XML fixtures for PS3.3 and PS3.6 parser/import/query
+    tests.
 
 ## Completed commits
 
@@ -45,6 +48,7 @@ now has a working offline foundation through:
 - `9d3f372 feat(db): import PS3.3 graph records`
 - `152f5e9 feat(query): add PS3.3 graph traversal`
 - `b380b4f feat(schemas): add public JSON Schema contracts`
+- `6e1dbe6 test(fixtures): move synthetic DocBook into fixture files`
 
 ## Verification at stop
 
@@ -110,6 +114,8 @@ Observed test count: 43 passing tests.
   source manifests, and condition facts.
 - Offline schema drift tests that keep schema field names and response status
   enums aligned with the implemented Pydantic contracts.
+- Shared synthetic DocBook XML fixture files for current PS3.3 and PS3.6 parser
+  coverage, with importer/query/CLI tests consuming the same fixture source.
 
 ## Not yet implemented
 
@@ -128,8 +134,8 @@ Observed test count: 43 passing tests.
   table-snapshot storage exists yet, so parser bugs cannot be investigated
   without reparsing the source.
 - Spec-mandated repository directories and files:
-  `tests/fixtures_synthetic/`, `tests/fixtures_minimal_attributed/`,
-  `tests/agent_regression/`, `examples/`, and `docbook/variablelists.py`.
+  `tests/fixtures_minimal_attributed/`, `tests/agent_regression/`, `examples/`,
+  and `docbook/variablelists.py`.
 
 ## Known broken placeholders
 
@@ -145,7 +151,6 @@ if run:
 
 ## Recommended next work order
 
-Before MCP work, broaden PS3.3 parser fixtures toward minimal attributed CT
-Image material once local artifact handling for attributed fixtures is in
-place. The next parser slice should focus on real-standard table variants that
-can be represented without redistributing bulk official artifacts.
+Before MCP work, add minimal attributed fixture handling, then broaden PS3.3
+parser fixtures toward CT Image table variants that can be represented without
+redistributing bulk official artifacts.
