@@ -4,8 +4,9 @@ Last updated: 2026-06-12
 
 ## Current stopping point
 
-Stopped after adding local FTS5-backed standard text search over persisted
-DocBook nodes. The repository now has a working offline foundation through:
+Stopped after wiring local fetch/build CLI workflows over cached DocBook
+artifacts and default edition database discovery. The repository now has a
+working offline foundation through:
 
 1. Work Order A: repository/build/legal scaffold.
 2. Work Order B: local source acquisition primitives.
@@ -54,6 +55,13 @@ DocBook nodes. The repository now has a working offline foundation through:
     `dicom-kb search-text`, using a local SQLite FTS5 index over persisted
     DocBook node titles/text with part filtering, bounded result limits,
     snippets, and citation-preserving refs.
+19. Local SQLite build orchestration that reads immutable source manifests,
+    imports cached DocBook XML artifacts in dependency order, records build
+    metadata, and writes the conventional cache database at
+    `db/<edition>.sqlite`.
+20. CLI workflow commands `dicom-kb fetch`, `dicom-kb build`, and
+    `dicom-kb build-fixture`, plus default cache/database discovery for query
+    commands when `--db` is omitted.
 
 ## Completed commits
 
@@ -84,10 +92,12 @@ DocBook nodes. The repository now has a working offline foundation through:
 - `014cd42 feat(query): retrieve standard text excerpts`
 - `64cd07f docs(progress): record text retrieval slice`
 - `03631f8 feat(query): search persisted standard text`
+- `c05d12f feat(cli): build local SQLite knowledge bases`
+- `8890264 feat(cli): register local DocBook artifacts`
 
 ## Verification at stop
 
-The following offline checks passed after standard text search work:
+The following offline checks passed after local fetch/build CLI work:
 
 ```bash
 make lint
@@ -95,7 +105,7 @@ uv run mypy
 uv run pytest
 ```
 
-Observed test count: 68 passing tests.
+Observed test count: 72 passing tests.
 
 ## Implemented behavior
 
@@ -190,6 +200,21 @@ Observed test count: 68 passing tests.
 - CLI command `dicom-kb search-text` that reads an explicit local SQLite
   database path, supports `--part` and `--limit`, and emits the public search
   JSON envelope.
+- `dicom-kb fetch` command that registers local DocBook XML artifacts via
+  repeatable `--docbook-xml PART=PATH` arguments into the immutable external
+  cache manifest. Official network URL discovery remains intentionally
+  unimplemented.
+- `dicom-kb build` command that reads cached manifest artifacts and builds a
+  local SQLite KB under `~/.cache/dicom-standard-kb/db/<edition>.sqlite` by
+  default, with optional `--db`, `--cache-dir`, `--backend sqlite`, and
+  `--force`.
+- `dicom-kb build-fixture` command that builds the shared synthetic fixture KB
+  through the same manifest/build pipeline.
+- Query CLI commands now discover the conventional cache database from
+  `--edition` and `--cache-dir` when `--db` is omitted.
+- Generated SQLite databases record build metadata including build time,
+  parser version, schema version, manifest digest, source checksums, and
+  repository commit when available.
 - JSON Schema contract files for tool response envelopes, standard references,
   source manifests, and condition facts.
 - Offline schema drift tests that keep schema field names and response status
@@ -200,9 +225,9 @@ Observed test count: 68 passing tests.
 
 ## Not yet implemented
 
-- Official network fetch URL discovery for `current` edition metadata.
-- CLI commands wired to fetch and build workflows.
-- CLI default cache/database discovery; lookup currently requires `--db`.
+- Official network fetch URL discovery for concrete/current edition metadata.
+- CLI fetch currently supports local `--docbook-xml PART=PATH` registration,
+  not official URL download/discovery.
 - Full PS3.3 parser coverage beyond the first v1 CT-style synthetic fixture
   slice, including broader real-standard table variants.
 - Spec query-layer modules beyond `query/resolver.py`: `query/graph.py`,
@@ -231,11 +256,9 @@ if run:
   which does not exist yet (pytest exits with a collection error).
 - `make run-mcp` invokes `dicom-kb mcp serve`, a CLI command that does not
   exist yet.
-- `make ingest-fixture` runs the `build-fixture` placeholder, which only
-  prints a not-implemented message.
 
 ## Recommended next work order
 
-Continue the v1 critical path by wiring CLI fetch/build workflows and default
-cache/database discovery, so the implemented parsers/importers/query tools can
-be exercised without hand-built SQLite fixture databases.
+Continue the v1 critical path by adding the MCP server tool surface over the
+implemented query resolvers, or by adding official edition URL discovery for
+networked fetches if source acquisition should be completed first.
