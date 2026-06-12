@@ -22,6 +22,9 @@ class ParsedSection:
     number: str | None
     depth: int
     plain_text: str
+    node_type: str = "section"
+    parent_xml_id: str | None = None
+    ordinal: int = 0
 
 
 @dataclass(frozen=True)
@@ -64,7 +67,9 @@ def parse_docbook_root(root: etree._Element, *, part: str) -> ParsedDocument:
 
 def _parse_sections(root: etree._Element) -> list[ParsedSection]:
     sections: list[ParsedSection] = []
-    for section in root.xpath(".//db:chapter | .//db:section", namespaces=NSMAP):
+    for ordinal, section in enumerate(
+        root.xpath(".//db:chapter | .//db:section", namespaces=NSMAP)
+    ):
         if not isinstance(section, etree._Element):
             continue
         sections.append(
@@ -74,6 +79,9 @@ def _parse_sections(root: etree._Element) -> list[ParsedSection]:
                 number=_first_child_text(section, "label"),
                 depth=_section_depth(section),
                 plain_text=normalize_text(_section_body_text(section)),
+                node_type=etree.QName(section).localname,
+                parent_xml_id=_parent_section_xml_id(section),
+                ordinal=ordinal,
             )
         )
     return sections
@@ -87,6 +95,17 @@ def _section_depth(section: etree._Element) -> int:
             depth += 1
         current = current.getparent()
     return depth
+
+
+def _parent_section_xml_id(section: etree._Element) -> str | None:
+    current = section.getparent()
+    while current is not None:
+        if etree.QName(current).localname in {"chapter", "section"}:
+            value = current.get(xml_id_name())
+            if value:
+                return str(value)
+        current = current.getparent()
+    return None
 
 
 def _first_child_text(element: etree._Element, local_name: str) -> str | None:

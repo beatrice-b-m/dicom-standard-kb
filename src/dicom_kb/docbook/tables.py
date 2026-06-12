@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from lxml import etree
 
@@ -48,6 +48,8 @@ class ParsedTable:
     title: str | None
     rows: tuple[ParsedRow, ...]
     warnings: tuple[str, ...] = ()
+    parent_xml_id: str | None = None
+    ordinal: int = 0
 
 
 @dataclass
@@ -69,9 +71,18 @@ class _Occupancy:
 def parse_tables(root: etree._Element) -> list[ParsedTable]:
     """Parse DocBook tables and informaltables from a document root."""
     tables: list[ParsedTable] = []
-    for table in root.xpath(".//db:table | .//db:informaltable", namespaces=NSMAP):
+    for ordinal, table in enumerate(
+        root.xpath(".//db:table | .//db:informaltable", namespaces=NSMAP)
+    ):
         if isinstance(table, etree._Element):
-            tables.append(parse_table(table))
+            parsed = parse_table(table)
+            tables.append(
+                replace(
+                    parsed,
+                    parent_xml_id=_parent_section_xml_id(table),
+                    ordinal=ordinal,
+                )
+            )
     return tables
 
 
@@ -196,6 +207,17 @@ def _entry_refs(entry: etree._Element) -> list[str]:
             if target:
                 refs.append(target)
     return refs
+
+
+def _parent_section_xml_id(table: etree._Element) -> str | None:
+    current = table.getparent()
+    while current is not None:
+        if etree.QName(current).localname in {"chapter", "section"}:
+            value = current.get(xml_id_name())
+            if value:
+                return str(value)
+        current = current.getparent()
+    return None
 
 
 def _first_text(element: etree._Element, path: str) -> str | None:

@@ -193,6 +193,57 @@ class SOPClassIOD(BaseModel):
     source_ref: SourceRef
 
 
+class DocNode(BaseModel):
+    """Persisted DocBook structural node for retrieval and citations."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    edition_id: str
+    part: str
+    node_type: str
+    parent_id: str | None = None
+    xml_id: str | None = None
+    anchor: str | None = None
+    number: str | None = None
+    title: str | None = None
+    ordinal: int
+    plain_text: str | None = None
+    source_ref: SourceRef
+
+
+class Xref(BaseModel):
+    """Persisted DocBook cross-reference edge."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    edition_id: str
+    source_node_id: str
+    target_ref: str
+    target_node_id: str | None = None
+    link_type: str
+    resolved: bool
+    resolution_warning: str | None = None
+    text: str | None = None
+
+
+class RawTableIR(BaseModel):
+    """Persisted JSON snapshot of parsed raw table IR."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    edition_id: str
+    part: str
+    table_id: str | None = None
+    title: str | None = None
+    ordinal: int
+    source_ref: SourceRef
+    ir_json: str
+    ir_sha256: str
+
+
 class ParserWarning(BaseModel):
     """Structured parser warning."""
 

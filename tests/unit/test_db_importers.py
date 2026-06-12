@@ -1,9 +1,15 @@
+import json
 import sqlite3
 from pathlib import Path
 
 import pytest
 
-from dicom_kb.db.importers import import_part03, import_part04, import_part06
+from dicom_kb.db.importers import (
+    import_docbook_structure,
+    import_part03,
+    import_part04,
+    import_part06,
+)
 from dicom_kb.db.models import apply_migrations, connect_sqlite
 from dicom_kb.db.repositories import (
     DataElementRepository,
@@ -54,6 +60,72 @@ def test_import_part06_and_lookup_tag_uid(tmp_path: Path) -> None:
     )
     assert uid is not None
     assert uid.uid_value == "1.2.840.10008.1.2.1"
+
+
+def test_import_docbook_structure_persists_nodes_xrefs_and_table_ir(
+    tmp_path: Path,
+) -> None:
+    connection = _connection(tmp_path)
+    document = parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3")
+
+    summary = import_docbook_structure(
+        connection,
+        edition="2026b",
+        document=document,
+    )
+
+    assert summary.doc_nodes == 10
+    assert summary.xrefs == 2
+    assert summary.raw_table_irs == 4
+
+    section = connection.execute(
+        """
+        SELECT child.title, parent.xml_id AS parent_xml_id
+        FROM doc_node child
+        JOIN doc_node parent ON parent.id = child.parent_id
+        WHERE child.xml_id = ?
+        """,
+        ("sect_A.3",),
+    ).fetchone()
+    assert section["title"] == "CT Image IOD"
+    assert section["parent_xml_id"] == "chapter_A"
+
+    table = connection.execute(
+        """
+        SELECT table_node.title, parent.xml_id AS parent_xml_id
+        FROM doc_node table_node
+        JOIN doc_node parent ON parent.id = table_node.parent_id
+        WHERE table_node.xml_id = ?
+        """,
+        ("table_A.3-1",),
+    ).fetchone()
+    assert table["title"] == "CT Image IOD Modules"
+    assert table["parent_xml_id"] == "sect_A.3"
+
+    xref = connection.execute(
+        """
+        SELECT resolved, target_node_id, resolution_warning
+        FROM xref
+        WHERE target_ref = ?
+        """,
+        ("table_10-7",),
+    ).fetchone()
+    assert xref["resolved"] == 1
+    assert xref["target_node_id"] == "2026b.PS3.3.table_10-7"
+    assert xref["resolution_warning"] is None
+
+    raw_table = connection.execute(
+        """
+        SELECT ir_json, ir_sha256
+        FROM raw_table_ir
+        WHERE table_id = ?
+        """,
+        ("table_A.3-1",),
+    ).fetchone()
+    payload = json.loads(raw_table["ir_json"])
+    assert payload["title"] == "CT Image IOD Modules"
+    assert payload["rows"][1]["cells"][1]["text"] == "Patient"
+    assert len(raw_table["ir_sha256"]) == 64
 
 
 def test_range_tag_lookup_returns_match_warning(tmp_path: Path) -> None:
