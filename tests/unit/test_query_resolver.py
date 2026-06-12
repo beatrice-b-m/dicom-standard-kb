@@ -7,6 +7,7 @@ from pathlib import Path
 from dicom_kb.db.importers import import_part03, import_part06
 from dicom_kb.db.models import apply_migrations, connect_sqlite
 from dicom_kb.docbook.parser import parse_docbook_xml
+from dicom_kb.ir.models import AttributeUse, Macro, SourceRef
 from dicom_kb.parsers.part03_iods import parse_part03
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
 from dicom_kb.query.resolver import (
@@ -52,6 +53,102 @@ def _part03_connection(tmp_path: Path) -> sqlite3.Connection:
         iod_module_uses=parsed.iod_module_uses,
         iod_functional_group_uses=parsed.iod_functional_group_uses,
         attribute_uses=parsed.attribute_uses,
+    )
+    return connection
+
+
+def _part03_connection_with_recursive_macros(
+    tmp_path: Path,
+    *,
+    include_cycle: bool = False,
+) -> sqlite3.Connection:
+    connection = connect_sqlite(tmp_path / "kb.sqlite")
+    apply_migrations(connection)
+    parsed = parse_part03(
+        parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3"),
+        edition="2026b",
+    )
+    nested_source_ref = SourceRef(
+        id="2026b.ps3_3.table_11_1",
+        edition_id="2026b",
+        part="PS3.3",
+        section="11.1",
+        table_id="table_11-1",
+        xml_id="table_11-1",
+        title="Nested Device Macro Attributes",
+    )
+    nested_macro = Macro(
+        id="2026b.macro.table_11_1",
+        edition_id="2026b",
+        name="Nested Device Macro",
+        table_id="table_11-1",
+        section="11.1",
+        macro_kind="attribute",
+        source_ref=nested_source_ref,
+    )
+    attribute_uses = [
+        row.model_copy(update={"sequence_depth": 1})
+        if row.id == "2026b.module.patient.attribute_use.3"
+        else row
+        for row in parsed.attribute_uses
+    ]
+    attribute_uses.extend(
+        [
+            AttributeUse(
+                id="2026b.macro.table_10_7.attribute_use.1",
+                edition_id="2026b",
+                owner_type="macro",
+                owner_id="2026b.macro.table_10_7",
+                row_kind="include",
+                included_macro_id=nested_macro.id,
+                include_target_text='Include Table 11-1 "Nested Device Macro"',
+                sequence_depth=1,
+                row_order=1,
+                source_ref=parsed.macros[0].source_ref,
+            ),
+            AttributeUse(
+                id="2026b.macro.table_11_1.attribute_use.0",
+                edition_id="2026b",
+                owner_type="macro",
+                owner_id=nested_macro.id,
+                row_kind="attribute",
+                attribute_tag="(0018,1000)",
+                attribute_keyword="DeviceSerialNumber",
+                attribute_name="Device Serial Number",
+                type_designation="3",
+                description_text="Nested device identifier.",
+                sequence_depth=0,
+                row_order=0,
+                source_ref=nested_source_ref,
+            ),
+        ]
+    )
+    if include_cycle:
+        attribute_uses.append(
+            AttributeUse(
+                id="2026b.macro.table_11_1.attribute_use.1",
+                edition_id="2026b",
+                owner_type="macro",
+                owner_id=nested_macro.id,
+                row_kind="include",
+                included_macro_id="2026b.macro.table_10_7",
+                include_target_text=(
+                    'Include Table 10-7 "General Anatomy Optional Macro"'
+                ),
+                sequence_depth=0,
+                row_order=1,
+                source_ref=nested_source_ref,
+            )
+        )
+    import_part03(
+        connection,
+        edition="2026b",
+        iods=parsed.iods,
+        modules=parsed.modules,
+        macros=[*parsed.macros, nested_macro],
+        iod_module_uses=parsed.iod_module_uses,
+        iod_functional_group_uses=parsed.iod_functional_group_uses,
+        attribute_uses=attribute_uses,
     )
     return connection
 
@@ -289,3 +386,73 @@ def test_list_attributes_for_module_expands_macros_after_include(
         "Patient Module Attributes",
         "General Anatomy Optional Macro Attributes",
     }
+
+
+def test_list_attributes_for_module_expands_nested_macros_with_effective_depth(
+    tmp_path: Path,
+) -> None:
+    response = list_attributes_for_module(
+        _part03_connection_with_recursive_macros(tmp_path),
+        module_name="Patient",
+        edition="2026b",
+        expand_macros=True,
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert response.status == "ok"
+    assert response.warnings == []
+    assert response.result is not None
+    attributes = response.result["attributes"]
+    anatomic = next(
+        row
+        for row in attributes
+        if row.get("attribute_name") == "Anatomic Region Sequence"
+    )
+    nested_include = next(
+        row
+        for row in attributes
+        if row["id"] == "2026b.macro.table_10_7.attribute_use.1"
+    )
+    device = next(
+        row for row in attributes if row.get("attribute_name") == "Device Serial Number"
+    )
+
+    assert anatomic["sequence_depth"] == 1
+    assert anatomic["expanded_from_include_id"] == (
+        "2026b.module.patient.attribute_use.3"
+    )
+    assert nested_include["sequence_depth"] == 2
+    assert nested_include["included_macro_name"] == "Nested Device Macro"
+    assert nested_include["expanded_from_include_id"] == (
+        "2026b.module.patient.attribute_use.3"
+    )
+    assert device["sequence_depth"] == 2
+    assert device["owner_name"] == "Nested Device Macro"
+    assert device["expanded_from_include_id"] == (
+        "2026b.macro.table_10_7.attribute_use.1"
+    )
+    assert {ref.table for ref in response.refs} >= {
+        "General Anatomy Optional Macro Attributes",
+        "Nested Device Macro Attributes",
+    }
+
+
+def test_list_attributes_for_module_reports_macro_include_cycles(
+    tmp_path: Path,
+) -> None:
+    response = list_attributes_for_module(
+        _part03_connection_with_recursive_macros(tmp_path, include_cycle=True),
+        module_name="Patient",
+        edition="2026b",
+        expand_macros=True,
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert response.status == "ok"
+    assert response.warnings == [
+        "skipped recursive macro include cycle: "
+        "2026b.macro.table_10_7 -> 2026b.macro.table_11_1 -> "
+        "2026b.macro.table_10_7"
+    ]

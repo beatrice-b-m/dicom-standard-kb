@@ -11,6 +11,7 @@ from dicom_kb.db.repositories import (
     Part03Repository,
     UIDRepository,
 )
+from dicom_kb.ir.models import AttributeUse
 from dicom_kb.ir.validators import (
     IdentifierValidationError,
     normalize_tag,
@@ -226,8 +227,13 @@ def list_attributes_for_module(
         owner_id=module.id,
         edition=edition,
     )
+    warnings: list[str] = []
     if expand_macros:
-        records = _expand_macro_includes(repository, records, edition=edition)
+        records, warnings = _expand_macro_includes(
+            repository,
+            records,
+            edition=edition,
+        )
     refs = _unique_refs(
         [standard_ref(module.source_ref)]
         + [standard_ref(record.attribute_use.source_ref) for record in records]
@@ -249,6 +255,7 @@ def list_attributes_for_module(
         status="ok",
         result=module_attributes_result(module, records),
         refs=refs,
+        warnings=warnings,
         trace=trace,
     )
 
@@ -297,28 +304,94 @@ def _expand_macro_includes(
     records: list[AttributeUseRecord],
     *,
     edition: str,
-) -> list[AttributeUseRecord]:
+) -> tuple[list[AttributeUseRecord], list[str]]:
     expanded: list[AttributeUseRecord] = []
+    warnings: list[str] = []
     for record in records:
         expanded.append(record)
         if record.attribute_use.row_kind != "include" or record.included_macro is None:
             continue
-        macro_records = repository.list_attribute_uses(
-            owner_type="macro",
-            owner_id=record.included_macro.id,
-            edition=edition,
-        )
         expanded.extend(
-            AttributeUseRecord(
-                attribute_use=macro_record.attribute_use,
-                owner_type="macro",
-                owner_name=record.included_macro.name,
-                included_macro=macro_record.included_macro,
-                expanded_from_include=record.attribute_use,
+            _expand_macro_record(
+                repository,
+                include_record=record,
+                edition=edition,
+                depth_offset=record.attribute_use.sequence_depth,
+                macro_stack=(record.included_macro.id,),
+                warnings=warnings,
             )
-            for macro_record in macro_records
+        )
+    return expanded, warnings
+
+
+def _expand_macro_record(
+    repository: Part03Repository,
+    *,
+    include_record: AttributeUseRecord,
+    edition: str,
+    depth_offset: int,
+    macro_stack: tuple[str, ...],
+    warnings: list[str],
+) -> list[AttributeUseRecord]:
+    if include_record.included_macro is None:
+        return []
+
+    expanded: list[AttributeUseRecord] = []
+    macro_records = repository.list_attribute_uses(
+        owner_type="macro",
+        owner_id=include_record.included_macro.id,
+        edition=edition,
+    )
+    for macro_record in macro_records:
+        effective_record = _effective_macro_record(
+            macro_record,
+            macro_name=include_record.included_macro.name,
+            expanded_from_include=include_record.attribute_use,
+            depth_offset=depth_offset,
+        )
+        expanded.append(effective_record)
+        if (
+            effective_record.attribute_use.row_kind != "include"
+            or effective_record.included_macro is None
+        ):
+            continue
+        if effective_record.included_macro.id in macro_stack:
+            warnings.append(
+                "skipped recursive macro include cycle: "
+                + " -> ".join((*macro_stack, effective_record.included_macro.id))
+            )
+            continue
+        expanded.extend(
+            _expand_macro_record(
+                repository,
+                include_record=effective_record,
+                edition=edition,
+                depth_offset=effective_record.attribute_use.sequence_depth,
+                macro_stack=(*macro_stack, effective_record.included_macro.id),
+                warnings=warnings,
+            )
         )
     return expanded
+
+
+def _effective_macro_record(
+    record: AttributeUseRecord,
+    *,
+    macro_name: str,
+    expanded_from_include: AttributeUse,
+    depth_offset: int,
+) -> AttributeUseRecord:
+    return AttributeUseRecord(
+        attribute_use=record.attribute_use.model_copy(
+            update={
+                "sequence_depth": record.attribute_use.sequence_depth + depth_offset
+            }
+        ),
+        owner_type="macro",
+        owner_name=macro_name,
+        included_macro=record.included_macro,
+        expanded_from_include=expanded_from_include,
+    )
 
 
 def _unique_refs(refs: list[StandardRef]) -> list[StandardRef]:
