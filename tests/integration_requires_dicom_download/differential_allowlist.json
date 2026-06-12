@@ -1,3 +1,54 @@
 {
-  "accepted_diffs": []
+  "accepted_diffs": [
+    {
+      "classification": "interpretation_issue",
+      "entity_type": "data_element",
+      "external": "pydicom",
+      "external_value": "1-n",
+      "field": "vm",
+      "id": "(0028,1200)",
+      "local": "1-n or 1",
+      "reason": "Official 2026b PS3.6 table_6-1 row keeps both VM alternatives; pydicom collapses this retired element to the broad repeated form."
+    },
+    {
+      "classification": "interpretation_issue",
+      "entity_type": "data_element",
+      "external": "pydicom",
+      "external_value": "1-n",
+      "field": "vm",
+      "id": "(0028,3006)",
+      "local": "1-n or 1",
+      "reason": "Official 2026b PS3.6 table_6-1 row keeps both VM alternatives; pydicom collapses this LUT data entry to the broad repeated form."
+    },
+    {
+      "classification": "edition_skew",
+      "entity_type": "data_element",
+      "external": "pydicom",
+      "external_value": "SummarizedFilterLookupTable",
+      "field": "keyword",
+      "id": "(003A,0320)",
+      "local": "SummarizedFilterLookupTableSequence",
+      "reason": "Official 2026b PS3.6 table_6-1 names this entry as a Sequence; the installed pydicom dictionary has the earlier non-Sequence keyword."
+    },
+    {
+      "classification": "edition_skew",
+      "entity_type": "data_element",
+      "external": "pydicom",
+      "external_value": "AnalogFilterType",
+      "field": "keyword",
+      "id": "(003A,0325)",
+      "local": "AnalogFilterTypeCodeSequence",
+      "reason": "Official 2026b PS3.6 table_6-1 names this entry as a Code Sequence; the installed pydicom dictionary has the earlier non-Sequence keyword."
+    },
+    {
+      "classification": "edition_skew",
+      "entity_type": "data_element",
+      "external": "pydicom",
+      "external_value": true,
+      "field": "retired",
+      "id": "(3004,0012)",
+      "local": false,
+      "reason": "Official 2026b PS3.6 table_6-1 has an empty retired marker for Dose Value; the installed pydicom dictionary still marks it retired."
+    }
+  ]
 }

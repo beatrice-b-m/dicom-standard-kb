@@ -346,14 +346,36 @@ def _pydicom_tag(value: object) -> str | None:
 def _pydicom_record(value: object) -> dict[str, object] | None:
     if not isinstance(value, tuple) or len(value) < 5:
         return None
-    vr, vm, name, keyword, retired = value[:5]
+    vr, vm, name, retired, keyword = value[:5]
+    name_text = _normalize_pydicom_name(name)
+    is_retired_blank = name_text == "Retired-blank"
     return {
-        "name": _normalize_value(name),
+        "name": "" if is_retired_blank else _strip_pydicom_retired_marker(name_text),
         "keyword": _normalize_value(keyword),
-        "vr": _normalize_value(vr),
-        "vm": _normalize_value(vm),
+        "vr": None if is_retired_blank else _normalize_pydicom_vr(vr),
+        "vm": None if is_retired_blank else _normalize_value(vm),
         "retired": _pydicom_retired_value(retired),
     }
+
+
+def _normalize_pydicom_name(value: object) -> str | None:
+    text = _normalize_value(value)
+    if text is None:
+        return None
+    return text.replace(" uAs", " µAs").replace(" uS", " µS").replace(" uA", " µA")
+
+
+def _strip_pydicom_retired_marker(value: str | None) -> str | None:
+    if value is None:
+        return None
+    return _normalize_value(value.replace(" (Retired)", ""))
+
+
+def _normalize_pydicom_vr(value: object) -> str | None:
+    text = _normalize_value(value)
+    if text == "NONE":
+        return "See Note"
+    return text
 
 
 def _pydicom_retired_value(value: object) -> bool | None:
