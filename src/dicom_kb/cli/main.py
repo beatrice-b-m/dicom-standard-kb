@@ -11,6 +11,7 @@ import typer
 from pydantic import BaseModel
 
 from dicom_kb.build import build_sqlite_database, default_db_path
+from dicom_kb.eval.reporting import report_as_jsonable, score_agent_run_file
 from dicom_kb.mcp.server import (
     MCPServerConfig,
     MissingMCPDependencyError,
@@ -50,11 +51,13 @@ iod_app = typer.Typer(help="Query PS3.3 IOD graph records.")
 module_app = typer.Typer(help="Query PS3.3 module graph records.")
 resolve_app = typer.Typer(help="Resolve DICOM facts in a usage context.")
 mcp_app = typer.Typer(help="Run the MCP server adapter.")
+eval_app = typer.Typer(help="Run agent regression scoring utilities.")
 app.add_typer(lookup_app, name="lookup")
 app.add_typer(iod_app, name="iod")
 app.add_typer(module_app, name="module")
 app.add_typer(resolve_app, name="resolve")
 app.add_typer(mcp_app, name="mcp")
+app.add_typer(eval_app, name="eval")
 
 
 @app.callback()
@@ -294,6 +297,43 @@ def mcp_serve_command(
         raise typer.Exit(code=1) from exc
     except FileNotFoundError as exc:
         raise typer.BadParameter(str(exc)) from exc
+
+
+@eval_app.command("score")
+def eval_score_command(
+    transcript: Annotated[
+        Path,
+        typer.Argument(
+            help=(
+                "JSON AgentRun transcript, list of transcripts, or object with "
+                "a top-level runs list."
+            ),
+        ),
+    ],
+    output: Annotated[
+        Path | None,
+        typer.Option("--output", help="Write the JSON scorecard report to a file."),
+    ] = None,
+    fail_on_issues: Annotated[
+        bool,
+        typer.Option(
+            "--fail-on-issues/--no-fail-on-issues",
+            help="Exit nonzero when any transcript fails scoring.",
+        ),
+    ] = True,
+) -> None:
+    """Score recorded agent runs against committed regression cases."""
+    if not transcript.exists():
+        raise typer.BadParameter(f"agent transcript does not exist: {transcript}")
+    report = score_agent_run_file(transcript)
+    payload = json.dumps(report_as_jsonable(report), indent=2, sort_keys=True)
+    if output is None:
+        typer.echo(payload)
+    else:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(payload + "\n", encoding="utf-8")
+    if fail_on_issues and report.failed_runs:
+        raise typer.Exit(code=1)
 
 
 @app.command("retrieve-text")

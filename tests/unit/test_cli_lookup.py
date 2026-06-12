@@ -631,3 +631,54 @@ def test_cli_resolve_attribute_context_outputs_effective_type(
     assert payload["result"]["attribute"]["tag"] == "(0010,0010)"
     assert payload["result"]["uses"][0]["module"] == "Patient"
     assert payload["result"]["effective_type"] == "2"
+
+
+def test_cli_eval_score_outputs_agent_report(tmp_path: Path) -> None:
+    transcript = tmp_path / "agent-runs.json"
+    transcript.write_text(
+        json.dumps(
+            [
+                {
+                    "case_id": "agent.ps36.transfer_syntax",
+                    "edition": "2026b",
+                    "answer": (
+                        "For edition 2026b, Explicit VR Big Endian is retired; "
+                        "PS3.6 source references are present."
+                    ),
+                    "tool_calls": [
+                        {
+                            "tool": "dicom_lookup_uid",
+                            "arguments": {"uid_or_keyword": "ExplicitVRBigEndian"},
+                            "response_status": "ok",
+                            "response_edition": "2026b",
+                            "response_ref_count": 1,
+                        }
+                    ],
+                },
+                {
+                    "case_id": "agent.unknown",
+                    "edition": "2026b",
+                    "answer": "No committed prompt case exists.",
+                    "tool_calls": [],
+                },
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "eval",
+            "score",
+            str(transcript),
+            "--no-fail-on-issues",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["total_runs"] == 2
+    assert payload["passed_runs"] == 1
+    assert payload["failed_runs"] == 1
+    assert payload["scorecards"][1]["issues"][0]["code"] == "unknown_case"
