@@ -57,6 +57,103 @@ class UIDRegistryEntry(BaseModel):
     source_ref: SourceRef
 
 
+class IOD(BaseModel):
+    """PS3.3 Information Object Definition."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    edition_id: str
+    name: str
+    keyword: str | None = None
+    iod_type: str | None = None
+    part: str = "PS3.3"
+    section: str | None = None
+    source_ref: SourceRef
+
+
+class Module(BaseModel):
+    """PS3.3 module definition."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    edition_id: str
+    name: str
+    section: str | None = None
+    description: str | None = None
+    source_ref: SourceRef
+
+
+class Macro(BaseModel):
+    """PS3.3 reusable macro definition."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    edition_id: str
+    name: str
+    table_id: str | None = None
+    section: str | None = None
+    macro_kind: str | None = None
+    source_ref: SourceRef
+
+
+class IODModuleUse(BaseModel):
+    """A module listed in an IOD module table."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    edition_id: str
+    iod_id: str
+    information_entity: str | None
+    module_id: str
+    usage: str
+    usage_condition_text: str | None = None
+    condition_id: str | None = None
+    source_ref: SourceRef
+
+
+class IODFunctionalGroupUse(BaseModel):
+    """A functional group macro listed for an IOD."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    edition_id: str
+    iod_id: str
+    macro_id: str
+    usage: str
+    usage_condition_text: str | None = None
+    condition_id: str | None = None
+    source_ref: SourceRef
+
+
+class AttributeUse(BaseModel):
+    """An attribute or include row owned by a PS3.3 module or macro."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    edition_id: str
+    owner_type: str
+    owner_id: str
+    parent_attribute_use_id: str | None = None
+    row_kind: str
+    attribute_tag: str | None = None
+    attribute_keyword: str | None = None
+    attribute_name: str | None = None
+    type_designation: str | None = None
+    description_text: str | None = None
+    condition_id: str | None = None
+    included_macro_id: str | None = None
+    include_target_text: str | None = None
+    sequence_depth: int = 0
+    row_order: int
+    source_ref: SourceRef
+
+
 class ParserWarning(BaseModel):
     """Structured parser warning."""
 
