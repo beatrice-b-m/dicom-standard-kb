@@ -9,6 +9,7 @@ from typing import Annotated
 
 import typer
 
+from dicom_kb.build import build_sqlite_database, default_db_path
 from dicom_kb.metadata import LEGAL_NOTICE, __version__
 from dicom_kb.query.answer_contracts import ToolResponse
 from dicom_kb.query.resolver import (
@@ -21,6 +22,11 @@ from dicom_kb.query.resolver import (
     resolve_attribute_context,
     retrieve_standard_text,
     search_standard_text,
+)
+from dicom_kb.sources.downloader import (
+    DEFAULT_CACHE_DIR,
+    ArtifactRequest,
+    register_local_artifacts,
 )
 
 app = typer.Typer(help="Build and query a local DICOM standard knowledge base.")
@@ -52,9 +58,77 @@ def doctor() -> None:
 
 
 @app.command("build-fixture")
-def build_fixture() -> None:
-    """Placeholder command for synthetic fixture ingestion."""
-    typer.echo("Synthetic fixture ingestion is not implemented yet.")
+def build_fixture(
+    edition: Annotated[
+        str,
+        typer.Option("--edition", help="Concrete synthetic fixture edition label."),
+    ] = "2026b",
+    cache_dir: Annotated[
+        Path,
+        typer.Option(
+            "--cache-dir",
+            help="Local dicom-kb cache directory.",
+        ),
+    ] = DEFAULT_CACHE_DIR,
+    db: Annotated[
+        Path | None,
+        typer.Option("--db", help="Output SQLite path. Defaults under cache db/."),
+    ] = None,
+    force: Annotated[
+        bool,
+        typer.Option("--force", help="Overwrite existing fixture artifacts and DB."),
+    ] = False,
+) -> None:
+    """Build a small synthetic SQLite KB for offline development."""
+    artifacts = _synthetic_fixture_artifacts(edition)
+    register_local_artifacts(
+        edition=edition,
+        artifacts=artifacts,
+        cache_dir=cache_dir,
+        force=force,
+    )
+    summary = build_sqlite_database(
+        edition=edition,
+        cache_dir=cache_dir,
+        db_path=db,
+        force=force,
+    )
+    typer.echo(json.dumps(summary.as_jsonable(), indent=2, sort_keys=True))
+
+
+@app.command("build")
+def build_command(
+    edition: Annotated[
+        str,
+        typer.Option("--edition", help="Concrete DICOM edition label."),
+    ],
+    cache_dir: Annotated[
+        Path,
+        typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
+    ] = DEFAULT_CACHE_DIR,
+    db: Annotated[
+        Path | None,
+        typer.Option("--db", help="Output SQLite path. Defaults under cache db/."),
+    ] = None,
+    backend: Annotated[
+        str,
+        typer.Option("--backend", help="Database backend. Only sqlite is supported."),
+    ] = "sqlite",
+    force: Annotated[
+        bool,
+        typer.Option("--force", help="Overwrite an existing SQLite database."),
+    ] = False,
+) -> None:
+    """Build a SQLite KB from cached DocBook artifacts."""
+    if backend != "sqlite":
+        raise typer.BadParameter("only the sqlite backend is supported in v1")
+    summary = build_sqlite_database(
+        edition=edition,
+        cache_dir=cache_dir,
+        db_path=db,
+        force=force,
+    )
+    typer.echo(json.dumps(summary.as_jsonable(), indent=2, sort_keys=True))
 
 
 @app.command("retrieve-text")
@@ -67,21 +141,25 @@ def retrieve_text_command(
         str,
         typer.Argument(help="DocBook xml:id, HTML anchor, or section number."),
     ],
-    db: Annotated[
-        Path,
-        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
-    ],
     edition: Annotated[
         str,
         typer.Option("--edition", help="Concrete DICOM edition label."),
     ],
+    db: Annotated[
+        Path | None,
+        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
+    ] = None,
+    cache_dir: Annotated[
+        Path,
+        typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
+    ] = DEFAULT_CACHE_DIR,
     max_chars: Annotated[
         int,
         typer.Option("--max-chars", help="Maximum excerpt characters to return."),
     ] = 800,
 ) -> None:
     """Retrieve a capped excerpt from persisted standard text."""
-    with _connect_existing_db(db) as connection:
+    with _connect_query_db(db, cache_dir=cache_dir, edition=edition) as connection:
         _echo_response(
             retrieve_standard_text(
                 connection,
@@ -99,14 +177,18 @@ def search_text_command(
         str,
         typer.Argument(help="Full-text query over persisted DocBook text."),
     ],
-    db: Annotated[
-        Path,
-        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
-    ],
     edition: Annotated[
         str,
         typer.Option("--edition", help="Concrete DICOM edition label."),
     ],
+    db: Annotated[
+        Path | None,
+        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
+    ] = None,
+    cache_dir: Annotated[
+        Path,
+        typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
+    ] = DEFAULT_CACHE_DIR,
     part_filter: Annotated[
         str | None,
         typer.Option("--part", help="Optional DICOM part label, for example PS3.3."),
@@ -117,7 +199,7 @@ def search_text_command(
     ] = 10,
 ) -> None:
     """Search persisted standard text with SQLite FTS5."""
-    with _connect_existing_db(db) as connection:
+    with _connect_query_db(db, cache_dir=cache_dir, edition=edition) as connection:
         _echo_response(
             search_standard_text(
                 connection,
@@ -135,17 +217,21 @@ def lookup_tag(
         str,
         typer.Argument(help="DICOM tag like (0008,0060), range tag, or keyword."),
     ],
-    db: Annotated[
-        Path,
-        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
-    ],
     edition: Annotated[
         str,
         typer.Option("--edition", help="Concrete DICOM edition label."),
     ],
+    db: Annotated[
+        Path | None,
+        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
+    ] = None,
+    cache_dir: Annotated[
+        Path,
+        typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
+    ] = DEFAULT_CACHE_DIR,
 ) -> None:
     """Look up a PS3.6 data element by tag or keyword."""
-    with _connect_existing_db(db) as connection:
+    with _connect_query_db(db, cache_dir=cache_dir, edition=edition) as connection:
         _echo_response(
             lookup_data_element(
                 connection,
@@ -161,17 +247,21 @@ def lookup_uid_command(
         str,
         typer.Argument(help="DICOM UID value or UID keyword."),
     ],
-    db: Annotated[
-        Path,
-        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
-    ],
     edition: Annotated[
         str,
         typer.Option("--edition", help="Concrete DICOM edition label."),
     ],
+    db: Annotated[
+        Path | None,
+        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
+    ] = None,
+    cache_dir: Annotated[
+        Path,
+        typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
+    ] = DEFAULT_CACHE_DIR,
 ) -> None:
     """Look up a PS3.6 UID registry entry by UID value or keyword."""
-    with _connect_existing_db(db) as connection:
+    with _connect_query_db(db, cache_dir=cache_dir, edition=edition) as connection:
         _echo_response(
             lookup_uid(
                 connection,
@@ -187,17 +277,21 @@ def lookup_iod_command(
         str,
         typer.Argument(help="DICOM IOD name or keyword, for example 'CT Image'."),
     ],
-    db: Annotated[
-        Path,
-        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
-    ],
     edition: Annotated[
         str,
         typer.Option("--edition", help="Concrete DICOM edition label."),
     ],
+    db: Annotated[
+        Path | None,
+        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
+    ] = None,
+    cache_dir: Annotated[
+        Path,
+        typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
+    ] = DEFAULT_CACHE_DIR,
 ) -> None:
     """Look up a PS3.3 IOD by name or keyword."""
-    with _connect_existing_db(db) as connection:
+    with _connect_query_db(db, cache_dir=cache_dir, edition=edition) as connection:
         _echo_response(
             lookup_iod(
                 connection,
@@ -213,17 +307,21 @@ def lookup_sop_class_command(
         str,
         typer.Argument(help="DICOM SOP Class UID, name, or UID keyword."),
     ],
-    db: Annotated[
-        Path,
-        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
-    ],
     edition: Annotated[
         str,
         typer.Option("--edition", help="Concrete DICOM edition label."),
     ],
+    db: Annotated[
+        Path | None,
+        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
+    ] = None,
+    cache_dir: Annotated[
+        Path,
+        typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
+    ] = DEFAULT_CACHE_DIR,
 ) -> None:
     """Look up a PS3.4 SOP Class and linked IODs."""
-    with _connect_existing_db(db) as connection:
+    with _connect_query_db(db, cache_dir=cache_dir, edition=edition) as connection:
         _echo_response(
             lookup_sop_class(
                 connection,
@@ -239,17 +337,21 @@ def iod_modules(
         str,
         typer.Argument(help="DICOM IOD name or keyword, for example 'CT Image'."),
     ],
-    db: Annotated[
-        Path,
-        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
-    ],
     edition: Annotated[
         str,
         typer.Option("--edition", help="Concrete DICOM edition label."),
     ],
+    db: Annotated[
+        Path | None,
+        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
+    ] = None,
+    cache_dir: Annotated[
+        Path,
+        typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
+    ] = DEFAULT_CACHE_DIR,
 ) -> None:
     """List PS3.3 modules used by an IOD."""
-    with _connect_existing_db(db) as connection:
+    with _connect_query_db(db, cache_dir=cache_dir, edition=edition) as connection:
         _echo_response(
             list_modules_for_iod(
                 connection,
@@ -265,14 +367,18 @@ def module_attributes(
         str,
         typer.Argument(help="DICOM module name, for example 'Patient'."),
     ],
-    db: Annotated[
-        Path,
-        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
-    ],
     edition: Annotated[
         str,
         typer.Option("--edition", help="Concrete DICOM edition label."),
     ],
+    db: Annotated[
+        Path | None,
+        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
+    ] = None,
+    cache_dir: Annotated[
+        Path,
+        typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
+    ] = DEFAULT_CACHE_DIR,
     expand_macros: Annotated[
         bool,
         typer.Option(
@@ -282,7 +388,7 @@ def module_attributes(
     ] = False,
 ) -> None:
     """List PS3.3 attributes used by a module."""
-    with _connect_existing_db(db) as connection:
+    with _connect_query_db(db, cache_dir=cache_dir, edition=edition) as connection:
         _echo_response(
             list_attributes_for_module(
                 connection,
@@ -299,14 +405,18 @@ def resolve_attribute_context_command(
         str,
         typer.Argument(help="DICOM attribute tag, keyword, or name."),
     ],
-    db: Annotated[
-        Path,
-        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
-    ],
     edition: Annotated[
         str,
         typer.Option("--edition", help="Concrete DICOM edition label."),
     ],
+    db: Annotated[
+        Path | None,
+        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
+    ] = None,
+    cache_dir: Annotated[
+        Path,
+        typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
+    ] = DEFAULT_CACHE_DIR,
     iod_name: Annotated[
         str | None,
         typer.Option("--iod", help="DICOM IOD name or keyword context."),
@@ -317,7 +427,7 @@ def resolve_attribute_context_command(
     ] = None,
 ) -> None:
     """Resolve an attribute's PS3.3 use and effective type in context."""
-    with _connect_existing_db(db) as connection:
+    with _connect_query_db(db, cache_dir=cache_dir, edition=edition) as connection:
         _echo_response(
             resolve_attribute_context(
                 connection,
@@ -327,6 +437,14 @@ def resolve_attribute_context_command(
                 sop_class=sop_class,
             )
         )
+
+
+def _connect_query_db(
+    path: Path | None, *, cache_dir: Path, edition: str
+) -> sqlite3.Connection:
+    return _connect_existing_db(
+        path if path is not None else default_db_path(cache_dir, edition)
+    )
 
 
 def _connect_existing_db(path: Path) -> sqlite3.Connection:
@@ -341,3 +459,34 @@ def _connect_existing_db(path: Path) -> sqlite3.Connection:
 def _echo_response(response: ToolResponse) -> None:
     payload = response.model_dump(mode="json", exclude_none=True)
     typer.echo(json.dumps(payload, indent=2, sort_keys=True))
+
+
+def _synthetic_fixture_artifacts(edition: str) -> list[ArtifactRequest]:
+    fixture_dir = Path(__file__).resolve().parents[3] / "tests" / "fixtures_synthetic"
+    fixtures = {
+        "PS3.3": fixture_dir / "synthetic_ps3_3_ct_image_docbook.xml",
+        "PS3.4": fixture_dir / "synthetic_ps3_4_sop_classes_docbook.xml",
+        "PS3.6": fixture_dir / "synthetic_ps3_6_registry_docbook.xml",
+    }
+    missing = [str(path) for path in fixtures.values() if not path.exists()]
+    if missing:
+        raise typer.BadParameter(
+            "synthetic fixture files are unavailable: " + ", ".join(missing)
+        )
+    return [
+        ArtifactRequest(
+            part=part,
+            format="docbook_xml",
+            source=path,
+            destination=_docbook_destination(edition, part),
+        )
+        for part, path in fixtures.items()
+    ]
+
+
+def _docbook_destination(edition: str, part: str) -> str:
+    part_number = part.removeprefix("PS3.").zfill(2)
+    return (
+        f"artifacts/{edition}/raw/source/docbook/part{part_number}/"
+        f"part{part_number}.xml"
+    )

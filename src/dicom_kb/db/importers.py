@@ -7,6 +7,7 @@ import json
 import sqlite3
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass
+from datetime import datetime
 
 from dicom_kb.docbook.parser import ParsedDocument
 from dicom_kb.ir.models import (
@@ -93,6 +94,48 @@ def import_manifest(connection: sqlite3.Connection, manifest: SourceManifest) ->
                     manifest.acquired_at.isoformat(),
                 ),
             )
+
+
+def import_build_metadata(
+    connection: sqlite3.Connection,
+    *,
+    edition: str,
+    built_at: datetime,
+    parser_version: str,
+    schema_version: str,
+    source_manifest_sha256: str,
+    source_urls: Iterable[str],
+    source_sha256: dict[str, str],
+    repository_commit: str | None = None,
+) -> None:
+    """Record reproducible build metadata for a generated SQLite database."""
+    metadata = {
+        "edition": edition,
+        "source_urls": tuple(source_urls),
+        "source_sha256": source_sha256,
+        "built_at": built_at.isoformat(),
+        "parser_version": parser_version,
+        "schema_version": schema_version,
+        "repository_commit": repository_commit,
+    }
+    with connection:
+        connection.execute(
+            """
+            INSERT OR REPLACE INTO build_metadata (
+              edition_id, built_at, parser_version, schema_version,
+              source_manifest_sha256, repository_commit, metadata_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                edition,
+                built_at.isoformat(),
+                parser_version,
+                schema_version,
+                source_manifest_sha256,
+                repository_commit,
+                json.dumps(metadata, sort_keys=True, separators=(",", ":")),
+            ),
+        )
 
 
 def import_docbook_structure(

@@ -252,6 +252,44 @@ def test_cli_lookup_tag_requires_existing_db(tmp_path: Path) -> None:
     assert "SQLite KB does not exist" in result.output
 
 
+def test_cli_build_fixture_creates_default_db_for_lookups(tmp_path: Path) -> None:
+    cache_dir = tmp_path / "cache"
+    runner = CliRunner()
+
+    build_result = runner.invoke(
+        app,
+        [
+            "build-fixture",
+            "--edition",
+            "2026b",
+            "--cache-dir",
+            str(cache_dir),
+        ],
+    )
+
+    assert build_result.exit_code == 0, build_result.output
+    build_payload = json.loads(build_result.output)
+    assert build_payload["db_path"] == str(cache_dir / "db" / "2026b.sqlite")
+
+    lookup_result = runner.invoke(
+        app,
+        [
+            "lookup",
+            "tag",
+            "Modality",
+            "--edition",
+            "2026b",
+            "--cache-dir",
+            str(cache_dir),
+        ],
+    )
+
+    assert lookup_result.exit_code == 0, lookup_result.output
+    payload = json.loads(lookup_result.output)
+    assert payload["status"] == "ok"
+    assert payload["result"]["tag"] == "(0008,0060)"
+
+
 def test_cli_iod_modules_outputs_ps33_module_envelope(tmp_path: Path) -> None:
     payload = _invoke_json(
         tmp_path,
