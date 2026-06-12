@@ -62,6 +62,9 @@ working offline foundation through:
 20. CLI workflow commands `dicom-kb fetch`, `dicom-kb build`, and
     `dicom-kb build-fixture`, plus default cache/database discovery for query
     commands when `--db` is omitted.
+21. First v1 MCP server adapter exposing the implemented query resolvers as
+    spec-prefixed `dicom_*` tools, with a `dicom-kb mcp serve` CLI command
+    over stdio and optional dependency handling.
 
 ## Completed commits
 
@@ -94,18 +97,19 @@ working offline foundation through:
 - `03631f8 feat(query): search persisted standard text`
 - `c05d12f feat(cli): build local SQLite knowledge bases`
 - `8890264 feat(cli): register local DocBook artifacts`
+- `63dbfb9 feat(mcp): expose query resolvers as MCP tools`
 
 ## Verification at stop
 
-The following offline checks passed after local fetch/build CLI work:
+The following offline checks passed after the MCP server adapter work:
 
 ```bash
-make lint
-uv run mypy
-uv run pytest
+uv run --dev ruff check .
+uv run --dev mypy
+uv run --dev pytest
 ```
 
-Observed test count: 72 passing tests.
+Observed test count: 79 passing tests.
 
 ## Implemented behavior
 
@@ -222,6 +226,14 @@ Observed test count: 72 passing tests.
 - Shared synthetic DocBook XML fixture files for current PS3.3, PS3.4, and
   PS3.6 parser coverage, with importer/query/CLI tests consuming the same
   fixture source.
+- MCP server adapter for the nine v1 query tools:
+  `dicom_lookup_data_element`, `dicom_lookup_uid`,
+  `dicom_lookup_sop_class`, `dicom_lookup_iod`,
+  `dicom_list_modules_for_iod`, `dicom_list_attributes_for_module`,
+  `dicom_resolve_attribute_context`, `dicom_retrieve_standard_text`, and
+  `dicom_search_standard_text`.
+- `dicom-kb mcp serve --edition <edition>` command serving the MCP adapter
+  over stdio from an explicit `--db` or the conventional cache database.
 
 ## Not yet implemented
 
@@ -235,7 +247,8 @@ Observed test count: 72 passing tests.
   Order H). Graph traversal and FTS5-backed text search currently live in
   resolvers/repositories.
 - General citation builder beyond direct source-ref conversion.
-- MCP server tool surface.
+- MCP server is present for the implemented v1 query resolvers. Additional
+  MCP integration testing against a real MCP client is still pending.
 - Agent regression harness.
 - Golden fixture coverage (SYSTEM_SPECS.md section 15.2) beyond the single
   synthetic CT-style PS3.3 fixture and PS3.6 registry fixture: MR Image,
@@ -254,11 +267,12 @@ if run:
 
 - `make test-integration` points at `tests/integration_requires_dicom_download/`,
   which does not exist yet (pytest exits with a collection error).
-- `make run-mcp` invokes `dicom-kb mcp serve`, a CLI command that does not
-  exist yet.
+- `make run-mcp` now invokes the MCP stdio server with the optional `mcp`
+  extra, but it still requires a local `2026b` database to exist in the
+  conventional cache path.
 
 ## Recommended next work order
 
-Continue the v1 critical path by adding the MCP server tool surface over the
-implemented query resolvers, or by adding official edition URL discovery for
-networked fetches if source acquisition should be completed first.
+Continue the v1 critical path by adding MCP client-level integration tests
+and the agent regression harness, or by adding official edition URL discovery
+for networked fetches if source acquisition should be completed first.
