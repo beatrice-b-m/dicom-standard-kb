@@ -127,6 +127,18 @@ def test_import_docbook_structure_persists_nodes_xrefs_and_table_ir(
     assert payload["rows"][1]["cells"][1]["text"] == "Patient"
     assert len(raw_table["ir_sha256"]) == 64
 
+    fts_match = connection.execute(
+        """
+        SELECT node_id
+        FROM doc_node_fts
+        WHERE doc_node_fts MATCH ?
+        ORDER BY node_id
+        LIMIT 1
+        """,
+        ('"Patient" AND "name"',),
+    ).fetchone()
+    assert fts_match["node_id"] == "2026b.PS3.3.sect_C.7.1.1"
+
 
 def test_range_tag_lookup_returns_match_warning(tmp_path: Path) -> None:
     connection = _connection(tmp_path)

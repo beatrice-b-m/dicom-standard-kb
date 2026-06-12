@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from dicom_kb.db.repositories import (
     AttributeUseRecord,
+    DocumentSearchResult,
     IODModuleUseRecord,
     SOPClassIODRecord,
 )
@@ -212,6 +213,23 @@ def standard_text_result(
             }
             for table in tables
         ],
+    }
+
+
+def standard_text_search_result(records: list[DocumentSearchResult]) -> dict[str, Any]:
+    """Return the public result payload for standard text search."""
+    return {
+        "matches": [
+            {
+                "part": record.node.part,
+                "section": record.node.number or record.node.xml_id,
+                "anchor": record.node.anchor,
+                "node_type": record.node.node_type,
+                "title": record.node.title,
+                "snippet": record.snippet,
+            }
+            for record in records
+        ]
     }
 
 

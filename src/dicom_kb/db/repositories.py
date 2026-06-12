@@ -51,6 +51,14 @@ class SOPClassIODRecord:
     iod: IOD
 
 
+@dataclass(frozen=True)
+class DocumentSearchResult:
+    """A matched DocBook node with a short full-text search snippet."""
+
+    node: DocNode
+    snippet: str
+
+
 class DocumentRepository:
     """Lookup persisted DocBook structure for citation-preserving retrieval."""
 
@@ -123,6 +131,41 @@ class DocumentRepository:
             (node.id, edition, edition),
         ).fetchall()
         return [_doc_node_from_row(row) for row in rows]
+
+    def search_text(
+        self,
+        *,
+        fts_query: str,
+        edition: str,
+        part_filter: str | None = None,
+        limit: int = 10,
+    ) -> list[DocumentSearchResult]:
+        """Search persisted DocBook text with SQLite FTS5."""
+        rows = self.connection.execute(
+            """
+            SELECT dn.*, sr.part AS source_part, sr.section AS source_section,
+                   sr.table_id AS source_table_id, sr.xml_id AS source_xml_id,
+                   sr.title AS source_title, sr.canonical_url AS source_url,
+                   snippet(doc_node_fts, -1, '', '', '...', 32) AS snippet,
+                   bm25(doc_node_fts) AS rank
+            FROM doc_node_fts
+            JOIN doc_node dn ON dn.id = doc_node_fts.node_id
+            JOIN source_ref sr ON sr.id = dn.source_ref_id
+            WHERE doc_node_fts MATCH ?
+              AND doc_node_fts.edition_id = ?
+              AND (? IS NULL OR doc_node_fts.part = ?)
+            ORDER BY rank, dn.part, dn.ordinal
+            LIMIT ?
+            """,
+            (fts_query, edition, part_filter, part_filter, limit),
+        ).fetchall()
+        return [
+            DocumentSearchResult(
+                node=_doc_node_from_row(row),
+                snippet=str(row["snippet"] or ""),
+            )
+            for row in rows
+        ]
 
 
 class DataElementRepository:

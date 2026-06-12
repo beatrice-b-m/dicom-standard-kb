@@ -25,6 +25,7 @@ from dicom_kb.query.resolver import (
     lookup_uid,
     resolve_attribute_context,
     retrieve_standard_text,
+    search_standard_text,
 )
 from tests.fixtures_synthetic import (
     PS33_CT_IMAGE_DOCBOOK,
@@ -443,6 +444,77 @@ def test_retrieve_standard_text_reports_not_found(tmp_path: Path) -> None:
 
     assert response.status == "not_found"
     assert response.result == {"message": "No standard text node matched the input."}
+    assert response.refs == []
+
+
+def test_search_standard_text_returns_cited_matches(tmp_path: Path) -> None:
+    response = search_standard_text(
+        _doc_connection(tmp_path),
+        query="Patient name",
+        edition="2026b",
+        part_filter="PS3.3",
+        limit=5,
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert response.status == "ok"
+    assert response.result is not None
+    matches = response.result["matches"]
+    assert matches[0]["part"] == "PS3.3"
+    assert matches[0]["title"] in {"Patient Module", "Patient Module Attributes"}
+    assert "Patient" in matches[0]["snippet"]
+    assert {ref.part for ref in response.refs} == {"PS3.3"}
+    assert response.input == {
+        "query": "Patient name",
+        "limit": "5",
+        "part_filter": "PS3.3",
+    }
+    assert response.trace.query_id == "query-1"
+
+
+def test_search_standard_text_validates_inputs(tmp_path: Path) -> None:
+    connection = _doc_connection(tmp_path)
+
+    response = search_standard_text(
+        connection,
+        query="   ",
+        edition="2026b",
+    )
+    assert response.status == "validation_error"
+    assert response.result is not None
+    assert "query must not be empty" in str(response.result["message"])
+
+    response = search_standard_text(
+        connection,
+        query="Patient",
+        edition="2026b",
+        part_filter="3.3",
+    )
+    assert response.status == "validation_error"
+    assert response.result is not None
+    assert "part_filter" in str(response.result["message"])
+
+    response = search_standard_text(
+        connection,
+        query="Patient",
+        edition="2026b",
+        limit=0,
+    )
+    assert response.status == "validation_error"
+    assert response.result is not None
+    assert "limit" in str(response.result["message"])
+
+
+def test_search_standard_text_reports_not_found(tmp_path: Path) -> None:
+    response = search_standard_text(
+        _doc_connection(tmp_path),
+        query="ultrasound elastography",
+        edition="2026b",
+    )
+
+    assert response.status == "not_found"
+    assert response.result == {"message": "No standard text matched the query."}
     assert response.refs == []
 
 

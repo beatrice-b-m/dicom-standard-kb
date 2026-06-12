@@ -20,6 +20,7 @@ from dicom_kb.query.resolver import (
     lookup_uid,
     resolve_attribute_context,
     retrieve_standard_text,
+    search_standard_text,
 )
 
 app = typer.Typer(help="Build and query a local DICOM standard knowledge base.")
@@ -88,6 +89,42 @@ def retrieve_text_command(
                 section_or_anchor=section_or_anchor,
                 edition=edition,
                 max_chars=max_chars,
+            )
+        )
+
+
+@app.command("search-text")
+def search_text_command(
+    query: Annotated[
+        str,
+        typer.Argument(help="Full-text query over persisted DocBook text."),
+    ],
+    db: Annotated[
+        Path,
+        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
+    ],
+    edition: Annotated[
+        str,
+        typer.Option("--edition", help="Concrete DICOM edition label."),
+    ],
+    part_filter: Annotated[
+        str | None,
+        typer.Option("--part", help="Optional DICOM part label, for example PS3.3."),
+    ] = None,
+    limit: Annotated[
+        int,
+        typer.Option("--limit", help="Maximum number of matches to return."),
+    ] = 10,
+) -> None:
+    """Search persisted standard text with SQLite FTS5."""
+    with _connect_existing_db(db) as connection:
+        _echo_response(
+            search_standard_text(
+                connection,
+                query=query,
+                edition=edition,
+                part_filter=part_filter,
+                limit=limit,
             )
         )
 

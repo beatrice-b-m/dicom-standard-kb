@@ -482,6 +482,20 @@ def _insert_doc_node(connection: sqlite3.Connection, node: DocNode) -> None:
             node.source_ref.id,
         ),
     )
+    connection.execute(
+        """
+        INSERT INTO doc_node_fts (
+          node_id, edition_id, part, title, plain_text
+        ) VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            node.id,
+            node.edition_id,
+            node.part,
+            node.title,
+            node.plain_text,
+        ),
+    )
 
 
 def _insert_xref(connection: sqlite3.Connection, xref: Xref) -> None:

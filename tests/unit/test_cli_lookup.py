@@ -174,6 +174,31 @@ def test_cli_retrieve_text_outputs_capped_excerpt(tmp_path: Path) -> None:
     assert payload["warnings"] == ["text excerpt truncated to 60 characters"]
 
 
+def test_cli_search_text_outputs_matches(tmp_path: Path) -> None:
+    payload = _invoke_json(
+        tmp_path,
+        "search-text",
+        "Patient name",
+        "--edition",
+        "2026b",
+        "--part",
+        "PS3.3",
+        "--limit",
+        "3",
+    )
+
+    assert payload["tool"] == "search_standard_text"
+    assert payload["status"] == "ok"
+    assert payload["input"] == {
+        "limit": "3",
+        "part_filter": "PS3.3",
+        "query": "Patient name",
+    }
+    assert payload["result"]["matches"][0]["part"] == "PS3.3"
+    assert "Patient" in payload["result"]["matches"][0]["snippet"]
+    assert {ref["part"] for ref in payload["refs"]} == {"PS3.3"}
+
+
 def test_cli_lookup_iod_outputs_ps33_iod(tmp_path: Path) -> None:
     payload = _invoke_json(
         tmp_path,

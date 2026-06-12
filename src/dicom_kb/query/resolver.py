@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
@@ -34,6 +35,7 @@ from dicom_kb.query.answer_contracts import (
     sop_class_result,
     standard_ref,
     standard_text_result,
+    standard_text_search_result,
     uid_result,
 )
 
@@ -585,12 +587,115 @@ def retrieve_standard_text(
     )
 
 
+def search_standard_text(
+    connection: sqlite3.Connection,
+    *,
+    query: str,
+    edition: str,
+    part_filter: str | None = None,
+    limit: int = 10,
+    query_id: str | None = None,
+    resolved_at: datetime | None = None,
+) -> ToolResponse:
+    """Search persisted DocBook text with SQLite FTS5."""
+    trace = _trace(
+        connection,
+        edition=edition,
+        query_id=query_id,
+        resolved_at=resolved_at,
+    )
+    response_input = {"query": query, "limit": str(limit)}
+    if part_filter is not None:
+        response_input["part_filter"] = part_filter
+    if not query.strip():
+        return ToolResponse(
+            edition=edition,
+            tool="search_standard_text",
+            input=response_input,
+            status="validation_error",
+            result={"message": "query must not be empty."},
+            trace=trace,
+        )
+    if len(query) > 200:
+        return ToolResponse(
+            edition=edition,
+            tool="search_standard_text",
+            input=response_input,
+            status="validation_error",
+            result={"message": "query must be 200 characters or fewer."},
+            trace=trace,
+        )
+    if part_filter is not None and not part_filter.startswith("PS3."):
+        return ToolResponse(
+            edition=edition,
+            tool="search_standard_text",
+            input=response_input,
+            status="validation_error",
+            result={"message": "part_filter must be a DICOM part label such as PS3.3."},
+            trace=trace,
+        )
+    if limit < 1 or limit > 50:
+        return ToolResponse(
+            edition=edition,
+            tool="search_standard_text",
+            input=response_input,
+            status="validation_error",
+            result={"message": "limit must be between 1 and 50."},
+            trace=trace,
+        )
+
+    fts_query = _fts_query(query)
+    if fts_query is None:
+        return ToolResponse(
+            edition=edition,
+            tool="search_standard_text",
+            input=response_input,
+            status="validation_error",
+            result={"message": "query must contain at least one searchable term."},
+            trace=trace,
+        )
+
+    records = DocumentRepository(connection).search_text(
+        fts_query=fts_query,
+        edition=edition,
+        part_filter=part_filter,
+        limit=limit,
+    )
+    if not records:
+        return ToolResponse(
+            edition=edition,
+            tool="search_standard_text",
+            input=response_input,
+            status="not_found",
+            result={"message": "No standard text matched the query."},
+            trace=trace,
+        )
+
+    return ToolResponse(
+        edition=edition,
+        tool="search_standard_text",
+        input=response_input,
+        status="ok",
+        result=standard_text_search_result(records),
+        refs=_unique_refs([standard_ref(record.node.source_ref) for record in records]),
+        trace=trace,
+    )
+
+
 def _looks_like_tag(value: str) -> bool:
     return any(marker in value for marker in ("(", ")", ","))
 
 
 def _looks_like_uid(value: str) -> bool:
     return bool(value) and "." in value and value[0].isdigit()
+
+
+def _fts_query(query: str) -> str | None:
+    tokens = re.findall(r"[A-Za-z0-9][A-Za-z0-9_.-]*", query)
+    if not tokens:
+        return None
+    quoted_tokens = [f'"{token}"' for token in tokens]
+    return " AND ".join(quoted_tokens)
 
 
 def _trace(
