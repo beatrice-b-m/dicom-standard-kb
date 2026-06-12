@@ -12,6 +12,7 @@ from dicom_kb.docbook.text_chunks import normalize_text
 from dicom_kb.ir.models import (
     IOD,
     AttributeUse,
+    Condition,
     IODFunctionalGroupUse,
     IODModuleUse,
     Macro,
@@ -42,6 +43,7 @@ class Part03ParseResult:
     iod_module_uses: tuple[IODModuleUse, ...]
     iod_functional_group_uses: tuple[IODFunctionalGroupUse, ...]
     attribute_uses: tuple[AttributeUse, ...]
+    conditions: tuple[Condition, ...]
     warnings: tuple[ParserWarning, ...]
 
 
@@ -53,6 +55,7 @@ def parse_part03(document: ParsedDocument, *, edition: str) -> Part03ParseResult
     module_uses: list[IODModuleUse] = []
     functional_group_uses: list[IODFunctionalGroupUse] = []
     attribute_uses: list[AttributeUse] = []
+    conditions: list[Condition] = []
     warnings: list[ParserWarning] = []
 
     for table in document.tables:
@@ -67,45 +70,50 @@ def parse_part03(document: ParsedDocument, *, edition: str) -> Part03ParseResult
         if _is_iod_module_table(table, headers):
             iod = _iod_from_table(table, edition)
             iods[iod.id] = iod
-            uses, table_modules = _parse_iod_module_table(table, headers, iod, edition)
-            module_uses.extend(uses)
+            module_use_records, table_modules, table_conditions = (
+                _parse_iod_module_table(table, headers, iod, edition)
+            )
+            module_uses.extend(module_use_records)
+            conditions.extend(table_conditions)
             for module in table_modules:
                 modules.setdefault(module.id, module)
         elif _is_functional_group_table(headers):
             iod = _iod_from_table(table, edition)
             iods.setdefault(iod.id, iod)
-            functional_group_uses.extend(
+            functional_group_use_records, table_conditions = (
                 _parse_functional_group_table(
                     table, headers, iod, edition, macro_by_ref, warnings
                 )
             )
+            functional_group_uses.extend(functional_group_use_records)
+            conditions.extend(table_conditions)
         elif _is_module_attribute_table(table):
             module = _module_from_attribute_table(table, edition)
             modules[module.id] = module
-            attribute_uses.extend(
-                _parse_attribute_table(
-                    table,
-                    headers,
-                    edition,
-                    owner_type="module",
-                    owner_id=module.id,
-                    macro_by_ref=macro_by_ref,
-                    warnings=warnings,
-                )
+            attribute_use_records, table_conditions = _parse_attribute_table(
+                table,
+                headers,
+                edition,
+                owner_type="module",
+                owner_id=module.id,
+                macro_by_ref=macro_by_ref,
+                warnings=warnings,
             )
+            attribute_uses.extend(attribute_use_records)
+            conditions.extend(table_conditions)
         elif _is_macro_attribute_table(table):
             macro = _macro_from_table(table, edition)
-            attribute_uses.extend(
-                _parse_attribute_table(
-                    table,
-                    headers,
-                    edition,
-                    owner_type="macro",
-                    owner_id=macro.id,
-                    macro_by_ref=macro_by_ref,
-                    warnings=warnings,
-                )
+            attribute_use_records, table_conditions = _parse_attribute_table(
+                table,
+                headers,
+                edition,
+                owner_type="macro",
+                owner_id=macro.id,
+                macro_by_ref=macro_by_ref,
+                warnings=warnings,
             )
+            attribute_uses.extend(attribute_use_records)
+            conditions.extend(table_conditions)
 
     return Part03ParseResult(
         iods=tuple(iods.values()),
@@ -114,6 +122,7 @@ def parse_part03(document: ParsedDocument, *, edition: str) -> Part03ParseResult
         iod_module_uses=tuple(module_uses),
         iod_functional_group_uses=tuple(functional_group_uses),
         attribute_uses=tuple(attribute_uses),
+        conditions=tuple(conditions),
         warnings=tuple(warnings),
     )
 
@@ -168,10 +177,11 @@ def _parse_iod_module_table(
     headers: dict[str, int],
     iod: IOD,
     edition: str,
-) -> tuple[list[IODModuleUse], list[Module]]:
+) -> tuple[list[IODModuleUse], list[Module], list[Condition]]:
     source_ref = _source_ref(edition, table)
     uses: list[IODModuleUse] = []
     modules: list[Module] = []
+    conditions: list[Condition] = []
     last_ie: str | None = None
     information_entity_column = _information_entity_column(headers)
     for order, row in enumerate(_data_rows(table)):
@@ -198,19 +208,29 @@ def _parse_iod_module_table(
         usage, condition = (
             _usage(_cell(row, headers["usage"])) if "usage" in headers else ("", None)
         )
+        use_id = f"{iod.id}.module_use.{order}"
+        condition_record = _condition_from_text(
+            f"{use_id}.condition",
+            edition=edition,
+            text=condition,
+            source_ref=source_ref,
+        )
+        if condition_record is not None:
+            conditions.append(condition_record)
         uses.append(
             IODModuleUse(
-                id=f"{iod.id}.module_use.{order}",
+                id=use_id,
                 edition_id=edition,
                 iod_id=iod.id,
                 information_entity=information_entity,
                 module_id=module.id,
                 usage=usage,
                 usage_condition_text=condition,
+                condition_id=condition_record.id if condition_record else None,
                 source_ref=source_ref,
             )
         )
-    return uses, modules
+    return uses, modules, conditions
 
 
 def _information_entity_column(headers: dict[str, int]) -> int | None:
@@ -227,9 +247,10 @@ def _parse_functional_group_table(
     edition: str,
     macro_by_ref: dict[str, Macro],
     warnings: list[ParserWarning],
-) -> list[IODFunctionalGroupUse]:
+) -> tuple[list[IODFunctionalGroupUse], list[Condition]]:
     source_ref = _source_ref(edition, table)
     uses: list[IODFunctionalGroupUse] = []
+    conditions: list[Condition] = []
     for order, row in enumerate(_data_rows(table)):
         macro_text = _cell(row, headers["functional group macro"])
         macro = _macro_for_row(row, macro_text, macro_by_ref)
@@ -239,18 +260,28 @@ def _parse_functional_group_table(
             )
             continue
         usage, condition = _usage(_cell(row, headers["usage"]))
+        use_id = f"{iod.id}.functional_group_use.{order}"
+        condition_record = _condition_from_text(
+            f"{use_id}.condition",
+            edition=edition,
+            text=condition,
+            source_ref=source_ref,
+        )
+        if condition_record is not None:
+            conditions.append(condition_record)
         uses.append(
             IODFunctionalGroupUse(
-                id=f"{iod.id}.functional_group_use.{order}",
+                id=use_id,
                 edition_id=edition,
                 iod_id=iod.id,
                 macro_id=macro.id,
                 usage=usage,
                 usage_condition_text=condition,
+                condition_id=condition_record.id if condition_record else None,
                 source_ref=source_ref,
             )
         )
-    return uses
+    return uses, conditions
 
 
 def _parse_attribute_table(
@@ -262,9 +293,10 @@ def _parse_attribute_table(
     owner_id: str,
     macro_by_ref: dict[str, Macro],
     warnings: list[ParserWarning],
-) -> list[AttributeUse]:
+) -> tuple[list[AttributeUse], list[Condition]]:
     source_ref = _source_ref(edition, table)
     uses: list[AttributeUse] = []
+    conditions: list[Condition] = []
     stack: dict[int, str] = {}
     for order, row in enumerate(_data_rows(table)):
         if row.row_kind == "include":
@@ -300,6 +332,16 @@ def _parse_attribute_table(
         for deeper_depth in [depth for depth in stack if depth > sequence_depth]:
             del stack[deeper_depth]
 
+        description = _optional_cell(row, _description_column(headers))
+        type_designation = _cell(row, headers["type"])
+        condition_record = _condition_from_text(
+            f"{attribute_id}.condition",
+            edition=edition,
+            text=description if type_designation.endswith("C") else None,
+            source_ref=source_ref,
+        )
+        if condition_record is not None:
+            conditions.append(condition_record)
         uses.append(
             AttributeUse(
                 id=attribute_id,
@@ -311,14 +353,15 @@ def _parse_attribute_table(
                 attribute_tag=_normalized_tag_or_none(_cell(row, headers["tag"])),
                 attribute_keyword=None,
                 attribute_name=attribute_name,
-                type_designation=_cell(row, headers["type"]),
-                description_text=_optional_cell(row, _description_column(headers)),
+                type_designation=type_designation,
+                description_text=description,
+                condition_id=condition_record.id if condition_record else None,
                 sequence_depth=sequence_depth,
                 row_order=order,
                 source_ref=source_ref,
             )
         )
-    return uses
+    return uses, conditions
 
 
 def _iod_from_table(table: ParsedTable, edition: str) -> IOD:
@@ -462,6 +505,36 @@ def _usage(value: str) -> tuple[str, str | None]:
         return normalized, None
     condition = match.group("condition") or None
     return match.group("usage"), condition
+
+
+def _condition_from_text(
+    condition_id: str,
+    *,
+    edition: str,
+    text: str | None,
+    source_ref: SourceRef,
+) -> Condition | None:
+    normalized = normalize_text(text or "")
+    if not normalized:
+        return None
+    return Condition(
+        id=condition_id,
+        edition_id=edition,
+        condition_kind=_condition_kind(normalized),
+        raw_text=normalized,
+        normalized_text=normalized,
+        machine_status="raw_text",
+        source_ref=source_ref,
+    )
+
+
+def _condition_kind(text: str) -> str | None:
+    lowered = text.lower()
+    if lowered.startswith("required if"):
+        return "required_if"
+    if lowered.startswith("required unless"):
+        return "required_unless"
+    return None
 
 
 def _attribute_depth_and_name(value: str) -> tuple[int, str]:

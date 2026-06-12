@@ -170,6 +170,21 @@ class AttributeValueTerm(BaseModel):
     source_ref: SourceRef
 
 
+class Condition(BaseModel):
+    """A preserved raw condition with machine-readability metadata."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    edition_id: str
+    condition_kind: str | None = None
+    raw_text: str
+    normalized_text: str | None = None
+    machine_status: str
+    expression_json: str | None = None
+    source_ref: SourceRef
+
+
 class ServiceClass(BaseModel):
     """PS3.4 service class definition."""
 

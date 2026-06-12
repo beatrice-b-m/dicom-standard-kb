@@ -73,6 +73,7 @@ def _fixture_db(tmp_path: Path) -> Path:
         iod_module_uses=parsed_part03.iod_module_uses,
         iod_functional_group_uses=parsed_part03.iod_functional_group_uses,
         attribute_uses=parsed_part03.attribute_uses,
+        conditions=parsed_part03.conditions,
     )
     import_attribute_value_terms(
         connection,

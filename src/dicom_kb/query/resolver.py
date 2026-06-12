@@ -305,7 +305,11 @@ def list_modules_for_iod(
             for ref in (
                 standard_ref(record.use.source_ref),
                 standard_ref(record.module.source_ref),
+                standard_ref(record.condition.source_ref)
+                if record.condition is not None
+                else None,
             )
+            if ref is not None
         ]
     )
     return ToolResponse(
@@ -366,6 +370,11 @@ def list_attributes_for_module(
     refs = unique_refs(
         [standard_ref(module.source_ref)]
         + [standard_ref(record.attribute_use.source_ref) for record in records]
+        + [
+            standard_ref(record.condition.source_ref)
+            for record in records
+            if record.condition is not None
+        ]
         + [
             standard_ref(record.included_macro.source_ref)
             for record in records

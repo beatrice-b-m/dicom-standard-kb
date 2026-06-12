@@ -221,6 +221,7 @@ def test_import_part03_graph_records(tmp_path: Path) -> None:
         iod_module_uses=parsed.iod_module_uses,
         iod_functional_group_uses=parsed.iod_functional_group_uses,
         attribute_uses=parsed.attribute_uses,
+        conditions=parsed.conditions,
     )
 
     assert summary.iods == 2
@@ -229,10 +230,33 @@ def test_import_part03_graph_records(tmp_path: Path) -> None:
     assert summary.iod_module_uses == 3
     assert summary.iod_functional_group_uses == 1
     assert summary.attribute_uses == 5
+    assert summary.conditions == 2
+
+    conditions = connection.execute(
+        """
+        SELECT id, raw_text, condition_kind, machine_status
+        FROM condition
+        ORDER BY id
+        """
+    ).fetchall()
+    assert [dict(row) for row in conditions] == [
+        {
+            "id": "2026b.iod.ct_image.module_use.1.condition",
+            "raw_text": "Required if contrast media was used",
+            "condition_kind": "required_if",
+            "machine_status": "raw_text",
+        },
+        {
+            "id": "2026b.iod.enhanced_ct_image.functional_group_use.0.condition",
+            "raw_text": "Required if anatomy is known",
+            "condition_kind": "required_if",
+            "machine_status": "raw_text",
+        },
+    ]
 
     required_modules = connection.execute(
         """
-        SELECT m.name, imu.usage
+        SELECT m.name, imu.usage, imu.condition_id
         FROM iod_module_use imu
         JOIN module m ON m.id = imu.module_id
         WHERE imu.iod_id = ?
@@ -240,10 +264,14 @@ def test_import_part03_graph_records(tmp_path: Path) -> None:
         """,
         ("2026b.iod.ct_image",),
     ).fetchall()
-    assert [(row["name"], row["usage"]) for row in required_modules] == [
-        ("Patient", "M"),
-        ("Contrast/Bolus", "C"),
-        ("CT Image", "M"),
+    assert [tuple(row) for row in required_modules] == [
+        ("Patient", "M", None),
+        (
+            "Contrast/Bolus",
+            "C",
+            "2026b.iod.ct_image.module_use.1.condition",
+        ),
+        ("CT Image", "M", None),
     ]
 
     include = connection.execute(
@@ -292,6 +320,7 @@ def test_import_attribute_value_terms_links_attribute_context(tmp_path: Path) ->
         iod_module_uses=parsed_part03.iod_module_uses,
         iod_functional_group_uses=parsed_part03.iod_functional_group_uses,
         attribute_uses=parsed_part03.attribute_uses,
+        conditions=parsed_part03.conditions,
     )
 
     summary = import_attribute_value_terms(
@@ -348,6 +377,7 @@ def test_import_part03_rolls_back_on_duplicate_iods(tmp_path: Path) -> None:
             iod_module_uses=parsed.iod_module_uses,
             iod_functional_group_uses=parsed.iod_functional_group_uses,
             attribute_uses=parsed.attribute_uses,
+            conditions=parsed.conditions,
         )
 
     count = connection.execute("SELECT count(*) FROM iod").fetchone()[0]
@@ -368,6 +398,7 @@ def test_import_part04_sop_class_records(tmp_path: Path) -> None:
         iod_module_uses=parsed_part03.iod_module_uses,
         iod_functional_group_uses=parsed_part03.iod_functional_group_uses,
         attribute_uses=parsed_part03.attribute_uses,
+        conditions=parsed_part03.conditions,
     )
     parsed_part04 = parse_part04(
         parse_docbook_xml(PS34_SOP_CLASSES_DOCBOOK, part="PS3.4"), edition="2026b"

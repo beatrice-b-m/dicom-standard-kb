@@ -18,6 +18,7 @@ from dicom_kb.db.repositories import (
 from dicom_kb.ir.models import (
     IOD,
     AttributeUse,
+    Condition,
     DataElement,
     DocNode,
     Module,
@@ -113,6 +114,7 @@ def iod_modules_result(iod: IOD, records: list[IODModuleUseRecord]) -> dict[str,
                 "information_entity": record.use.information_entity,
                 "usage": record.use.usage,
                 "usage_condition_text": record.use.usage_condition_text,
+                "condition": _condition_payload(record.condition),
             }
             for record in records
         ],
@@ -266,6 +268,20 @@ def standard_ref(source_ref: SourceRef) -> StandardRef:
     )
 
 
+def _condition_payload(condition: Condition | None) -> dict[str, Any] | None:
+    if condition is None:
+        return None
+    return {
+        "condition_id": condition.id,
+        "source_text": condition.raw_text,
+        "condition_kind": condition.condition_kind,
+        "machine_status": condition.machine_status,
+        "dependencies": [],
+        "evaluator": {"available": False},
+        "refs": [standard_ref(condition.source_ref).model_dump(mode="json")],
+    }
+
+
 def _attribute_use_result(record: AttributeUseRecord) -> dict[str, Any]:
     attribute = record.attribute_use
     payload: dict[str, Any] = {
@@ -288,6 +304,7 @@ def _attribute_use_result(record: AttributeUseRecord) -> dict[str, Any]:
         )
     else:
         payload.update(_attribute_fact_payload(attribute))
+        payload["condition"] = _condition_payload(record.condition)
     if record.expanded_from_include is not None:
         payload["expanded_from_include_id"] = record.expanded_from_include.id
     return payload

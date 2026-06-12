@@ -10,6 +10,7 @@ from dicom_kb.ir.models import (
     IOD,
     AttributeUse,
     AttributeValueTerm,
+    Condition,
     DataElement,
     DocNode,
     IODFunctionalGroupUse,
@@ -31,6 +32,7 @@ class IODModuleUseRecord:
 
     use: IODModuleUse
     module: Module
+    condition: Condition | None = None
 
 
 @dataclass(frozen=True)
@@ -39,6 +41,7 @@ class IODFunctionalGroupUseRecord:
 
     use: IODFunctionalGroupUse
     macro: Macro
+    condition: Condition | None = None
 
 
 @dataclass(frozen=True)
@@ -49,6 +52,7 @@ class AttributeUseRecord:
     owner_type: str
     owner_name: str
     included_macro: Macro | None = None
+    condition: Condition | None = None
     expanded_from_include: AttributeUse | None = None
     macro_path: tuple[str, ...] = ()
 
@@ -460,11 +464,27 @@ class Part03Repository:
               module_sr.table_id AS module_source_table_id,
               module_sr.xml_id AS module_source_xml_id,
               module_sr.title AS module_source_title,
-              module_sr.canonical_url AS module_source_url
+              module_sr.canonical_url AS module_source_url,
+              c.id AS condition_id,
+              c.edition_id AS condition_edition_id,
+              c.condition_kind AS condition_condition_kind,
+              c.raw_text AS condition_raw_text,
+              c.normalized_text AS condition_normalized_text,
+              c.machine_status AS condition_machine_status,
+              c.expression_json AS condition_expression_json,
+              c.source_ref_id AS condition_source_ref_id,
+              condition_sr.part AS condition_source_part,
+              condition_sr.section AS condition_source_section,
+              condition_sr.table_id AS condition_source_table_id,
+              condition_sr.xml_id AS condition_source_xml_id,
+              condition_sr.title AS condition_source_title,
+              condition_sr.canonical_url AS condition_source_url
             FROM iod_module_use imu
             JOIN module m ON m.id = imu.module_id
             JOIN source_ref use_sr ON use_sr.id = imu.source_ref_id
             JOIN source_ref module_sr ON module_sr.id = m.source_ref_id
+            LEFT JOIN condition c ON c.id = imu.condition_id
+            LEFT JOIN source_ref condition_sr ON condition_sr.id = c.source_ref_id
             WHERE imu.edition_id = ? AND imu.iod_id = ?
             ORDER BY imu.id
             """,
@@ -474,6 +494,11 @@ class Part03Repository:
             IODModuleUseRecord(
                 use=_iod_module_use_from_prefixed_row(row),
                 module=_module_from_prefixed_row(row, "module"),
+                condition=(
+                    _condition_from_prefixed_row(row, "condition")
+                    if row["condition_id"] is not None
+                    else None
+                ),
             )
             for row in sorted(rows, key=lambda row: _id_order(str(row["use_id"])))
         ]
@@ -511,11 +536,27 @@ class Part03Repository:
               macro_sr.table_id AS macro_source_table_id,
               macro_sr.xml_id AS macro_source_xml_id,
               macro_sr.title AS macro_source_title,
-              macro_sr.canonical_url AS macro_source_url
+              macro_sr.canonical_url AS macro_source_url,
+              c.id AS condition_id,
+              c.edition_id AS condition_edition_id,
+              c.condition_kind AS condition_condition_kind,
+              c.raw_text AS condition_raw_text,
+              c.normalized_text AS condition_normalized_text,
+              c.machine_status AS condition_machine_status,
+              c.expression_json AS condition_expression_json,
+              c.source_ref_id AS condition_source_ref_id,
+              condition_sr.part AS condition_source_part,
+              condition_sr.section AS condition_source_section,
+              condition_sr.table_id AS condition_source_table_id,
+              condition_sr.xml_id AS condition_source_xml_id,
+              condition_sr.title AS condition_source_title,
+              condition_sr.canonical_url AS condition_source_url
             FROM iod_functional_group_use fg
             JOIN macro m ON m.id = fg.macro_id
             JOIN source_ref use_sr ON use_sr.id = fg.source_ref_id
             JOIN source_ref macro_sr ON macro_sr.id = m.source_ref_id
+            LEFT JOIN condition c ON c.id = fg.condition_id
+            LEFT JOIN source_ref condition_sr ON condition_sr.id = c.source_ref_id
             WHERE fg.edition_id = ? AND fg.iod_id = ?
             ORDER BY fg.id
             """,
@@ -525,6 +566,11 @@ class Part03Repository:
             IODFunctionalGroupUseRecord(
                 use=_iod_functional_group_use_from_prefixed_row(row),
                 macro=_macro_from_prefixed_row(row, "macro"),
+                condition=(
+                    _condition_from_prefixed_row(row, "condition")
+                    if row["condition_id"] is not None
+                    else None
+                ),
             )
             for row in sorted(rows, key=lambda row: _id_order(str(row["use_id"])))
         ]
@@ -571,11 +617,27 @@ class Part03Repository:
               macro_sr.table_id AS macro_source_table_id,
               macro_sr.xml_id AS macro_source_xml_id,
               macro_sr.title AS macro_source_title,
-              macro_sr.canonical_url AS macro_source_url
+              macro_sr.canonical_url AS macro_source_url,
+              c.id AS condition_id,
+              c.edition_id AS condition_edition_id,
+              c.condition_kind AS condition_condition_kind,
+              c.raw_text AS condition_raw_text,
+              c.normalized_text AS condition_normalized_text,
+              c.machine_status AS condition_machine_status,
+              c.expression_json AS condition_expression_json,
+              c.source_ref_id AS condition_source_ref_id,
+              condition_sr.part AS condition_source_part,
+              condition_sr.section AS condition_source_section,
+              condition_sr.table_id AS condition_source_table_id,
+              condition_sr.xml_id AS condition_source_xml_id,
+              condition_sr.title AS condition_source_title,
+              condition_sr.canonical_url AS condition_source_url
             FROM attribute_use au
             JOIN source_ref attr_sr ON attr_sr.id = au.source_ref_id
             LEFT JOIN macro im ON im.id = au.included_macro_id
             LEFT JOIN source_ref macro_sr ON macro_sr.id = im.source_ref_id
+            LEFT JOIN condition c ON c.id = au.condition_id
+            LEFT JOIN source_ref condition_sr ON condition_sr.id = c.source_ref_id
             WHERE au.edition_id = ?
               AND au.owner_type = ?
               AND au.owner_id = ?
@@ -592,6 +654,11 @@ class Part03Repository:
                 included_macro=(
                     _macro_from_prefixed_row(row, "macro")
                     if row["macro_id"] is not None
+                    else None
+                ),
+                condition=(
+                    _condition_from_prefixed_row(row, "condition")
+                    if row["condition_id"] is not None
                     else None
                 ),
             )
@@ -896,6 +963,19 @@ def _attribute_value_term_from_prefixed_row(row: sqlite3.Row) -> AttributeValueT
         value=str(row["term_value"]),
         meaning=row["term_meaning"],
         source_ref=_source_ref_from_prefixed_row(row, "term"),
+    )
+
+
+def _condition_from_prefixed_row(row: sqlite3.Row, prefix: str) -> Condition:
+    return Condition(
+        id=str(row[f"{prefix}_id"]),
+        edition_id=str(row[f"{prefix}_edition_id"]),
+        condition_kind=row[f"{prefix}_condition_kind"],
+        raw_text=str(row[f"{prefix}_raw_text"]),
+        normalized_text=row[f"{prefix}_normalized_text"],
+        machine_status=str(row[f"{prefix}_machine_status"]),
+        expression_json=row[f"{prefix}_expression_json"],
+        source_ref=_source_ref_from_prefixed_row(row, prefix),
     )
 
 

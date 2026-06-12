@@ -71,6 +71,7 @@ def _part03_connection(tmp_path: Path) -> sqlite3.Connection:
         iod_module_uses=parsed.iod_module_uses,
         iod_functional_group_uses=parsed.iod_functional_group_uses,
         attribute_uses=parsed.attribute_uses,
+        conditions=parsed.conditions,
     )
     return connection
 
@@ -118,6 +119,7 @@ def _context_connection(tmp_path: Path) -> sqlite3.Connection:
         iod_module_uses=parsed_part03.iod_module_uses,
         iod_functional_group_uses=parsed_part03.iod_functional_group_uses,
         attribute_uses=parsed_part03.attribute_uses,
+        conditions=parsed_part03.conditions,
     )
     import_attribute_value_terms(
         connection,
@@ -167,6 +169,7 @@ def _context_connection_with_duplicate_attribute(tmp_path: Path) -> sqlite3.Conn
         iod_module_uses=parsed_part03.iod_module_uses,
         iod_functional_group_uses=parsed_part03.iod_functional_group_uses,
         attribute_uses=[*parsed_part03.attribute_uses, duplicate],
+        conditions=parsed_part03.conditions,
     )
     return connection
 
@@ -263,6 +266,7 @@ def _part03_connection_with_recursive_macros(
         iod_module_uses=parsed.iod_module_uses,
         iod_functional_group_uses=parsed.iod_functional_group_uses,
         attribute_uses=attribute_uses,
+        conditions=parsed.conditions,
     )
     return connection
 
@@ -679,9 +683,7 @@ def test_resolve_attribute_context_reports_macro_path(tmp_path: Path) -> None:
 
     assert response.status == "ok"
     assert response.result is not None
-    assert response.result["uses"][0]["via_macro"] == [
-        "General Anatomy Optional Macro"
-    ]
+    assert response.result["uses"][0]["via_macro"] == ["General Anatomy Optional Macro"]
     assert response.result["effective_type"] == "3"
 
 
@@ -870,6 +872,7 @@ def test_list_modules_for_iod_returns_ordered_ps33_modules(tmp_path: Path) -> No
             "information_entity": "Patient",
             "usage": "M",
             "usage_condition_text": None,
+            "condition": None,
         },
         {
             "module_id": "2026b.module.contrast_bolus",
@@ -878,6 +881,24 @@ def test_list_modules_for_iod_returns_ordered_ps33_modules(tmp_path: Path) -> No
             "information_entity": "Image",
             "usage": "C",
             "usage_condition_text": "Required if contrast media was used",
+            "condition": {
+                "condition_id": "2026b.iod.ct_image.module_use.1.condition",
+                "source_text": "Required if contrast media was used",
+                "condition_kind": "required_if",
+                "machine_status": "raw_text",
+                "dependencies": [],
+                "evaluator": {"available": False},
+                "refs": [
+                    {
+                        "part": "PS3.3",
+                        "section": "sect_A.3",
+                        "table": "CT Image IOD Modules",
+                        "anchor": "table_A.3-1",
+                        "official_url": None,
+                        "edition": "2026b",
+                    }
+                ],
+            },
         },
         {
             "module_id": "2026b.module.ct_image",
@@ -886,6 +907,7 @@ def test_list_modules_for_iod_returns_ordered_ps33_modules(tmp_path: Path) -> No
             "information_entity": "Image",
             "usage": "M",
             "usage_condition_text": None,
+            "condition": None,
         },
     ]
     assert {ref.part for ref in response.refs} == {"PS3.3"}
@@ -929,6 +951,63 @@ def test_list_attributes_for_module_preserves_include_rows(tmp_path: Path) -> No
         "2026b.module.patient.attribute_use.1"
     )
     assert attributes[3]["included_macro_name"] == "General Anatomy Optional Macro"
+
+
+def test_list_attributes_for_module_exposes_attribute_conditions(
+    tmp_path: Path,
+) -> None:
+    connection = connect_sqlite(tmp_path / "kb.sqlite")
+    apply_migrations(connection)
+    xml = PS33_CT_IMAGE_DOCBOOK.replace(
+        "<entry>2</entry><entry>Patient name.</entry>",
+        "<entry>1C</entry><entry>Required if patient identity is known.</entry>",
+    )
+    parsed = parse_part03(
+        parse_docbook_xml(xml, part="PS3.3"),
+        edition="2026b",
+    )
+    import_part03(
+        connection,
+        edition="2026b",
+        iods=parsed.iods,
+        modules=parsed.modules,
+        macros=parsed.macros,
+        iod_module_uses=parsed.iod_module_uses,
+        iod_functional_group_uses=parsed.iod_functional_group_uses,
+        attribute_uses=parsed.attribute_uses,
+        conditions=parsed.conditions,
+    )
+
+    response = list_attributes_for_module(
+        connection,
+        module_name="Patient",
+        edition="2026b",
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert response.status == "ok"
+    assert response.result is not None
+    patient_name = response.result["attributes"][0]
+    assert patient_name["type_designation"] == "1C"
+    assert patient_name["condition"] == {
+        "condition_id": "2026b.module.patient.attribute_use.0.condition",
+        "source_text": "Required if patient identity is known.",
+        "condition_kind": "required_if",
+        "machine_status": "raw_text",
+        "dependencies": [],
+        "evaluator": {"available": False},
+        "refs": [
+            {
+                "part": "PS3.3",
+                "section": "sect_C.7.1.1",
+                "table": "Patient Module Attributes",
+                "anchor": "table_C.7-1",
+                "official_url": None,
+                "edition": "2026b",
+            }
+        ],
+    }
 
 
 def test_list_attributes_for_module_expands_macros_after_include(

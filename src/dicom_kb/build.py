@@ -137,6 +137,7 @@ def build_sqlite_database(
                     iod_module_uses=parsed_part03.iod_module_uses,
                     iod_functional_group_uses=parsed_part03.iod_functional_group_uses,
                     attribute_uses=parsed_part03.attribute_uses,
+                    conditions=parsed_part03.conditions,
                 )
             )
             summaries.append(

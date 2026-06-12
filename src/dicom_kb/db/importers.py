@@ -18,6 +18,7 @@ from dicom_kb.ir.models import (
     IOD,
     AttributeUse,
     AttributeValueTerm,
+    Condition,
     DataElement,
     DocNode,
     IODFunctionalGroupUse,
@@ -49,6 +50,7 @@ class ImportSummary:
     iod_module_uses: int = 0
     iod_functional_group_uses: int = 0
     attribute_uses: int = 0
+    conditions: int = 0
     service_classes: int = 0
     sop_classes: int = 0
     sop_class_iods: int = 0
@@ -152,14 +154,11 @@ def import_docbook_structure(
 ) -> ImportSummary:
     """Import parsed DocBook structure, xrefs, and raw table snapshots."""
     nodes = _doc_nodes_from_document(edition, document)
-    node_by_xml_id = {
-        node.xml_id: node for node in nodes if node.xml_id is not None
-    }
+    node_by_xml_id = {node.xml_id: node for node in nodes if node.xml_id is not None}
     raw_tables = _raw_table_irs_from_document(edition, document)
     xrefs = _xrefs_from_document(edition, document, node_by_xml_id)
     source_refs = _unique_source_refs(
-        [node.source_ref for node in nodes]
-        + [table.source_ref for table in raw_tables]
+        [node.source_ref for node in nodes] + [table.source_ref for table in raw_tables]
     )
 
     try:
@@ -230,6 +229,7 @@ def import_part03(
     iod_module_uses: Iterable[IODModuleUse],
     iod_functional_group_uses: Iterable[IODFunctionalGroupUse],
     attribute_uses: Iterable[AttributeUse],
+    conditions: Iterable[Condition] = (),
 ) -> ImportSummary:
     """Import parsed PS3.3 graph records transactionally."""
     iod_records = tuple(iods)
@@ -238,10 +238,12 @@ def import_part03(
     module_use_records = tuple(iod_module_uses)
     functional_group_use_records = tuple(iod_functional_group_uses)
     attribute_use_records = tuple(attribute_uses)
+    condition_records = tuple(conditions)
     source_refs = _unique_source_refs(
         [record.source_ref for record in iod_records]
         + [record.source_ref for record in module_records]
         + [record.source_ref for record in macro_records]
+        + [record.source_ref for record in condition_records]
         + [record.source_ref for record in module_use_records]
         + [record.source_ref for record in functional_group_use_records]
         + [record.source_ref for record in attribute_use_records]
@@ -257,6 +259,8 @@ def import_part03(
                 _insert_module(connection, module)
             for macro in macro_records:
                 _insert_macro(connection, macro)
+            for condition in condition_records:
+                _insert_condition(connection, condition)
             for module_use in module_use_records:
                 _insert_iod_module_use(connection, module_use)
             for functional_group_use in functional_group_use_records:
@@ -275,6 +279,7 @@ def import_part03(
         iod_module_uses=len(module_use_records),
         iod_functional_group_uses=len(functional_group_use_records),
         attribute_uses=len(attribute_use_records),
+        conditions=len(condition_records),
     )
 
 
@@ -631,15 +636,11 @@ def _doc_node_id(
     return f"{edition}.{part}.{xml_id or f'{node_type}.{ordinal}'}"
 
 
-def _raw_table_ir_id(
-    edition: str, part: str, xml_id: str | None, ordinal: int
-) -> str:
+def _raw_table_ir_id(edition: str, part: str, xml_id: str | None, ordinal: int) -> str:
     return f"{edition}.{part}.raw_table_ir.{xml_id or ordinal}"
 
 
-def _insert_data_element(
-    connection: sqlite3.Connection, element: DataElement
-) -> None:
+def _insert_data_element(connection: sqlite3.Connection, element: DataElement) -> None:
     connection.execute(
         """
         INSERT INTO data_element (
@@ -741,6 +742,27 @@ def _insert_macro(connection: sqlite3.Connection, macro: Macro) -> None:
             macro.section,
             macro.macro_kind,
             macro.source_ref.id,
+        ),
+    )
+
+
+def _insert_condition(connection: sqlite3.Connection, condition: Condition) -> None:
+    connection.execute(
+        """
+        INSERT INTO condition (
+          id, edition_id, condition_kind, raw_text, normalized_text,
+          machine_status, expression_json, source_ref_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            condition.id,
+            condition.edition_id,
+            condition.condition_kind,
+            condition.raw_text,
+            condition.normalized_text,
+            condition.machine_status,
+            condition.expression_json,
+            condition.source_ref.id,
         ),
     )
 
@@ -1064,10 +1086,7 @@ def _value_term_context_label(
 def _value_term_source_ref_id(
     edition: str, part: str, variablelist: ParsedVariableList
 ) -> str:
-    return (
-        f"{edition}.{part}.value_terms."
-        f"{variablelist.xml_id or variablelist.ordinal}"
-    )
+    return f"{edition}.{part}.value_terms.{variablelist.xml_id or variablelist.ordinal}"
 
 
 def _value_term_id(

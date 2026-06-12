@@ -79,9 +79,7 @@ def resolve_context_iods(
             result={"message": "No DICOM SOP Class matched the context input."},
         )
     resolved_sop_class, service_class = found
-    iod_records = part04.list_iods_for_sop_class(
-        resolved_sop_class.id, edition=edition
-    )
+    iod_records = part04.list_iods_for_sop_class(resolved_sop_class.id, edition=edition)
     if not iod_records:
         return ToolResponse(
             edition=edition,
@@ -173,6 +171,10 @@ def attribute_context_uses(
                     refs.append(standard_ref(record.expanded_from_include.source_ref))
                 if record.included_macro is not None:
                     refs.append(standard_ref(record.included_macro.source_ref))
+                if module_record.condition is not None:
+                    refs.append(standard_ref(module_record.condition.source_ref))
+                if record.condition is not None:
+                    refs.append(standard_ref(record.condition.source_ref))
         functional_group_records = repository.list_functional_group_uses_for_iod(
             iod.id, edition=edition
         )
@@ -183,6 +185,7 @@ def attribute_context_uses(
                     owner_type=record.owner_type,
                     owner_name=record.owner_name,
                     included_macro=record.included_macro,
+                    condition=record.condition,
                     expanded_from_include=record.expanded_from_include,
                     macro_path=(functional_group_record.macro.name,),
                 )
@@ -231,6 +234,12 @@ def attribute_context_uses(
                     refs.append(standard_ref(record.expanded_from_include.source_ref))
                 if record.included_macro is not None:
                     refs.append(standard_ref(record.included_macro.source_ref))
+                if functional_group_record.condition is not None:
+                    refs.append(
+                        standard_ref(functional_group_record.condition.source_ref)
+                    )
+                if record.condition is not None:
+                    refs.append(standard_ref(record.condition.source_ref))
     return uses, unique_refs(refs), warnings
 
 
@@ -325,6 +334,7 @@ def _effective_macro_record(
         owner_type="macro",
         owner_name=macro_name,
         included_macro=record.included_macro,
+        condition=record.condition,
         expanded_from_include=expanded_from_include,
         macro_path=(*record.macro_path, macro_name),
     )

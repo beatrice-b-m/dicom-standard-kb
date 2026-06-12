@@ -10,7 +10,8 @@ from dicom_kb.db.repositories import (
     IODFunctionalGroupUseRecord,
     IODModuleUseRecord,
 )
-from dicom_kb.ir.models import IOD, AttributeUse, Module
+from dicom_kb.ir.models import IOD, AttributeUse, Condition, Module
+from dicom_kb.query.answer_contracts import standard_ref
 
 
 @dataclass(frozen=True)
@@ -31,16 +32,7 @@ def build_attribute_context_use_payload(
     """Assemble the public payload for one contextual attribute use."""
     attribute_use = record.attribute_use
     module_use = module_record.use
-    condition = None
-    if (
-        attribute_use.type_designation is not None
-        and attribute_use.type_designation.endswith("C")
-        and attribute_use.description_text
-    ):
-        condition = {
-            "source_text": attribute_use.description_text,
-            "machine_status": "raw_text",
-        }
+    condition = condition_payload(record.condition)
     return {
         "iod": iod.name,
         "module": module.name,
@@ -64,16 +56,7 @@ def build_functional_group_context_use_payload(
     """Assemble the public payload for a functional-group macro attribute use."""
     attribute_use = record.attribute_use
     functional_group_use = functional_group_record.use
-    condition = None
-    if (
-        attribute_use.type_designation is not None
-        and attribute_use.type_designation.endswith("C")
-        and attribute_use.description_text
-    ):
-        condition = {
-            "source_text": attribute_use.description_text,
-            "machine_status": "raw_text",
-        }
+    condition = condition_payload(record.condition)
     return {
         "iod": iod.name,
         "module": None,
@@ -86,6 +69,21 @@ def build_functional_group_context_use_payload(
         "sequence_path": sequence_path(attribute_use, record_by_id),
         "via_macro": list(record.macro_path) if record.macro_path else None,
         "condition": condition,
+    }
+
+
+def condition_payload(condition: Condition | None) -> dict[str, Any] | None:
+    """Return the public raw condition payload for an unresolved condition."""
+    if condition is None:
+        return None
+    return {
+        "condition_id": condition.id,
+        "source_text": condition.raw_text,
+        "condition_kind": condition.condition_kind,
+        "machine_status": condition.machine_status,
+        "dependencies": [],
+        "evaluator": {"available": False},
+        "refs": [standard_ref(condition.source_ref).model_dump(mode="json")],
     }
 
 
@@ -124,9 +122,7 @@ def effective_type_summary(
             [],
         )
     type_values = [
-        use.type_designation
-        for use in uses
-        if use.type_designation is not None
+        use.type_designation for use in uses if use.type_designation is not None
     ]
     if not type_values:
         return None, "Matched uses do not declare a type designation.", []
