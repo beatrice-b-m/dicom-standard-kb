@@ -4,7 +4,8 @@ Last updated: 2026-06-12
 
 ## Current stopping point
 
-Stopped after adding recursive query-time macro expansion. The repository
+Stopped after adding PS3.4 SOP Class parsing/import and public SOP Class/IOD
+lookup traversal. The repository
 now has a working offline foundation through:
 
 1. Work Order A: repository/build/legal scaffold.
@@ -34,6 +35,11 @@ now has a working offline foundation through:
 12. Recursive `list_attributes_for_module(..., expand_macros=True)` expansion
     with effective `sequence_depth` adjustment, include-row provenance, and
     macro include cycle warnings.
+13. Work Order F / G v1 slice: conservative PS3.4 service class and SOP Class
+    table parsing, transactional SQLite import, repository traversal from SOP
+    Class to linked IODs, and a shared synthetic PS3.4 fixture.
+14. Public `lookup_iod` and `lookup_sop_class` response envelopes plus CLI
+    commands `dicom-kb lookup iod` and `dicom-kb lookup sop-class`.
 
 ## Completed commits
 
@@ -55,10 +61,13 @@ now has a working offline foundation through:
 - `01b8106 docs(progress): record synthetic fixture layout`
 - `b9b0c6d docs(progress): record review gaps and next-step refinements`
 - `324922a feat(query): expand macros recursively`
+- `46c3087 docs(progress): record recursive macro expansion`
+- `7a2814d feat(parsers): add PS3.4 SOP class import`
+- `e63e678 feat(query): expose SOP Class and IOD lookups`
 
 ## Verification at stop
 
-The following offline checks passed after recursive macro expansion:
+The following offline checks passed after SOP Class and IOD lookup work:
 
 ```bash
 make lint
@@ -66,7 +75,7 @@ uv run mypy
 uv run pytest
 ```
 
-Observed test count: 45 passing tests.
+Observed test count: 53 passing tests.
 
 ## Implemented behavior
 
@@ -117,12 +126,25 @@ Observed test count: 45 passing tests.
   warnings, and not-found responses.
 - CLI commands `dicom-kb iod modules` and `dicom-kb module attributes` that
   read an explicit local SQLite database path and emit JSON envelopes.
+- PS3.4 parser for service class tables with explicit IOD, SOP Class Name, and
+  SOP Class UID columns, preserving malformed UID rows as parser warnings.
+- SQLite schema and transactional import for `service_class`, `sop_class`, and
+  `sop_class_iod`, with foreign-key rollback when referenced IODs are absent.
+- Repository traversal from SOP Class UID/name/PS3.6 UID keyword to linked IODs.
+- `lookup_iod` resolver with exact IOD name/keyword lookup, citation-preserving
+  payloads, and not-found responses.
+- `lookup_sop_class` resolver with UID/name/keyword lookup, malformed UID
+  validation errors, linked IOD traversal, PS3.3/PS3.4 citations, and
+  not-found responses.
+- CLI commands `dicom-kb lookup iod` and `dicom-kb lookup sop-class` that read
+  an explicit local SQLite database path and emit JSON envelopes.
 - JSON Schema contract files for tool response envelopes, standard references,
   source manifests, and condition facts.
 - Offline schema drift tests that keep schema field names and response status
   enums aligned with the implemented Pydantic contracts.
-- Shared synthetic DocBook XML fixture files for current PS3.3 and PS3.6 parser
-  coverage, with importer/query/CLI tests consuming the same fixture source.
+- Shared synthetic DocBook XML fixture files for current PS3.3, PS3.4, and
+  PS3.6 parser coverage, with importer/query/CLI tests consuming the same
+  fixture source.
 
 ## Not yet implemented
 
@@ -131,16 +153,12 @@ Observed test count: 45 passing tests.
 - CLI default cache/database discovery; lookup currently requires `--db`.
 - Full PS3.3 parser coverage beyond the first v1 CT-style synthetic fixture
   slice, including broader real-standard table variants.
-- PS3.4 SOP class parser.
 - `resolve_attribute_context` with effective-type computation (the most
   important v1 tool per SYSTEM_SPECS.md section 8.5).
 - Spec query-layer modules beyond `query/resolver.py`: `query/graph.py`,
   `query/conditions.py`, `query/citations.py`, and `query/search.py` (Work
   Order H). Graph traversal currently lives in resolvers/repositories;
   FTS5-backed `search_standard_text` has not been started.
-- Standalone `lookup_sop_class` and `lookup_iod` tools (SYSTEM_SPECS.md
-  section 8.7); IOD lookup exists only implicitly inside
-  `list_modules_for_iod`.
 - `retrieve_standard_text` (v1 tool, SYSTEM_SPECS.md section 8.6); blocked on
   `doc_node` storage because no prose is persisted to retrieve.
 - General citation builder beyond direct source-ref conversion.
@@ -175,7 +193,6 @@ if run:
 
 ## Recommended next work order
 
-Continue the v1 critical path with SYSTEM_SPECS.md section 14, build-sequence
-step 10: add the PS3.4 SOP Class parser and SOP Class → IOD traversal. That
-unblocks `resolve_attribute_context`, which needs SOP Class → IOD → modules →
-attributes traversal plus the recursive macro expansion now in place.
+Continue the v1 critical path with `resolve_attribute_context`, which can now
+use SOP Class → IOD → modules → attributes traversal plus recursive macro
+expansion to compute effective attribute type in context.
