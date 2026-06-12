@@ -4,9 +4,9 @@ Last updated: 2026-06-12
 
 ## Current stopping point
 
-Stopped after extending official source acquisition to concrete historical
-edition directories while preserving the existing cache manifest/build
-workflow. The repository now has a working v1 foundation through:
+Stopped after adding opt-in recursive CHTML mirroring for official per-part
+HTML trees while preserving the existing cache manifest/build workflow. The
+repository now has a working v1 foundation through:
 
 1. Work Order A: repository/build/legal scaffold.
 2. Work Order B: local source acquisition primitives.
@@ -82,6 +82,10 @@ workflow. The repository now has a working v1 foundation through:
 26. Official concrete-edition archive fetch for v1 parts and supported
     artifact formats, using `current` metadata only for mutable current-release
     requests and the official archive root for explicit editions.
+27. Recursive CHTML tree mirroring for official fetches via
+    `dicom-kb fetch --format chtml --mirror-chtml-tree`, with same-release URL
+    containment checks, safe cache-relative path handling, per-file manifest
+    entries, and mocked offline downloader/CLI coverage.
 
 ## Completed commits
 
@@ -122,11 +126,11 @@ workflow. The repository now has a working v1 foundation through:
 - `d3fd7b6 docs(progress): record official fetch slice`
 - `1dbba9b feat(sources): fetch additional official formats`
 - `f0844fa feat(sources): fetch concrete editions from archive`
+- `0e4d72f feat(sources): mirror CHTML part trees`
 
 ## Verification at stop
 
-The following offline checks passed after the concrete-edition archive fetch
-work:
+The following offline checks passed after the recursive CHTML mirroring work:
 
 ```bash
 uv run --dev ruff check .
@@ -134,7 +138,7 @@ uv run --dev mypy
 uv run --dev pytest
 ```
 
-Observed test count: 95 passing tests.
+Observed test count: 98 passing tests.
 
 ## Implemented behavior
 
@@ -156,6 +160,9 @@ Observed test count: 95 passing tests.
   (for example `https://dicom.nema.org/medical/dicom/2025e/`) instead of the
   mutable current-release directory, with archive listing validation and a CLI
   `--archive-base-url` override for deterministic tests.
+- Opt-in recursive CHTML tree mirroring through `--mirror-chtml-tree` when
+  `--format chtml` is requested, preserving each mirrored file as a separate
+  manifest artifact and rejecting traversal outside the selected part tree.
 - Namespace-aware DocBook section, table, span, xref, and include-row parsing.
 - DocBook section/table parent and ordinal metadata for persistent structure
   storage.
@@ -283,10 +290,6 @@ Observed test count: 95 passing tests.
 
 ## Not yet implemented
 
-- Recursive CHTML tree mirroring is still pending. Current explicit `--format`
-  support caches per-part DocBook XML, PDF, single-page HTML, CHTML part-entry
-  page, and target database files from either current-release or concrete
-  archive directories.
 - Full PS3.3 parser coverage beyond the first v1 CT-style synthetic fixture
   slice, including broader real-standard table variants.
 - Spec query-layer modules beyond `query/resolver.py`: `query/graph.py`,
