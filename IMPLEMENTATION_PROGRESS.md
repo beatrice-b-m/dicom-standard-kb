@@ -55,8 +55,12 @@ now resolved for real 2026b content: official PS3.3 include rows persist as
 macro include provenance, and Enhanced-family functional-group usage rows
 persist without parser warnings. The rebuilt default-cache 2026b KB records
 1,161 include rows, 446 `iod_functional_group_use` rows, and 4,644
-`attribute_value_term` rows. The repository has a working v1 foundation
-through:
+`attribute_value_term` rows. PS3.3 conditional module, functional-group, and
+Type C attribute rows now also persist as raw `condition` IR records with
+machine status and source refs; the rebuilt default-cache 2026b KB records
+2,586 `condition` rows. Repository-wide verification for this slice passes
+with `uv run ruff check .`, `uv run mypy`, and `uv run pytest` (`169 passed,
+3 skipped`). The repository has a working v1 foundation through:
 
 1. Work Order A: repository/build/legal scaffold.
 2. Work Order B: local source acquisition primitives.
@@ -231,6 +235,11 @@ through:
     attribute-use links are attached where available, and Python/CLI/MCP
     lookup surfaces expose `lookup_enumerated_values` and
     `lookup_defined_terms`.
+48. Condition-refinement slice: PS3.3 conditional usage text imports into
+    first-class `condition` rows for IOD module usage, functional-group usage,
+    and Type C attribute rows; graph repositories hydrate those records; IOD
+    module, module attribute, and attribute-context responses expose
+    machine-status condition payloads and condition citations where relevant.
 
 ## Completed commits
 
@@ -302,17 +311,20 @@ through:
 - `f0172d6 docs(progress): record pydicom triage results`
 - `3a321e0 test(integration): support Innolitics finalized JSON`
 - `8020648 docs(progress): mark R7 differential testing complete`
+- `5ee383a fix(parsers): resolve real PS3.3 macro graph gaps`
+- `6523cb9 feat(query): expose parsed attribute value terms`
+- `a54cc16 feat(query): persist raw PS3.3 conditions`
 
 ## Verification at stop
 
-The full local test suite was re-run on 2026-06-12 after the value-constraint
-slice and a default-cache KB rebuild:
+The full local test suite was re-run on 2026-06-12 after the condition
+refinement slice and a default-cache KB rebuild:
 
 ```bash
 uv run pytest
 ```
 
-- pytest: 167 passed, 3 skipped. The skips are the optional external
+- pytest: 169 passed, 3 skipped. The skips are the optional external
   differential comparisons when their local inputs are not configured.
 
 The default-cache 2026b KB was rebuilt from the locally cached official
@@ -367,7 +379,8 @@ The real 2026b build imports (re-verified against the rebuilt KB):
 - PS3.6: 5308 data elements, 489 UID registry entries.
 - PS3.3: 192 IODs, 403 modules, 3401 IOD module uses, 303 macros,
   446 IOD functional-group uses, 8955 attribute uses, including 1161 include
-  rows, plus 4644 imported attribute value terms.
+  rows, plus 2586 raw condition records and 4644 imported attribute value
+  terms.
 - PS3.4: 181 SOP Classes and 181 SOP Class to IOD edges.
 - 0 PS3.3 parser warnings in the graph import slice.
 
@@ -600,10 +613,15 @@ resolved per their completion conditions:
   `attribute_value_term` records; the 2026b KB imports 4644 rows, and
   `dicom-kb lookup enumerated-values` / `dicom-kb lookup defined-terms` plus
   matching MCP tools expose citation-preserving lookups.
+- PS3.3 conditional module usage, functional-group usage, and Type C attribute
+  rows persist as raw `condition` records; module, module-attribute, and
+  attribute-context responses expose machine-status condition payloads with
+  source citations.
 
 ## Not yet implemented
 
-- General citation builder beyond direct source-ref conversion.
+- General citation builder beyond direct source-ref conversion for compound
+  responses.
 - Optional real-LLM external-agent runner configuration. The committed R4
   runner is the deterministic reference agent; real-KB transcripts remain
   uncommitted build outputs by design.
@@ -621,7 +639,6 @@ resolved per their completion conditions:
 
 ## Recommended next work order
 
-Citation and condition refinement: move beyond direct source-ref conversion
-for compound responses and start normalizing raw condition records so
-conditional module and attribute usage can expose machine-status metadata
-instead of only raw description text.
+Citation refinement: move beyond direct source-ref conversion for compound
+responses by centralizing citation assembly across multi-fact answers and
+normalizing duplicate source refs into user-facing evidence groups.
