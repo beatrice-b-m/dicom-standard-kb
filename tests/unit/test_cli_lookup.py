@@ -20,7 +20,11 @@ from dicom_kb.docbook.parser import parse_docbook_xml
 from dicom_kb.parsers.part03_iods import parse_part03
 from dicom_kb.parsers.part04_sop_classes import parse_part04
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
-from dicom_kb.sources.downloader import official_artifact_url, official_docbook_xml_url
+from dicom_kb.sources.downloader import (
+    official_archive_release_url,
+    official_artifact_url,
+    official_docbook_xml_url,
+)
 from tests.fixtures_synthetic import (
     FIXTURE_DIR,
     PS33_CT_IMAGE_DOCBOOK,
@@ -459,6 +463,53 @@ def test_cli_fetch_downloads_requested_official_formats(
     ]
     assert payload["artifacts"][1]["local_path"] == (
         "artifacts/2026b/raw/pdf/part06.pdf"
+    )
+
+
+def test_cli_fetch_downloads_concrete_edition_from_archive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    current_url = "https://dicom.example/current/"
+    archive_url = "https://dicom.example/dicom/"
+    release_url = official_archive_release_url(archive_url, edition="2025e")
+    part_url = official_docbook_xml_url(release_url, "PS3.6")
+    responses = {
+        archive_url: b'<a href="2025e/">2025e</a>',
+        part_url: b"<book><title>Archived Part 6</title></book>",
+    }
+
+    def fake_urlopen(url: str, timeout: int) -> _FakeResponse:
+        assert timeout == 60
+        assert url != current_url
+        return _FakeResponse(responses[url])
+
+    monkeypatch.setattr("dicom_kb.sources.downloader.urlopen", fake_urlopen)
+    cache_dir = tmp_path / "cache"
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "fetch",
+            "--edition",
+            "2025e",
+            "--cache-dir",
+            str(cache_dir),
+            "--source-base-url",
+            current_url,
+            "--archive-base-url",
+            archive_url,
+            "--part",
+            "PS3.6",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["edition"] == "2025e"
+    assert payload["resolved_from"] == "2025e"
+    assert payload["artifacts"][0]["source_url"] == part_url
+    assert payload["artifacts"][0]["local_path"] == (
+        "artifacts/2025e/raw/source/docbook/part06/part06.xml"
     )
 
 

@@ -12,7 +12,11 @@ from urllib.parse import urljoin
 from urllib.request import urlopen
 
 from dicom_kb.sources.checksums import sha256_file
-from dicom_kb.sources.edition_resolver import EditionResolver, ResolvedEdition
+from dicom_kb.sources.edition_resolver import (
+    EDITION_RE,
+    EditionResolver,
+    ResolvedEdition,
+)
 from dicom_kb.sources.manifest import (
     SourceArtifact,
     SourceManifest,
@@ -22,6 +26,7 @@ from dicom_kb.sources.manifest import (
 
 DEFAULT_CACHE_DIR = Path.home() / ".cache" / "dicom-standard-kb"
 DEFAULT_DICOM_CURRENT_BASE_URL = "https://dicom.nema.org/medical/dicom/current/"
+DEFAULT_DICOM_ARCHIVE_BASE_URL = "https://dicom.nema.org/medical/dicom/"
 DOCBOOK_XML_FORMAT = "docbook_xml"
 PDF_FORMAT = "pdf"
 HTML_FORMAT = "html"
@@ -103,15 +108,17 @@ def fetch_official_docbook_artifacts(
     parts: tuple[str, ...] = V1_DOCBOOK_PARTS,
     cache_dir: Path = DEFAULT_CACHE_DIR,
     base_url: str = DEFAULT_DICOM_CURRENT_BASE_URL,
+    archive_base_url: str = DEFAULT_DICOM_ARCHIVE_BASE_URL,
     force: bool = False,
 ) -> SourceManifest:
-    """Download official current DocBook XML artifacts into the local cache."""
+    """Download official DocBook XML artifacts into the local cache."""
     return fetch_official_artifacts(
         edition=edition,
         parts=parts,
         formats=(DOCBOOK_XML_FORMAT,),
         cache_dir=cache_dir,
         base_url=base_url,
+        archive_base_url=archive_base_url,
         force=force,
     )
 
@@ -123,20 +130,25 @@ def fetch_official_artifacts(
     formats: tuple[str, ...] = (DOCBOOK_XML_FORMAT,),
     cache_dir: Path = DEFAULT_CACHE_DIR,
     base_url: str = DEFAULT_DICOM_CURRENT_BASE_URL,
+    archive_base_url: str = DEFAULT_DICOM_ARCHIVE_BASE_URL,
     force: bool = False,
 ) -> SourceManifest:
-    """Download selected official current artifacts into the local cache."""
+    """Download selected official artifacts into the local cache."""
     normalized_formats = tuple(
         _normalize_official_artifact_format(artifact_format)
         for artifact_format in formats
     )
-    resolved = resolve_official_current_edition(edition=edition, base_url=base_url)
+    resolved, release_base_url = resolve_official_release(
+        edition=edition,
+        current_base_url=base_url,
+        archive_base_url=archive_base_url,
+    )
     entries: list[SourceArtifact] = []
     for part in parts:
         normalized_part = _normalize_docbook_part(part)
         for normalized_format in normalized_formats:
             url = official_artifact_url(
-                base_url,
+                release_base_url,
                 part=normalized_part,
                 artifact_format=normalized_format,
             )
@@ -167,6 +179,33 @@ def fetch_official_artifacts(
     return manifest.with_digest()
 
 
+def resolve_official_release(
+    *,
+    edition: str,
+    current_base_url: str = DEFAULT_DICOM_CURRENT_BASE_URL,
+    archive_base_url: str = DEFAULT_DICOM_ARCHIVE_BASE_URL,
+) -> tuple[ResolvedEdition, str]:
+    """Resolve an edition and the official release directory to fetch from."""
+    if edition.strip().lower() == "current":
+        resolved = resolve_official_current_edition(
+            edition=edition,
+            base_url=current_base_url,
+        )
+        return resolved, _ensure_trailing_slash(current_base_url)
+
+    resolved = EditionResolver().resolve(edition)
+    archive_editions = discover_official_archive_editions(archive_base_url)
+    if resolved.edition not in archive_editions:
+        raise OfficialFetchError(
+            f"requested DICOM edition {resolved.edition!r} is not listed in the "
+            f"official archive at {_ensure_trailing_slash(archive_base_url)!r}"
+        )
+    return resolved, official_archive_release_url(
+        archive_base_url,
+        edition=resolved.edition,
+    )
+
+
 def resolve_official_current_edition(
     *, edition: str, base_url: str = DEFAULT_DICOM_CURRENT_BASE_URL
 ) -> ResolvedEdition:
@@ -182,6 +221,21 @@ def resolve_official_current_edition(
             f"requested {resolved.edition!r}, but current is {current_edition!r}"
         )
     return resolved
+
+
+def discover_official_archive_editions(
+    base_url: str = DEFAULT_DICOM_ARCHIVE_BASE_URL,
+) -> set[str]:
+    """Discover concrete edition labels listed in the official archive."""
+    listing = _read_url_text(_ensure_trailing_slash(base_url))
+    parser = _HrefParser()
+    parser.feed(listing)
+    editions: set[str] = set()
+    for href in parser.hrefs:
+        candidate = href.strip().strip("/")
+        if EDITION_RE.match(candidate):
+            editions.add(candidate.lower())
+    return editions
 
 
 def discover_official_current_edition(
@@ -202,6 +256,12 @@ def discover_official_current_edition(
             f"current release metadata: {sorted(editions)!r}"
         )
     return next(iter(editions))
+
+
+def official_archive_release_url(base_url: str, *, edition: str) -> str:
+    """Return the official archive release URL for a concrete edition."""
+    resolved = EditionResolver().resolve(edition)
+    return urljoin(_ensure_trailing_slash(base_url), f"{resolved.edition}/")
 
 
 def official_docbook_xml_url(base_url: str, part: str) -> str:

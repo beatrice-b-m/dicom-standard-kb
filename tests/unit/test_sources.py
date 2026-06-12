@@ -11,9 +11,11 @@ from dicom_kb.sources.downloader import (
     TARGETDB_FORMAT,
     ArtifactRequest,
     OfficialFetchError,
+    discover_official_archive_editions,
     discover_official_current_edition,
     fetch_official_artifacts,
     fetch_official_docbook_artifacts,
+    official_archive_release_url,
     official_artifact_destination,
     official_artifact_url,
     official_docbook_xml_url,
@@ -144,6 +146,26 @@ def test_discover_official_current_edition_from_release_listing(
     assert discover_official_current_edition(base_url) == "2026b"
 
 
+def test_discover_official_archive_editions_from_root_listing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    archive_url = "https://dicom.example/dicom/"
+
+    def fake_urlopen(url: str, timeout: int) -> _FakeResponse:
+        assert timeout == 60
+        assert url == archive_url
+        return _FakeResponse(
+            b'<a href="2025e/">2025e</a>'
+            b'<a href="2026a/">2026a</a>'
+            b'<a href="current/">current</a>'
+            b'<a href="Final/">Final</a>'
+        )
+
+    monkeypatch.setattr("dicom_kb.sources.downloader.urlopen", fake_urlopen)
+
+    assert discover_official_archive_editions(archive_url) == {"2025e", "2026a"}
+
+
 def test_official_artifact_urls_and_destinations_are_format_specific() -> None:
     base_url = "https://dicom.example/current/"
 
@@ -169,6 +191,10 @@ def test_official_artifact_urls_and_destinations_are_format_specific() -> None:
     assert official_artifact_destination(
         "2026b", part="PS3.6", artifact_format=TARGETDB_FORMAT
     ) == "artifacts/2026b/raw/targetdb/PS3_06_target.db"
+    assert official_archive_release_url(
+        "https://dicom.example/dicom/",
+        edition="2025e",
+    ) == "https://dicom.example/dicom/2025e/"
 
 
 def test_fetch_official_docbook_artifacts_writes_manifest(
@@ -278,6 +304,49 @@ def test_fetch_official_artifacts_writes_requested_formats(
     ).read_bytes() == responses[targetdb_url]
 
 
+def test_fetch_official_artifacts_uses_archive_for_concrete_edition(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    current_url = "https://dicom.example/current/"
+    archive_url = "https://dicom.example/dicom/"
+    release_url = official_archive_release_url(archive_url, edition="2025e")
+    part_url = official_docbook_xml_url(release_url, "PS3.6")
+    responses = {
+        archive_url: b'<a href="2025e/">2025e</a><a href="2026a/">2026a</a>',
+        part_url: b"<book><title>Archived Part 6</title></book>",
+    }
+
+    def fake_urlopen(url: str, timeout: int) -> _FakeResponse:
+        assert timeout == 60
+        assert url != current_url
+        return _FakeResponse(responses[url])
+
+    monkeypatch.setattr("dicom_kb.sources.downloader.urlopen", fake_urlopen)
+
+    manifest = fetch_official_artifacts(
+        edition="2025e",
+        parts=("PS3.6",),
+        cache_dir=tmp_path / "cache",
+        base_url=current_url,
+        archive_base_url=archive_url,
+    )
+
+    assert manifest.edition == "2025e"
+    assert manifest.resolved_from == "2025e"
+    assert manifest.artifacts[0].source_url == part_url
+    assert (
+        tmp_path
+        / "cache"
+        / "artifacts"
+        / "2025e"
+        / "raw"
+        / "source"
+        / "docbook"
+        / "part06"
+        / "part06.xml"
+    ).read_bytes() == responses[part_url]
+
+
 def test_fetch_official_artifacts_rejects_unknown_format(tmp_path: Path) -> None:
     with pytest.raises(OfficialFetchError, match="artifact format"):
         fetch_official_artifacts(
@@ -289,23 +358,21 @@ def test_fetch_official_artifacts_rejects_unknown_format(tmp_path: Path) -> None
         )
 
 
-def test_fetch_official_docbook_rejects_non_current_concrete_edition(
+def test_fetch_official_docbook_rejects_unlisted_concrete_edition(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    base_url = "https://dicom.example/current/"
+    archive_url = "https://dicom.example/dicom/"
 
     def fake_urlopen(url: str, timeout: int) -> _FakeResponse:
-        return _FakeResponse(
-            b'<a href="DocBookDICOM2026b_release_docbook_20260327091344.zip">'
-            b"docbook</a>"
-        )
+        assert url == archive_url
+        return _FakeResponse(b'<a href="2026b/">2026b</a>')
 
     monkeypatch.setattr("dicom_kb.sources.downloader.urlopen", fake_urlopen)
 
-    with pytest.raises(OfficialFetchError, match="requested '2025e'"):
+    with pytest.raises(OfficialFetchError, match="not listed"):
         fetch_official_docbook_artifacts(
             edition="2025e",
             parts=("PS3.6",),
             cache_dir=tmp_path / "cache",
-            base_url=base_url,
+            archive_base_url=archive_url,
         )

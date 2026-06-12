@@ -31,6 +31,7 @@ from dicom_kb.query.resolver import (
 )
 from dicom_kb.sources.downloader import (
     DEFAULT_CACHE_DIR,
+    DEFAULT_DICOM_ARCHIVE_BASE_URL,
     DEFAULT_DICOM_CURRENT_BASE_URL,
     DOCBOOK_XML_FORMAT,
     OFFICIAL_ARTIFACT_FORMATS,
@@ -159,6 +160,13 @@ def fetch_command(
             help="Official DICOM current release base URL.",
         ),
     ] = DEFAULT_DICOM_CURRENT_BASE_URL,
+    archive_base_url: Annotated[
+        str,
+        typer.Option(
+            "--archive-base-url",
+            help="Official DICOM archive root URL for concrete editions.",
+        ),
+    ] = DEFAULT_DICOM_ARCHIVE_BASE_URL,
     cache_dir: Annotated[
         Path,
         typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
@@ -197,6 +205,7 @@ def fetch_command(
                 formats=formats,
                 cache_dir=cache_dir,
                 base_url=source_base_url,
+                archive_base_url=archive_base_url,
                 force=force,
             )
         except OfficialFetchError as exc:
