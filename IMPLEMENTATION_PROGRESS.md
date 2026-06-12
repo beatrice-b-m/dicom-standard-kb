@@ -4,7 +4,7 @@ Last updated: 2026-06-12
 
 ## Current stopping point
 
-Stopped after completing the PS3.6 query/CLI lookup work order. The repository
+Stopped after completing the first PS3.3 parser/storage slice. The repository
 now has a working offline foundation through:
 
 1. Work Order A: repository/build/legal scaffold.
@@ -16,6 +16,12 @@ now has a working offline foundation through:
 6. Work Order G, second v1 slice: public response envelopes,
    SQLite-backed PS3.6 query resolvers, and `dicom-kb lookup tag` /
    `dicom-kb lookup uid`.
+7. Work Order E, first v1 slice: PS3.3 IOD module tables, module attribute
+   tables, macro attribute tables, include rows, functional-group usage rows,
+   and nested sequence attribute rows parsed from DocBook table IR.
+8. Work Order G, third v1 slice: additive SQLite graph schema and
+   transactional PS3.3 graph import for IODs, modules, macros, module usage,
+   functional-group usage, and attribute-use rows.
 
 ## Completed commits
 
@@ -27,18 +33,22 @@ now has a working offline foundation through:
 - `c590570 docs(progress): record v1 implementation stopping point`
 - `e01b7e0 docs(progress): record untracked gaps and broken placeholder targets`
 - `9172252 feat(query): add PS3.6 lookup envelopes`
+- `6732828 docs(progress): record PS3.6 lookup slice`
+- `cfd383d feat(parsers): parse PS3.3 graph tables`
+- `c0b5bd0 fix(parsers): prefer PS3.3 definition table identities`
+- `9d3f372 feat(db): import PS3.3 graph records`
 
 ## Verification at stop
 
-The following offline checks passed after the database work order:
+The following offline checks passed after the PS3.3 parser/storage work:
 
 ```bash
 make lint
-make typecheck
-make test
+uv run mypy
+uv run pytest
 ```
 
-Observed test count: 27 passing tests.
+Observed test count: 32 passing tests.
 
 ## Implemented behavior
 
@@ -68,15 +78,29 @@ Observed test count: 27 passing tests.
   malformed UID-shaped input, not-found responses, and retired UID reporting.
 - CLI commands `dicom-kb lookup tag` and `dicom-kb lookup uid` that read an
   explicit local SQLite database path and emit JSON envelopes.
+- PS3.3 parser for CT-style IOD module tables with Information Entity, Module,
+  Reference, and Usage columns, including conditional usage text.
+- PS3.3 parser for module and macro attribute tables, including Type
+  designations, source refs, include rows resolved by table reference, and
+  nested sequence parent links from `>` depth markers.
+- PS3.3 parser for functional-group macro usage tables, preserving unresolved
+  references as warnings instead of guessing.
+- SQLite graph schema for `condition`, `iod`, `module`, `macro`,
+  `iod_module_use`, `iod_functional_group_use`, and `attribute_use`.
+- Transactional PS3.3 graph import with source-ref coverage and rollback on
+  uniqueness/foreign-key failures.
 
 ## Not yet implemented
 
 - Official network fetch URL discovery for `current` edition metadata.
 - CLI commands wired to fetch and build workflows.
 - CLI default cache/database discovery; lookup currently requires `--db`.
-- PS3.3 IOD/module/macro parser.
+- Full PS3.3 parser coverage beyond the first v1 CT-style synthetic fixture
+  slice, including broader real-standard table variants.
 - PS3.4 SOP class parser.
 - General citation builder beyond direct source-ref conversion.
+- Query resolvers and CLI commands for PS3.3 graph traversal
+  (`list_modules_for_iod`, `list_attributes_for_module`, macro expansion).
 - MCP server tool surface.
 - Agent regression harness.
 - Raw table IR persistence (SYSTEM_SPECS.md section 10.3): the DocBook layer
@@ -104,15 +128,18 @@ if run:
 
 ## Recommended next work order
 
-Resume the spec sequence with PS3.3 IOD/module/macro parsing:
+Continue the PS3.3 work order by adding graph query traversal:
 
-1. Add `docbook/variablelists.py` if needed by PS3.3 table prose parsing.
-2. Implement a PS3.3 IOD/module/macro parser focused on the CT Image IOD
-   fixture and Include-row preservation.
-3. Extend the SQLite schema/importer for IODs, modules, macros,
-   `iod_module_use`, and `attribute_use`.
-4. Add focused synthetic/minimal attributed fixtures and tests for CT Image
-   modules and macro include rows.
+1. Add repository methods for lookup by IOD name, module name, macro table/name,
+   and ordered attribute-use rows.
+2. Implement `list_modules_for_iod` and `list_attributes_for_module`, including
+   optional query-time macro expansion that preserves both include-row and macro
+   source refs.
+3. Add CLI commands for `dicom-kb iod modules` and
+   `dicom-kb module attributes` using an explicit `--db` path, matching the
+   existing PS3.6 lookup style.
+4. Broaden PS3.3 parser fixtures toward minimal attributed CT Image material
+   once local artifact handling for attributed fixtures is in place.
 
 Before MCP work, also add the spec-mandated JSON Schema files for the current
 response envelope contracts.
