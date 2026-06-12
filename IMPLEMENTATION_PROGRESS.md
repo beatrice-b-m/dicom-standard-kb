@@ -4,8 +4,8 @@ Last updated: 2026-06-12
 
 ## Current stopping point
 
-Stopped after adding `resolve_attribute_context` with IOD/SOP Class traversal,
-macro expansion, and effective type computation. The repository now has a
+Stopped after adding persisted DocBook structure storage and
+`retrieve_standard_text` over capped excerpts. The repository now has a
 working offline foundation through:
 
 1. Work Order A: repository/build/legal scaffold.
@@ -45,6 +45,12 @@ working offline foundation through:
     identity, IOD or SOP Class context resolution, recursive macro expansion,
     sequence-path reporting, and lowest effective type computation across
     multiple uses.
+16. Additive `doc_node`, `xref`, and `raw_table_ir` SQLite storage with a
+    transactional DocBook structure importer, deterministic source refs,
+    parent linkage, xref resolution, and raw table JSON snapshot hashes.
+17. Public `retrieve_standard_text` response envelope plus CLI command
+    `dicom-kb retrieve-text`, resolving persisted DocBook nodes by part and
+    anchor/section number, returning capped excerpts and related table refs.
 
 ## Completed commits
 
@@ -71,10 +77,12 @@ working offline foundation through:
 - `e63e678 feat(query): expose SOP Class and IOD lookups`
 - `7cde527 docs(progress): record SOP Class lookup slice`
 - `0f6296b feat(query): resolve attribute context`
+- `174851a feat(db): persist DocBook structure`
+- `014cd42 feat(query): retrieve standard text excerpts`
 
 ## Verification at stop
 
-The following offline checks passed after attribute context resolution work:
+The following offline checks passed after standard text retrieval work:
 
 ```bash
 make lint
@@ -82,7 +90,7 @@ uv run mypy
 uv run pytest
 ```
 
-Observed test count: 59 passing tests.
+Observed test count: 64 passing tests.
 
 ## Implemented behavior
 
@@ -93,6 +101,8 @@ Observed test count: 59 passing tests.
 - SHA-256 helpers and immutable source manifests.
 - Local artifact registration into the external cache layout.
 - Namespace-aware DocBook section, table, span, xref, and include-row parsing.
+- DocBook section/table parent and ordinal metadata for persistent structure
+  storage.
 - Zero-width character removal and normalized text helpers.
 - PS3.6 data element parsing with tag normalization, retired markers, malformed
   row warnings, and range-tag detection.
@@ -138,7 +148,12 @@ Observed test count: 59 passing tests.
   SOP Class UID columns, preserving malformed UID rows as parser warnings.
 - SQLite schema and transactional import for `service_class`, `sop_class`, and
   `sop_class_iod`, with foreign-key rollback when referenced IODs are absent.
+- SQLite schema and transactional import for `doc_node`, `xref`, and
+  `raw_table_ir`, preserving document structure, local cross-reference
+  resolution, and raw table JSON snapshot hashes for parser debugging.
 - Repository traversal from SOP Class UID/name/PS3.6 UID keyword to linked IODs.
+- Repository lookup of persisted DocBook nodes by part and exact `xml:id`,
+  anchor, or section number, with recursive table listing below matched nodes.
 - `lookup_iod` resolver with exact IOD name/keyword lookup, citation-preserving
   payloads, and not-found responses.
 - `lookup_sop_class` resolver with UID/name/keyword lookup, malformed UID
@@ -157,6 +172,11 @@ Observed test count: 59 passing tests.
   warning when multiple-use resolution assumes no description-text override.
 - CLI command `dicom-kb resolve attribute-context` that reads an explicit local
   SQLite database path and emits the public context-resolution JSON envelope.
+- `retrieve_standard_text` resolver with part/max-character validation,
+  persisted DocBook node lookup, capped text excerpts, truncation warnings, and
+  citation-preserving related table refs.
+- CLI command `dicom-kb retrieve-text` that reads an explicit local SQLite
+  database path and emits the public text-retrieval JSON envelope.
 - JSON Schema contract files for tool response envelopes, standard references,
   source manifests, and condition facts.
 - Offline schema drift tests that keep schema field names and response status
@@ -176,8 +196,7 @@ Observed test count: 59 passing tests.
   `query/conditions.py`, `query/citations.py`, and `query/search.py` (Work
   Order H). Graph traversal currently lives in resolvers/repositories;
   FTS5-backed `search_standard_text` has not been started.
-- `retrieve_standard_text` (v1 tool, SYSTEM_SPECS.md section 8.6); blocked on
-  `doc_node` storage because no prose is persisted to retrieve.
+- `search_standard_text` (v1 tool, SYSTEM_SPECS.md section 8.7).
 - General citation builder beyond direct source-ref conversion.
 - MCP server tool surface.
 - Agent regression harness.
@@ -187,11 +206,6 @@ Observed test count: 59 passing tests.
   the query layer), Segmentation, Comprehensive SR, and Encapsulated PDF
   goldens are pending. These approach real-standard content, so they likely
   belong with the integration-test work rather than synthetic fixtures.
-- Raw table IR persistence (SYSTEM_SPECS.md section 10.3): the DocBook layer
-  builds table IR in memory, but the import stores only normalized
-  `data_element`/`uid_registry_entry` rows. No `doc_node`, `xref`, or JSON
-  table-snapshot storage exists yet, so parser bugs cannot be investigated
-  without reparsing the source.
 - Spec-mandated repository directories and files:
   `tests/fixtures_minimal_attributed/`, `tests/agent_regression/`, `examples/`,
   and `docbook/variablelists.py`.
@@ -210,6 +224,6 @@ if run:
 
 ## Recommended next work order
 
-Continue the v1 critical path by adding persisted `doc_node`/raw table IR
-storage so `retrieve_standard_text` can be implemented with citation-preserving
-short excerpts instead of reparsing source XML on every query.
+Continue the v1 critical path by adding `search_standard_text` over persisted
+DocBook text, likely via an additive FTS5-backed index populated from
+`doc_node.plain_text` with short, citation-preserving snippets.
