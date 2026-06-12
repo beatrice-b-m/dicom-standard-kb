@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 import pytest
+from typer.main import get_command
 from typer.testing import CliRunner
 
 from dicom_kb.cli.main import app
@@ -171,8 +172,16 @@ def test_mcp_cli_exposes_serve_command_without_optional_dependency() -> None:
     result = CliRunner().invoke(app, ["mcp", "serve", "--help"])
 
     assert result.exit_code == 0, result.output
-    assert "--edition" in result.output
-    assert "--db" in result.output
+
+    mcp_command = get_command(app).commands["mcp"]
+    serve_command = mcp_command.commands["serve"]
+    option_names = {
+        option
+        for parameter in serve_command.params
+        for option in parameter.opts
+    }
+    assert "--edition" in option_names
+    assert "--db" in option_names
 
 
 def test_serve_mcp_stdio_reports_missing_optional_dependency(
