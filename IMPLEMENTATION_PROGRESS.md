@@ -4,38 +4,34 @@ Last updated: 2026-06-12
 
 ## Current stopping point
 
-Stopped after completing R6 repository-layout reconciliation from
-`PROGRESS_REVIEW.md`: the public query API now retains `resolver.py` as a thin
-entry-point layer while citation assembly, condition payload shaping, PS3.3
-graph traversal, recursive macro expansion, and SQLite FTS query construction
-live in the spec-aligned `query/citations.py`, `query/conditions.py`,
-`query/graph.py`, and `query/search.py` modules; the MCP adapter now keeps
-`mcp/server.py` focused on configuration, dependency loading, and stdio
-transport while tool metadata and resolver dispatch live in `mcp/schemas.py`
-and `mcp/tools.py`; DocBook `<variablelist>` parsing now lives in
-`docbook/variablelists.py` with synthetic fixture coverage for term,
-definition, reference, and source-context preservation; and the spec-listed
-`examples/` and `tests/fixtures_minimal_attributed/` paths now exist. Storage
-and import wiring for parsed variable lists remains intentionally pending for a
-later value-constraint slice, and post-v1 `api/` plus v2 parser paths remain
-absent by design. Official `current` was fetched and resolved to concrete
-edition `2026b`, the local KB builds from real PS3.3/PS3.4/PS3.6 DocBook XML,
-`make test-integration` has a real-download integration tier that passes with
-local artifacts and skips cleanly without them, and the §15.2 golden entity set
-now has real-KB integration assertions. The agent regression prompt set now has
-65 edition-pinned cases, covers all nine v1 query tools, and includes an
-offline guard for the ≥50-case, unique-ID, edition-pin, all-tool, and
-error-case floors. `dicom-kb eval run` now records deterministic reference-agent
-transcripts in the existing compact scorecard schema, and both
-synthetic-fixture and real-KB tests score those transcripts without committing
-bulk real-KB outputs. The MCP server now has an offline protocol-level smoke
-test using the official Python MCP stdio client against the synthetic fixture
-KB, and `dicom-kb mcp serve` fails early with fetch/build guidance when the
-configured SQLite KB is missing. Two R2 parser limitations remain captured as
-strict xfails: real PS3.3 include rows are not yet persisted as macro include
-provenance, and Enhanced CT functional-group usage rows are not yet persisted.
-R7 differential testing remains the next unresolved item. The repository now
-has a working v1 foundation through:
+Stopped after the first R7 differential-testing slice from
+`PROGRESS_REVIEW.md`: the integration tier now has a skip-clean Innolitics
+differential harness that reads optional JSON from `DICOM_KB_INNOLITICS_PATH`,
+compares parseable PS3.6 data element fields and CT Image module lists against
+the local KB, and uses an explicit empty allowlist for future triaged edition
+skew or interpretation differences. A real Innolitics JSON run has not yet been
+performed in this environment, so R7 remains open until a configured external
+dataset produces zero unexplained mismatches or documented allowlisted
+differences. R6 repository-layout reconciliation is complete: the public query
+API now retains `resolver.py` as a thin entry-point layer while citation
+assembly, condition payload shaping, PS3.3 graph traversal, recursive macro
+expansion, and SQLite FTS query construction live in the spec-aligned
+`query/citations.py`, `query/conditions.py`, `query/graph.py`, and
+`query/search.py` modules; the MCP adapter now keeps `mcp/server.py` focused on
+configuration, dependency loading, and stdio transport while tool metadata and
+resolver dispatch live in `mcp/schemas.py` and `mcp/tools.py`; DocBook
+`<variablelist>` parsing now lives in `docbook/variablelists.py`; and the
+spec-listed `examples/` and `tests/fixtures_minimal_attributed/` paths now
+exist. Storage/import wiring for parsed variable lists remains intentionally
+pending for a later value-constraint slice, and post-v1 `api/` plus v2 parser
+paths remain absent by design. Official `current` was fetched and resolved to
+concrete edition `2026b`, the local KB builds from real PS3.3/PS3.4/PS3.6
+DocBook XML, `make test-integration` has a real-download integration tier that
+passes with local artifacts and skips cleanly without them, and the §15.2 golden
+entity set now has real-KB integration assertions. Two R2 parser limitations
+remain captured as strict xfails: real PS3.3 include rows are not yet persisted
+as macro include provenance, and Enhanced CT functional-group usage rows are not
+yet persisted. The repository now has a working v1 foundation through:
 
 1. Work Order A: repository/build/legal scaffold.
 2. Work Order B: local source acquisition primitives.
@@ -171,6 +167,11 @@ has a working v1 foundation through:
     `tests/fixtures_minimal_attributed/` paths exist; examples target the
     synthetic fixture KB, executable examples have offline smoke coverage, and
     the attributed fixture directory starts with policy only.
+39. R7 differential testing, first slice. The integration tier has an optional
+    Innolitics JSON differential harness that skips without
+    `DICOM_KB_INNOLITICS_PATH`, compares overlapping PS3.6 element fields and
+    CT Image module names when a JSON file/directory is supplied, and records
+    accepted differences only through an explicit allowlist file.
 
 ## Completed commits
 
@@ -231,10 +232,12 @@ has a working v1 foundation through:
 - `6190d63 feat(docbook): parse variable lists`
 - `096fb61 docs(progress): record R6 variable-list parser`
 - `cbd7dc8 feat(examples): add fixture-oriented sample workflows`
+- `9c73bb4 docs(progress): record R6 layout completion`
+- `5c33713 test(integration): add Innolitics differential harness`
 
 ## Verification at stop
 
-The following checks passed after the R6 examples and fixture-policy slice:
+The following checks passed after the R7 differential harness slice:
 
 ```bash
 uv run --dev ruff check .
@@ -242,8 +245,8 @@ uv run --dev mypy
 uv run --dev pytest
 ```
 
-Observed local test result with the built real KB present: 157 passed and 2
-strict xfailed tests.
+Observed local test result with the built real KB present and no
+`DICOM_KB_INNOLITICS_PATH`: 157 passed, 2 skipped, and 2 strict xfailed tests.
 
 Observed R3 prompt-case metrics:
 
@@ -264,8 +267,10 @@ built official DICOM edition `2026b`:
 uv run --dev pytest tests/integration_requires_dicom_download
 ```
 
-Observed integration result with artifacts: 37 passing tests and 2 strict
-xfailed tests.
+Observed integration result with artifacts before the R7 harness: 37 passing
+tests and 2 strict xfailed tests. The new R7 differential test file was run
+directly without `DICOM_KB_INNOLITICS_PATH` and skipped both comparisons
+cleanly.
 
 The no-artifact path was verified with an empty cache:
 
@@ -330,6 +335,9 @@ Accepted R2 strict-xfail limitations:
   validators.
 - Minimal-attributed fixture policy directory that starts empty of official
   excerpts and defines attribution/minimization rules for future parser cases.
+- Optional Innolitics differential harness for PS3.6 data element fields and CT
+  Image module lists, with clean skips when external comparison data is not
+  configured and an explicit allowlist for future accepted differences.
 - DocBook section/table parent and ordinal metadata for persistent structure
   storage.
 - Zero-width character removal and normalized text helpers.
