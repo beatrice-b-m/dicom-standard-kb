@@ -1,0 +1,58 @@
+[project]
+name = "dicom-standard-kb"
+version = "0.1.0"
+description = "Edition-pinned local DICOM standard knowledge-base builder."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+authors = [{ name = "dicom-standard-kb contributors" }]
+keywords = ["dicom", "docbook", "knowledge-base", "mcp"]
+dependencies = [
+  "beautifulsoup4>=4.12",
+  "lxml>=5.2",
+  "pydantic>=2.7",
+  "typer>=0.12",
+]
+
+[project.optional-dependencies]
+mcp = [
+  "mcp>=1.2",
+]
+
+[dependency-groups]
+dev = [
+  "mypy>=1.10",
+  "pytest>=8.2",
+  "ruff>=0.5",
+  "syrupy>=4.6",
+  "hypothesis>=6.100",
+]
+
+[project.scripts]
+dicom-kb = "dicom_kb.cli.main:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+package = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/dicom_kb"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["dicom_kb"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
