@@ -20,7 +20,7 @@ from dicom_kb.docbook.parser import parse_docbook_xml
 from dicom_kb.parsers.part03_iods import parse_part03
 from dicom_kb.parsers.part04_sop_classes import parse_part04
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
-from dicom_kb.sources.downloader import official_docbook_xml_url
+from dicom_kb.sources.downloader import official_artifact_url, official_docbook_xml_url
 from tests.fixtures_synthetic import (
     FIXTURE_DIR,
     PS33_CT_IMAGE_DOCBOOK,
@@ -401,6 +401,64 @@ def test_cli_fetch_downloads_official_docbook(
     assert payload["artifacts"][0]["source_url"] == part_url
     assert payload["artifacts"][0]["local_path"] == (
         "artifacts/2026b/raw/source/docbook/part06/part06.xml"
+    )
+
+
+def test_cli_fetch_downloads_requested_official_formats(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    base_url = "https://dicom.example/current/"
+    docbook_url = official_artifact_url(
+        base_url, part="PS3.6", artifact_format="docbook_xml"
+    )
+    pdf_url = official_artifact_url(base_url, part="PS3.6", artifact_format="pdf")
+    responses = {
+        base_url: (
+            b'<a href="DocBookDICOM2026b_release_docbook_20260327091344.zip">'
+            b"docbook</a>"
+        ),
+        docbook_url: b"<book><title>Part 6</title></book>",
+        pdf_url: b"%PDF-1.7\n",
+    }
+
+    def fake_urlopen(url: str, timeout: int) -> _FakeResponse:
+        assert timeout == 60
+        return _FakeResponse(responses[url])
+
+    monkeypatch.setattr("dicom_kb.sources.downloader.urlopen", fake_urlopen)
+    cache_dir = tmp_path / "cache"
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "fetch",
+            "--edition",
+            "current",
+            "--cache-dir",
+            str(cache_dir),
+            "--source-base-url",
+            base_url,
+            "--part",
+            "PS3.6",
+            "--format",
+            "docbook_xml",
+            "--format",
+            "pdf",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert [artifact["format"] for artifact in payload["artifacts"]] == [
+        "docbook_xml",
+        "pdf",
+    ]
+    assert [artifact["source_url"] for artifact in payload["artifacts"]] == [
+        docbook_url,
+        pdf_url,
+    ]
+    assert payload["artifacts"][1]["local_path"] == (
+        "artifacts/2026b/raw/pdf/part06.pdf"
     )
 
 

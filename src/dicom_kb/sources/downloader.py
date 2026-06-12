@@ -23,6 +23,17 @@ from dicom_kb.sources.manifest import (
 DEFAULT_CACHE_DIR = Path.home() / ".cache" / "dicom-standard-kb"
 DEFAULT_DICOM_CURRENT_BASE_URL = "https://dicom.nema.org/medical/dicom/current/"
 DOCBOOK_XML_FORMAT = "docbook_xml"
+PDF_FORMAT = "pdf"
+HTML_FORMAT = "html"
+CHTML_FORMAT = "chtml"
+TARGETDB_FORMAT = "targetdb"
+OFFICIAL_ARTIFACT_FORMATS = (
+    DOCBOOK_XML_FORMAT,
+    PDF_FORMAT,
+    HTML_FORMAT,
+    CHTML_FORMAT,
+    TARGETDB_FORMAT,
+)
 V1_DOCBOOK_PARTS = ("PS3.3", "PS3.4", "PS3.6")
 OFFICIAL_EDITION_RE = re.compile(r"DocBookDICOM(20\d{2}[a-z])_release_docbook_")
 RELEASE_NOTES_EDITION_RE = re.compile(r"releasenotes_(20\d{2}[a-z])\.xml")
@@ -95,25 +106,56 @@ def fetch_official_docbook_artifacts(
     force: bool = False,
 ) -> SourceManifest:
     """Download official current DocBook XML artifacts into the local cache."""
+    return fetch_official_artifacts(
+        edition=edition,
+        parts=parts,
+        formats=(DOCBOOK_XML_FORMAT,),
+        cache_dir=cache_dir,
+        base_url=base_url,
+        force=force,
+    )
+
+
+def fetch_official_artifacts(
+    *,
+    edition: str,
+    parts: tuple[str, ...] = V1_DOCBOOK_PARTS,
+    formats: tuple[str, ...] = (DOCBOOK_XML_FORMAT,),
+    cache_dir: Path = DEFAULT_CACHE_DIR,
+    base_url: str = DEFAULT_DICOM_CURRENT_BASE_URL,
+    force: bool = False,
+) -> SourceManifest:
+    """Download selected official current artifacts into the local cache."""
+    normalized_formats = tuple(
+        _normalize_official_artifact_format(artifact_format)
+        for artifact_format in formats
+    )
     resolved = resolve_official_current_edition(edition=edition, base_url=base_url)
     entries: list[SourceArtifact] = []
     for part in parts:
         normalized_part = _normalize_docbook_part(part)
-        url = official_docbook_xml_url(base_url, normalized_part)
-        destination = cache_dir / _docbook_destination(
-            resolved.edition, normalized_part
-        )
-        download_artifact(url, destination, force=force)
-        entries.append(
-            SourceArtifact(
+        for normalized_format in normalized_formats:
+            url = official_artifact_url(
+                base_url,
                 part=normalized_part,
-                format=DOCBOOK_XML_FORMAT,
-                local_path=str(destination.relative_to(cache_dir)),
-                source_url=url,
-                sha256=sha256_file(destination),
-                byte_size=destination.stat().st_size,
+                artifact_format=normalized_format,
             )
-        )
+            destination = cache_dir / official_artifact_destination(
+                resolved.edition,
+                part=normalized_part,
+                artifact_format=normalized_format,
+            )
+            download_artifact(url, destination, force=force)
+            entries.append(
+                SourceArtifact(
+                    part=normalized_part,
+                    format=normalized_format,
+                    local_path=str(destination.relative_to(cache_dir)),
+                    source_url=url,
+                    sha256=sha256_file(destination),
+                    byte_size=destination.stat().st_size,
+                )
+            )
 
     manifest = SourceManifest(
         edition=resolved.edition,
@@ -164,12 +206,70 @@ def discover_official_current_edition(
 
 def official_docbook_xml_url(base_url: str, part: str) -> str:
     """Return the official current DocBook XML URL for a DICOM part."""
-    normalized_part = _normalize_docbook_part(part)
-    part_number = normalized_part.removeprefix("PS3.").zfill(2)
-    return urljoin(
-        _ensure_trailing_slash(base_url),
-        f"source/docbook/part{part_number}/part{part_number}.xml",
+    return official_artifact_url(
+        base_url,
+        part=part,
+        artifact_format=DOCBOOK_XML_FORMAT,
     )
+
+
+def official_artifact_url(base_url: str, *, part: str, artifact_format: str) -> str:
+    """Return the official current artifact URL for a DICOM part and format."""
+    normalized_part = _normalize_docbook_part(part)
+    normalized_format = _normalize_official_artifact_format(artifact_format)
+    part_number = normalized_part.removeprefix("PS3.").zfill(2)
+    base = _ensure_trailing_slash(base_url)
+    if normalized_format == DOCBOOK_XML_FORMAT:
+        path = f"source/docbook/part{part_number}/part{part_number}.xml"
+    elif normalized_format == PDF_FORMAT:
+        path = f"output/pdf/part{part_number}.pdf"
+    elif normalized_format == HTML_FORMAT:
+        path = f"output/html/part{part_number}.html"
+    elif normalized_format == CHTML_FORMAT:
+        path = f"output/chtml/part{part_number}/{normalized_part}.html"
+    elif normalized_format == TARGETDB_FORMAT:
+        path = f"output/html/targetdb/PS3_{part_number}_target.db"
+    else:  # pragma: no cover - guarded by normalization.
+        raise OfficialFetchError(f"unsupported artifact format: {artifact_format!r}")
+    return urljoin(base, path)
+
+
+def official_artifact_destination(
+    edition: str, *, part: str, artifact_format: str
+) -> str:
+    """Return the cache-relative path for an official artifact."""
+    normalized_part = _normalize_docbook_part(part)
+    normalized_format = _normalize_official_artifact_format(artifact_format)
+    part_number = normalized_part.removeprefix("PS3.").zfill(2)
+    if normalized_format == DOCBOOK_XML_FORMAT:
+        return (
+            f"artifacts/{edition}/raw/source/docbook/part{part_number}/"
+            f"part{part_number}.xml"
+        )
+    if normalized_format == PDF_FORMAT:
+        return f"artifacts/{edition}/raw/pdf/part{part_number}.pdf"
+    if normalized_format == HTML_FORMAT:
+        return f"artifacts/{edition}/raw/html/part{part_number}.html"
+    if normalized_format == CHTML_FORMAT:
+        return (
+            f"artifacts/{edition}/raw/chtml/part{part_number}/"
+            f"{normalized_part}.html"
+        )
+    if normalized_format == TARGETDB_FORMAT:
+        return f"artifacts/{edition}/raw/targetdb/PS3_{part_number}_target.db"
+    raise OfficialFetchError(f"unsupported artifact format: {artifact_format!r}")
+
+
+def _normalize_official_artifact_format(artifact_format: str) -> str:
+    normalized = artifact_format.strip().lower().replace("-", "_")
+    if normalized == "xml":
+        normalized = DOCBOOK_XML_FORMAT
+    if normalized not in OFFICIAL_ARTIFACT_FORMATS:
+        raise OfficialFetchError(
+            "official artifact format must be one of "
+            f"{', '.join(OFFICIAL_ARTIFACT_FORMATS)}, got {artifact_format!r}"
+        )
+    return normalized
 
 
 def download_artifact(url: str, destination: Path, *, force: bool = False) -> Path:
@@ -222,10 +322,10 @@ def _ensure_trailing_slash(url: str) -> str:
 
 
 def _docbook_destination(edition: str, part: str) -> str:
-    part_number = part.removeprefix("PS3.").zfill(2)
-    return (
-        f"artifacts/{edition}/raw/source/docbook/part{part_number}/"
-        f"part{part_number}.xml"
+    return official_artifact_destination(
+        edition,
+        part=part,
+        artifact_format=DOCBOOK_XML_FORMAT,
     )
 
 

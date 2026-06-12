@@ -32,10 +32,13 @@ from dicom_kb.query.resolver import (
 from dicom_kb.sources.downloader import (
     DEFAULT_CACHE_DIR,
     DEFAULT_DICOM_CURRENT_BASE_URL,
+    DOCBOOK_XML_FORMAT,
+    OFFICIAL_ARTIFACT_FORMATS,
     V1_DOCBOOK_PARTS,
     ArtifactRequest,
     OfficialFetchError,
-    fetch_official_docbook_artifacts,
+    fetch_official_artifacts,
+    official_artifact_destination,
     register_local_artifacts,
 )
 from dicom_kb.sources.edition_resolver import EditionResolver
@@ -127,8 +130,18 @@ def fetch_command(
         typer.Option(
             "--part",
             help=(
-                "Official DocBook part to download when --docbook-xml is omitted; "
+                "Official DICOM part to download when --docbook-xml is omitted; "
                 "repeatable. Defaults to v1 parts PS3.3, PS3.4, and PS3.6."
+            ),
+        ),
+    ] = None,
+    artifact_format: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--format",
+            help=(
+                "Official artifact format to download; repeatable. Supported: "
+                f"{', '.join(OFFICIAL_ARTIFACT_FORMATS)}. Defaults to docbook_xml."
             ),
         ),
     ] = None,
@@ -173,9 +186,15 @@ def fetch_command(
             else V1_DOCBOOK_PARTS
         )
         try:
-            manifest = fetch_official_docbook_artifacts(
+            formats = (
+                tuple(artifact_format)
+                if artifact_format
+                else (DOCBOOK_XML_FORMAT,)
+            )
+            manifest = fetch_official_artifacts(
                 edition=edition,
                 parts=parts,
+                formats=formats,
                 cache_dir=cache_dir,
                 base_url=source_base_url,
                 force=force,
@@ -602,7 +621,11 @@ def _docbook_xml_artifact(spec: str, *, edition: str) -> ArtifactRequest:
         part=normalized_part,
         format="docbook_xml",
         source=source,
-        destination=_docbook_destination(edition, normalized_part),
+        destination=official_artifact_destination(
+            edition,
+            part=normalized_part,
+            artifact_format=DOCBOOK_XML_FORMAT,
+        ),
     )
 
 
@@ -623,18 +646,14 @@ def _synthetic_fixture_artifacts(edition: str) -> list[ArtifactRequest]:
             part=part,
             format="docbook_xml",
             source=path,
-            destination=_docbook_destination(edition, part),
+            destination=official_artifact_destination(
+                edition,
+                part=part,
+                artifact_format=DOCBOOK_XML_FORMAT,
+            ),
         )
         for part, path in fixtures.items()
     ]
-
-
-def _docbook_destination(edition: str, part: str) -> str:
-    part_number = part.removeprefix("PS3.").zfill(2)
-    return (
-        f"artifacts/{edition}/raw/source/docbook/part{part_number}/"
-        f"part{part_number}.xml"
-    )
 
 
 def _normalize_part(part: str) -> str:

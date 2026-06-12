@@ -7,14 +7,26 @@ dicom-kb lookup tag Modality --edition 2026b
 ```
 
 `fetch` resolves `current` from the official DICOM current release metadata
-before writing a manifest. In v1, official fetch downloads the DocBook XML
-parts used by the implemented parsers: PS3.3, PS3.4, and PS3.6.
+before writing a manifest. By default, official fetch downloads the DocBook
+XML parts used by the implemented v1 parsers: PS3.3, PS3.4, and PS3.6.
 
 To restrict the official fetch to one or more parts:
 
 ```bash
 dicom-kb fetch --edition current --part PS3.6
 ```
+
+To cache additional official formats for citation verification or local
+inspection, repeat `--format`:
+
+```bash
+dicom-kb fetch --edition current --part PS3.6 --format docbook_xml --format pdf
+dicom-kb fetch --edition current --part PS3.6 --format html --format targetdb
+```
+
+Supported official formats are `docbook_xml`, `pdf`, `html`, `chtml`, and
+`targetdb`. The SQLite build reads the `docbook_xml` artifacts and preserves
+the other artifact checksums in the manifest/build metadata.
 
 Local fixture or pre-downloaded XML registration is still available:
 

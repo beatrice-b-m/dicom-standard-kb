@@ -5,10 +5,17 @@ import pytest
 
 from dicom_kb.sources.checksums import sha256_bytes, sha256_file
 from dicom_kb.sources.downloader import (
+    DOCBOOK_XML_FORMAT,
+    HTML_FORMAT,
+    PDF_FORMAT,
+    TARGETDB_FORMAT,
     ArtifactRequest,
     OfficialFetchError,
     discover_official_current_edition,
+    fetch_official_artifacts,
     fetch_official_docbook_artifacts,
+    official_artifact_destination,
+    official_artifact_url,
     official_docbook_xml_url,
     register_local_artifacts,
 )
@@ -137,6 +144,33 @@ def test_discover_official_current_edition_from_release_listing(
     assert discover_official_current_edition(base_url) == "2026b"
 
 
+def test_official_artifact_urls_and_destinations_are_format_specific() -> None:
+    base_url = "https://dicom.example/current/"
+
+    assert official_artifact_url(
+        base_url, part="PS3.6", artifact_format=DOCBOOK_XML_FORMAT
+    ) == "https://dicom.example/current/source/docbook/part06/part06.xml"
+    assert official_artifact_url(
+        base_url, part="PS3.6", artifact_format=PDF_FORMAT
+    ) == "https://dicom.example/current/output/pdf/part06.pdf"
+    assert official_artifact_url(
+        base_url, part="PS3.6", artifact_format=HTML_FORMAT
+    ) == "https://dicom.example/current/output/html/part06.html"
+    assert official_artifact_url(
+        base_url, part="PS3.6", artifact_format="chtml"
+    ) == "https://dicom.example/current/output/chtml/part06/PS3.6.html"
+    assert official_artifact_url(
+        base_url, part="PS3.6", artifact_format=TARGETDB_FORMAT
+    ) == "https://dicom.example/current/output/html/targetdb/PS3_06_target.db"
+
+    assert official_artifact_destination(
+        "2026b", part="PS3.6", artifact_format=PDF_FORMAT
+    ) == "artifacts/2026b/raw/pdf/part06.pdf"
+    assert official_artifact_destination(
+        "2026b", part="PS3.6", artifact_format=TARGETDB_FORMAT
+    ) == "artifacts/2026b/raw/targetdb/PS3_06_target.db"
+
+
 def test_fetch_official_docbook_artifacts_writes_manifest(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -181,6 +215,78 @@ def test_fetch_official_docbook_artifacts_writes_manifest(
     assert read_manifest(
         tmp_path / "cache" / "artifacts" / "2026b" / "manifest.json"
     ) == manifest
+
+
+def test_fetch_official_artifacts_writes_requested_formats(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    base_url = "https://dicom.example/current/"
+    docbook_url = official_artifact_url(
+        base_url, part="PS3.6", artifact_format=DOCBOOK_XML_FORMAT
+    )
+    pdf_url = official_artifact_url(
+        base_url, part="PS3.6", artifact_format=PDF_FORMAT
+    )
+    targetdb_url = official_artifact_url(
+        base_url, part="PS3.6", artifact_format=TARGETDB_FORMAT
+    )
+    responses = {
+        base_url: (
+            b'<a href="DocBookDICOM2026b_release_docbook_20260327091344.zip">'
+            b"docbook</a>"
+        ),
+        docbook_url: b"<book><title>Part 6</title></book>",
+        pdf_url: b"%PDF-1.7\n",
+        targetdb_url: b"SQLite format 3\000",
+    }
+
+    def fake_urlopen(url: str, timeout: int) -> _FakeResponse:
+        assert timeout == 60
+        return _FakeResponse(responses[url])
+
+    monkeypatch.setattr("dicom_kb.sources.downloader.urlopen", fake_urlopen)
+
+    manifest = fetch_official_artifacts(
+        edition="current",
+        parts=("PS3.6",),
+        formats=(DOCBOOK_XML_FORMAT, PDF_FORMAT, TARGETDB_FORMAT),
+        cache_dir=tmp_path / "cache",
+        base_url=base_url,
+    )
+
+    assert [artifact.format for artifact in manifest.artifacts] == [
+        DOCBOOK_XML_FORMAT,
+        PDF_FORMAT,
+        TARGETDB_FORMAT,
+    ]
+    assert [artifact.source_url for artifact in manifest.artifacts] == [
+        docbook_url,
+        pdf_url,
+        targetdb_url,
+    ]
+    assert (
+        tmp_path / "cache" / "artifacts" / "2026b" / "raw" / "pdf" / "part06.pdf"
+    ).read_bytes() == responses[pdf_url]
+    assert (
+        tmp_path
+        / "cache"
+        / "artifacts"
+        / "2026b"
+        / "raw"
+        / "targetdb"
+        / "PS3_06_target.db"
+    ).read_bytes() == responses[targetdb_url]
+
+
+def test_fetch_official_artifacts_rejects_unknown_format(tmp_path: Path) -> None:
+    with pytest.raises(OfficialFetchError, match="artifact format"):
+        fetch_official_artifacts(
+            edition="current",
+            parts=("PS3.6",),
+            formats=("docx",),
+            cache_dir=tmp_path / "cache",
+            base_url="https://dicom.example/current/",
+        )
 
 
 def test_fetch_official_docbook_rejects_non_current_concrete_edition(
