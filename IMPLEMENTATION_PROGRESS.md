@@ -65,6 +65,9 @@ working offline foundation through:
 21. First v1 MCP server adapter exposing the implemented query resolvers as
     spec-prefixed `dicom_*` tools, with a `dicom-kb mcp serve` CLI command
     over stdio and optional dependency handling.
+22. Offline MCP adapter integration coverage using an in-process FastMCP
+    double to verify v1 tool registration, descriptions, argument mapping into
+    public response envelopes, and stdio transport invocation.
 
 ## Completed commits
 
@@ -98,6 +101,7 @@ working offline foundation through:
 - `c05d12f feat(cli): build local SQLite knowledge bases`
 - `8890264 feat(cli): register local DocBook artifacts`
 - `63dbfb9 feat(mcp): expose query resolvers as MCP tools`
+- `2d246d3 test(mcp): cover FastMCP tool registration`
 
 ## Verification at stop
 
@@ -109,7 +113,7 @@ uv run --dev mypy
 uv run --dev pytest
 ```
 
-Observed test count: 79 passing tests.
+Observed test count: 81 passing tests.
 
 ## Implemented behavior
 
@@ -234,6 +238,9 @@ Observed test count: 79 passing tests.
   `dicom_search_standard_text`.
 - `dicom-kb mcp serve --edition <edition>` command serving the MCP adapter
   over stdio from an explicit `--db` or the conventional cache database.
+- Offline FastMCP registration tests that verify the adapter exposes the v1
+  tool set, preserves tool descriptions, maps registered tool arguments
+  through the public query envelopes, and invokes stdio transport.
 
 ## Not yet implemented
 
@@ -247,8 +254,9 @@ Observed test count: 79 passing tests.
   Order H). Graph traversal and FTS5-backed text search currently live in
   resolvers/repositories.
 - General citation builder beyond direct source-ref conversion.
-- MCP server is present for the implemented v1 query resolvers. Additional
-  MCP integration testing against a real MCP client is still pending.
+- MCP server is present for the implemented v1 query resolvers with offline
+  registration coverage. External MCP protocol/client smoke testing is still
+  pending.
 - Agent regression harness.
 - Golden fixture coverage (SYSTEM_SPECS.md section 15.2) beyond the single
   synthetic CT-style PS3.3 fixture and PS3.6 registry fixture: MR Image,
@@ -273,6 +281,7 @@ if run:
 
 ## Recommended next work order
 
-Continue the v1 critical path by adding MCP client-level integration tests
-and the agent regression harness, or by adding official edition URL discovery
-for networked fetches if source acquisition should be completed first.
+Continue the v1 critical path by adding external MCP protocol/client smoke
+tests and the agent regression harness, or by adding official edition URL
+discovery for networked fetches if source acquisition should be completed
+first.
