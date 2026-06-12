@@ -19,6 +19,7 @@ from dicom_kb.parsers.part03_iods import parse_part03
 from dicom_kb.parsers.part04_sop_classes import parse_part04
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
 from tests.fixtures_synthetic import (
+    FIXTURE_DIR,
     PS33_CT_IMAGE_DOCBOOK,
     PS34_SOP_CLASSES_DOCBOOK,
     PS36_REGISTRY_DOCBOOK,
@@ -288,6 +289,62 @@ def test_cli_build_fixture_creates_default_db_for_lookups(tmp_path: Path) -> Non
     payload = json.loads(lookup_result.output)
     assert payload["status"] == "ok"
     assert payload["result"]["tag"] == "(0008,0060)"
+
+
+def test_cli_fetch_registers_local_docbook_for_build(tmp_path: Path) -> None:
+    cache_dir = tmp_path / "cache"
+    runner = CliRunner()
+
+    fetch_result = runner.invoke(
+        app,
+        [
+            "fetch",
+            "--edition",
+            "2026b",
+            "--cache-dir",
+            str(cache_dir),
+            "--docbook-xml",
+            f"PS3.6={FIXTURE_DIR / 'synthetic_ps3_6_registry_docbook.xml'}",
+        ],
+    )
+
+    assert fetch_result.exit_code == 0, fetch_result.output
+    fetch_payload = json.loads(fetch_result.output)
+    assert fetch_payload["edition"] == "2026b"
+    assert fetch_payload["artifacts"][0]["local_path"] == (
+        "artifacts/2026b/raw/source/docbook/part06/part06.xml"
+    )
+
+    build_result = runner.invoke(
+        app,
+        [
+            "build",
+            "--edition",
+            "2026b",
+            "--cache-dir",
+            str(cache_dir),
+        ],
+    )
+
+    assert build_result.exit_code == 0, build_result.output
+
+    lookup_result = runner.invoke(
+        app,
+        [
+            "lookup",
+            "tag",
+            "Modality",
+            "--edition",
+            "2026b",
+            "--cache-dir",
+            str(cache_dir),
+        ],
+    )
+
+    assert lookup_result.exit_code == 0, lookup_result.output
+    payload = json.loads(lookup_result.output)
+    assert payload["status"] == "ok"
+    assert payload["result"]["keyword"] == "Modality"
 
 
 def test_cli_iod_modules_outputs_ps33_module_envelope(tmp_path: Path) -> None:

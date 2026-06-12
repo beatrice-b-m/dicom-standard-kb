@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from pydantic import BaseModel
 
 from dicom_kb.build import build_sqlite_database, default_db_path
 from dicom_kb.metadata import LEGAL_NOTICE, __version__
@@ -28,6 +29,7 @@ from dicom_kb.sources.downloader import (
     ArtifactRequest,
     register_local_artifacts,
 )
+from dicom_kb.sources.edition_resolver import EditionResolver
 
 app = typer.Typer(help="Build and query a local DICOM standard knowledge base.")
 lookup_app = typer.Typer(help="Run exact lookups against a local SQLite KB.")
@@ -94,6 +96,48 @@ def build_fixture(
         force=force,
     )
     typer.echo(json.dumps(summary.as_jsonable(), indent=2, sort_keys=True))
+
+
+@app.command("fetch")
+def fetch_command(
+    edition: Annotated[
+        str,
+        typer.Option("--edition", help="DICOM edition label to register."),
+    ],
+    docbook_xml: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--docbook-xml",
+            help="Register a local DocBook XML artifact as PART=PATH; repeatable.",
+        ),
+    ] = None,
+    current_edition: Annotated[
+        str | None,
+        typer.Option(
+            "--current-edition",
+            help="Concrete edition used when --edition current is requested.",
+        ),
+    ] = None,
+    cache_dir: Annotated[
+        Path,
+        typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
+    ] = DEFAULT_CACHE_DIR,
+    force: Annotated[
+        bool,
+        typer.Option("--force", help="Overwrite existing cached artifacts/manifest."),
+    ] = False,
+) -> None:
+    """Register local source artifacts into the dicom-kb cache."""
+    resolved = EditionResolver(current_edition=current_edition).resolve(edition)
+    artifacts = _docbook_xml_artifacts(docbook_xml, edition=resolved.edition)
+    manifest = register_local_artifacts(
+        edition=edition,
+        current_edition=current_edition,
+        artifacts=artifacts,
+        cache_dir=cache_dir,
+        force=force,
+    )
+    typer.echo(_json_model(manifest))
 
 
 @app.command("build")
@@ -461,6 +505,37 @@ def _echo_response(response: ToolResponse) -> None:
     typer.echo(json.dumps(payload, indent=2, sort_keys=True))
 
 
+def _json_model(model: BaseModel) -> str:
+    return json.dumps(model.model_dump(mode="json"), indent=2, sort_keys=True)
+
+
+def _docbook_xml_artifacts(
+    specs: list[str] | None, *, edition: str
+) -> list[ArtifactRequest]:
+    if not specs:
+        raise typer.BadParameter(
+            "v1 fetch requires at least one --docbook-xml PART=PATH; "
+            "official URL discovery is not implemented yet"
+        )
+    return [_docbook_xml_artifact(spec, edition=edition) for spec in specs]
+
+
+def _docbook_xml_artifact(spec: str, *, edition: str) -> ArtifactRequest:
+    part, separator, path_text = spec.partition("=")
+    if not separator or not part.strip() or not path_text.strip():
+        raise typer.BadParameter("--docbook-xml must use PART=PATH")
+    normalized_part = _normalize_part(part)
+    source = Path(path_text).expanduser()
+    if not source.exists():
+        raise typer.BadParameter(f"DocBook XML file does not exist: {source}")
+    return ArtifactRequest(
+        part=normalized_part,
+        format="docbook_xml",
+        source=source,
+        destination=_docbook_destination(edition, normalized_part),
+    )
+
+
 def _synthetic_fixture_artifacts(edition: str) -> list[ArtifactRequest]:
     fixture_dir = Path(__file__).resolve().parents[3] / "tests" / "fixtures_synthetic"
     fixtures = {
@@ -490,3 +565,13 @@ def _docbook_destination(edition: str, part: str) -> str:
         f"artifacts/{edition}/raw/source/docbook/part{part_number}/"
         f"part{part_number}.xml"
     )
+
+
+def _normalize_part(part: str) -> str:
+    normalized = part.strip().upper()
+    if not normalized.startswith("PS3."):
+        normalized = f"PS3.{normalized}"
+    part_number = normalized.removeprefix("PS3.")
+    if not part_number.isdigit():
+        raise typer.BadParameter(f"DICOM part must look like PS3.6, got {part!r}")
+    return f"PS3.{int(part_number)}"
