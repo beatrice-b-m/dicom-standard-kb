@@ -18,7 +18,7 @@ from dicom_kb.db.importers import (
 )
 from dicom_kb.db.models import apply_migrations, connect_sqlite
 from dicom_kb.docbook.parser import ParsedDocument, parse_docbook_file
-from dicom_kb.ir.models import ParserWarning
+from dicom_kb.ir.models import IOD, ParserWarning
 from dicom_kb.metadata import __version__
 from dicom_kb.parsers.part03_iods import parse_part03
 from dicom_kb.parsers.part04_sop_classes import parse_part04
@@ -115,10 +115,16 @@ def build_sqlite_database(
                     uid_registry_entries=parsed_part06.uid_registry_entries,
                 )
             )
+        iod_id_by_ref: dict[str, str] = {}
         if "PS3.3" in documents:
             parsed_part03 = parse_part03(
                 documents["PS3.3"], edition=manifest.edition
             )
+            iod_id_by_ref = {
+                ref: iod.id
+                for iod in parsed_part03.iods
+                for ref in _iod_ref_keys(iod)
+            }
             warnings.extend(_warning_messages(parsed_part03.warnings))
             summaries.append(
                 import_part03(
@@ -134,7 +140,9 @@ def build_sqlite_database(
             )
         if "PS3.4" in documents:
             parsed_part04 = parse_part04(
-                documents["PS3.4"], edition=manifest.edition
+                documents["PS3.4"],
+                edition=manifest.edition,
+                iod_id_by_ref=iod_id_by_ref,
             )
             warnings.extend(_warning_messages(parsed_part04.warnings))
             summaries.append(
@@ -195,6 +203,23 @@ def _warning_messages(warnings: tuple[ParserWarning, ...]) -> tuple[str, ...]:
         f"{warning.part} {warning.table_id or 'unknown'}: {warning.message}"
         for warning in warnings
     )
+
+
+def _iod_ref_keys(iod: IOD) -> tuple[str, ...]:
+    section = iod.section
+    candidates = [
+        section,
+        iod.source_ref.section,
+        iod.source_ref.table_id,
+        iod.source_ref.xml_id,
+    ]
+    if isinstance(iod.source_ref.section, str) and iod.source_ref.section.startswith(
+        "sect_"
+    ):
+        parts = iod.source_ref.section.rsplit(".", maxsplit=1)
+        if len(parts) == 2:
+            candidates.append(parts[0])
+    return tuple(dict.fromkeys(ref for ref in candidates if isinstance(ref, str)))
 
 
 def _repository_commit() -> str | None:

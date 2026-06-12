@@ -63,7 +63,7 @@ def parse_part03(document: ParsedDocument, *, edition: str) -> Part03ParseResult
 
     for table in document.tables:
         headers = _headers(table)
-        if _is_iod_module_table(headers):
+        if _is_iod_module_table(table, headers):
             iod = _iod_from_table(table, edition)
             iods[iod.id] = iod
             uses, table_modules = _parse_iod_module_table(table, headers, iod, edition)
@@ -72,7 +72,7 @@ def parse_part03(document: ParsedDocument, *, edition: str) -> Part03ParseResult
                 modules.setdefault(module.id, module)
         elif _is_functional_group_table(headers):
             iod = _iod_from_table(table, edition)
-            iods[iod.id] = iod
+            iods.setdefault(iod.id, iod)
             functional_group_uses.extend(
                 _parse_functional_group_table(
                     table, headers, iod, edition, macro_by_ref, warnings
@@ -126,8 +126,12 @@ def _headers(table: ParsedTable) -> dict[str, int]:
     return {_key(cell.text): cell.column for cell in table.rows[0].cells}
 
 
-def _is_iod_module_table(headers: dict[str, int]) -> bool:
-    return {"information entity", "module", "usage"}.issubset(headers)
+def _is_iod_module_table(table: ParsedTable, headers: dict[str, int]) -> bool:
+    return (
+        "module" in headers
+        and bool(table.title and MODULE_TABLE_TITLE_RE.match(table.title))
+        and ("usage" in headers or "reference" in headers)
+    )
 
 
 def _is_functional_group_table(headers: dict[str, int]) -> bool:
@@ -168,8 +172,9 @@ def _parse_iod_module_table(
     uses: list[IODModuleUse] = []
     modules: list[Module] = []
     last_ie: str | None = None
+    information_entity_column = _information_entity_column(headers)
     for order, row in enumerate(_data_rows(table)):
-        information_entity = _optional_cell(row, headers.get("information entity"))
+        information_entity = _optional_cell(row, information_entity_column)
         if information_entity:
             last_ie = information_entity
         else:
@@ -189,7 +194,9 @@ def _parse_iod_module_table(
             source_ref=source_ref,
         )
         modules.append(module)
-        usage, condition = _usage(_cell(row, headers["usage"]))
+        usage, condition = (
+            _usage(_cell(row, headers["usage"])) if "usage" in headers else ("", None)
+        )
         uses.append(
             IODModuleUse(
                 id=f"{iod.id}.module_use.{order}",
@@ -203,6 +210,13 @@ def _parse_iod_module_table(
             )
         )
     return uses, modules
+
+
+def _information_entity_column(headers: dict[str, int]) -> int | None:
+    column = headers.get("information entity")
+    if column is not None:
+        return column
+    return headers.get("ie")
 
 
 def _parse_functional_group_table(
@@ -384,7 +398,7 @@ def _source_ref(edition: str, table: ParsedTable) -> SourceRef:
         id=f"{edition}.PS3.3.{table_id}",
         edition_id=edition,
         part="PS3.3",
-        section=table.xml_id,
+        section=table.parent_xml_id or table.xml_id,
         table_id=table_id,
         xml_id=table.xml_id,
         title=table.title,

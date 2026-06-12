@@ -29,6 +29,72 @@ def test_parse_part03_ct_iod_modules_and_usage() -> None:
     assert patient_module.source_ref.table_id == "table_C.7-1"
 
 
+def test_parse_part03_accepts_ie_header_alias() -> None:
+    xml = """\
+<book xmlns="http://docbook.org/ns/docbook" xmlns:xml="http://www.w3.org/XML/1998/namespace">
+  <chapter xml:id="chapter_A">
+    <table xml:id="table_A.3-1">
+      <caption>CT Image IOD Modules</caption>
+      <thead>
+        <tr>
+          <th>IE</th>
+          <th>Module</th>
+          <th>Reference</th>
+          <th>Usage</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Patient</td>
+          <td>Patient</td>
+          <td>C.7.1.1</td>
+          <td>M</td>
+        </tr>
+      </tbody>
+    </table>
+  </chapter>
+</book>
+"""
+
+    result = parse_part03(parse_docbook_xml(xml, part="PS3.3"), edition="2026b")
+
+    assert [iod.name for iod in result.iods] == ["CT Image"]
+    assert result.iod_module_uses[0].information_entity == "Patient"
+
+
+def test_parse_part03_registers_iod_table_without_ie_or_usage() -> None:
+    xml = """\
+<book xmlns="http://docbook.org/ns/docbook" xmlns:xml="http://www.w3.org/XML/1998/namespace">
+  <chapter xml:id="chapter_B">
+    <section xml:id="sect_B.30">
+      <table xml:id="table_B.30.2-1">
+        <caption>Inventory Creation IOD Modules</caption>
+        <thead>
+          <tr>
+            <th>Module</th>
+            <th>Reference</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Inventory Creation</td>
+            <td>C.38.3</td>
+            <td>Request and response attributes.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </chapter>
+</book>
+"""
+
+    result = parse_part03(parse_docbook_xml(xml, part="PS3.3"), edition="2026b")
+
+    assert [iod.name for iod in result.iods] == ["Inventory Creation"]
+    assert result.iod_module_uses[0].usage == ""
+
+
 def test_parse_part03_module_macro_attributes_and_include_rows() -> None:
     result = parse_part03(
         parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3"), edition="2026b"

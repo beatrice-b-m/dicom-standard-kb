@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from dicom_kb.docbook.parser import ParsedDocument
@@ -32,7 +33,12 @@ class Part04ParseResult:
     warnings: tuple[ParserWarning, ...]
 
 
-def parse_part04(document: ParsedDocument, *, edition: str) -> Part04ParseResult:
+def parse_part04(
+    document: ParsedDocument,
+    *,
+    edition: str,
+    iod_id_by_ref: Mapping[str, str] | None = None,
+) -> Part04ParseResult:
     """Parse PS3.4 SOP Class records from DocBook table IR."""
     service_classes: dict[str, ServiceClass] = {}
     sop_classes: dict[str, SOPClass] = {}
@@ -50,6 +56,7 @@ def parse_part04(document: ParsedDocument, *, edition: str) -> Part04ParseResult
             headers,
             edition,
             service_class=service_class,
+            iod_id_by_ref=iod_id_by_ref or {},
             warnings=warnings,
         )
         for sop_class, edge in rows:
@@ -87,6 +94,7 @@ def _parse_sop_class_table(
     edition: str,
     *,
     service_class: ServiceClass,
+    iod_id_by_ref: Mapping[str, str],
     warnings: list[ParserWarning],
 ) -> list[tuple[SOPClass, SOPClassIOD]]:
     iod_column = _iod_column(headers)
@@ -98,9 +106,13 @@ def _parse_sop_class_table(
     rows: list[tuple[SOPClass, SOPClassIOD]] = []
     source_ref = _source_ref(edition, table)
     for order, row in enumerate(_data_rows(table)):
-        iod_name = _iod_name(_cell(row, iod_column))
         sop_name = _cell(row, sop_name_column)
-        if not iod_name or not sop_name:
+        iod_id = _iod_id_from_ref(row, iod_column, iod_id_by_ref)
+        iod_name = _iod_name(_cell(row, iod_column))
+        if iod_id is None:
+            iod_name = iod_name or _iod_name_from_sop_name(sop_name)
+            iod_id = _id(edition, "iod", iod_name) if iod_name else None
+        if iod_id is None or not sop_name:
             warnings.append(_warning(table, row, "skipped SOP Class row missing name"))
             continue
         try:
@@ -123,7 +135,7 @@ def _parse_sop_class_table(
             id=f"{sop_class.id}.iod.{order}",
             edition_id=edition,
             sop_class_id=sop_class.id,
-            iod_id=_id(edition, "iod", iod_name),
+            iod_id=iod_id,
             resolution="parsed",
             source_ref=source_ref,
         )
@@ -145,12 +157,13 @@ def _service_class_from_table(table: ParsedTable, edition: str) -> ServiceClass:
 
 
 def _iod_column(headers: dict[str, int]) -> int | None:
-    return _first_header(
-        headers,
-        "iod",
-        "information object definition",
-        "iod specification",
-    )
+    exact = _first_header(headers, "iod", "information object definition")
+    if exact is not None:
+        return exact
+    for name, column in headers.items():
+        if name.startswith("iod specification"):
+            return column
+    return None
 
 
 def _sop_name_column(headers: dict[str, int]) -> int | None:
@@ -181,9 +194,27 @@ def _cell(row: ParsedRow, column: int) -> str:
     return ""
 
 
+def _iod_id_from_ref(
+    row: ParsedRow, column: int, iod_id_by_ref: Mapping[str, str]
+) -> str | None:
+    for cell in row.cells:
+        if cell.column != column:
+            continue
+        for target in cell.xrefs:
+            iod_id = iod_id_by_ref.get(target)
+            if iod_id is not None:
+                return iod_id
+    return None
+
+
 def _iod_name(value: str) -> str:
     normalized = normalize_text(value)
     return re.sub(r"\s+IOD$", "", normalized, flags=re.I)
+
+
+def _iod_name_from_sop_name(value: str) -> str:
+    normalized = normalize_text(value)
+    return re.sub(r"\s+Storage$", "", normalized, flags=re.I)
 
 
 def _key(value: str) -> str:
