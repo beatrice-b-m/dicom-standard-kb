@@ -118,7 +118,7 @@ def test_parse_part03_ct_iod_modules_and_usage() -> None:
 
     assert [iod.name for iod in result.iods] == [
         "CT Image",
-        "Enhanced CT Image Functional Group Macros",
+        "Enhanced CT Image",
     ]
     assert [module.name for module in result.modules] == [
         "Patient",
@@ -131,6 +131,10 @@ def test_parse_part03_ct_iod_modules_and_usage() -> None:
     assert contrast_use.usage == "C"
     assert contrast_use.usage_condition_text == "Required if contrast media was used"
     assert contrast_use.source_ref.table_id == "table_A.3-1"
+
+    patient_module = result.modules[0]
+    assert patient_module.name == "Patient"
+    assert patient_module.source_ref.table_id == "table_C.7-1"
 
 
 def test_parse_part03_module_macro_attributes_and_include_rows() -> None:

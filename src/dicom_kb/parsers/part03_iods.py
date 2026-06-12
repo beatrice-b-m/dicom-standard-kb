@@ -23,6 +23,9 @@ from dicom_kb.ir.validators import IdentifierValidationError, normalize_tag
 
 USAGE_RE = re.compile(r"^(?P<usage>[A-Z0-9]+(?:C)?)\b\s*-?\s*(?P<condition>.*)$")
 MODULE_TABLE_TITLE_RE = re.compile(r"^(?P<name>.+?)\s+IOD\s+Modules?$", re.I)
+FUNCTIONAL_GROUP_TITLE_RE = re.compile(
+    r"^(?P<name>.+?)\s+Functional\s+Group\s+Macros?$", re.I
+)
 MODULE_ATTR_TITLE_RE = re.compile(r"^(?P<name>.+?)\s+Module\s+Attributes?$", re.I)
 MACRO_TITLE_RE = re.compile(r"^(?P<name>.+?\bMacro)\s+Attributes?$", re.I)
 DEPTH_RE = re.compile(r"^(?P<marks>>+)\s*(?P<name>.*)$")
@@ -77,7 +80,7 @@ def parse_part03(document: ParsedDocument, *, edition: str) -> Part03ParseResult
             )
         elif _is_module_attribute_table(table):
             module = _module_from_attribute_table(table, edition)
-            modules.setdefault(module.id, module)
+            modules[module.id] = module
             attribute_uses.extend(
                 _parse_attribute_table(
                     table,
@@ -304,7 +307,7 @@ def _parse_attribute_table(
 
 def _iod_from_table(table: ParsedTable, edition: str) -> IOD:
     title = table.title or table.xml_id or "Unknown IOD"
-    match = MODULE_TABLE_TITLE_RE.match(title)
+    match = MODULE_TABLE_TITLE_RE.match(title) or FUNCTIONAL_GROUP_TITLE_RE.match(title)
     name = match.group("name") if match else title
     return IOD(
         id=_id(edition, "iod", name),
