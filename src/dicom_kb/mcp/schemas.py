@@ -9,6 +9,8 @@ MCPToolName = Literal[
     "dicom_lookup_uid",
     "dicom_lookup_sop_class",
     "dicom_lookup_iod",
+    "dicom_lookup_enumerated_values",
+    "dicom_lookup_defined_terms",
     "dicom_list_modules_for_iod",
     "dicom_list_attributes_for_module",
     "dicom_resolve_attribute_context",
@@ -21,6 +23,8 @@ MCP_TOOL_NAMES: tuple[MCPToolName, ...] = (
     "dicom_lookup_uid",
     "dicom_lookup_sop_class",
     "dicom_lookup_iod",
+    "dicom_lookup_enumerated_values",
+    "dicom_lookup_defined_terms",
     "dicom_list_modules_for_iod",
     "dicom_list_attributes_for_module",
     "dicom_resolve_attribute_context",
@@ -54,6 +58,14 @@ MCP_TOOL_SPECS: tuple[MCPToolSpec, ...] = (
     {
         "name": "dicom_lookup_iod",
         "description": "Look up a DICOM PS3.3 IOD by name or keyword.",
+    },
+    {
+        "name": "dicom_lookup_enumerated_values",
+        "description": "Look up parsed DICOM enumerated values for an attribute.",
+    },
+    {
+        "name": "dicom_lookup_defined_terms",
+        "description": "Look up parsed DICOM defined terms for an attribute.",
     },
     {
         "name": "dicom_list_modules_for_iod",

@@ -28,6 +28,8 @@ from dicom_kb.query.resolver import (
     list_attributes_for_module,
     list_modules_for_iod,
     lookup_data_element,
+    lookup_defined_terms,
+    lookup_enumerated_values,
     lookup_iod,
     lookup_sop_class,
     lookup_uid,
@@ -593,6 +595,76 @@ def lookup_sop_class_command(
                 connection,
                 uid_or_name_or_keyword=uid_or_name_or_keyword,
                 edition=edition,
+            )
+        )
+
+
+@lookup_app.command("enumerated-values")
+def lookup_enumerated_values_command(
+    attribute: Annotated[
+        str,
+        typer.Argument(help="DICOM attribute tag, keyword, or name."),
+    ],
+    edition: Annotated[
+        str,
+        typer.Option("--edition", help="Concrete DICOM edition label."),
+    ],
+    db: Annotated[
+        Path | None,
+        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
+    ] = None,
+    cache_dir: Annotated[
+        Path,
+        typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
+    ] = DEFAULT_CACHE_DIR,
+    context: Annotated[
+        str | None,
+        typer.Option("--context", help="Optional module, macro, or context label."),
+    ] = None,
+) -> None:
+    """Look up parsed enumerated values for a DICOM attribute."""
+    with _connect_query_db(db, cache_dir=cache_dir, edition=edition) as connection:
+        _echo_response(
+            lookup_enumerated_values(
+                connection,
+                attribute=attribute,
+                edition=edition,
+                context=context,
+            )
+        )
+
+
+@lookup_app.command("defined-terms")
+def lookup_defined_terms_command(
+    attribute: Annotated[
+        str,
+        typer.Argument(help="DICOM attribute tag, keyword, or name."),
+    ],
+    edition: Annotated[
+        str,
+        typer.Option("--edition", help="Concrete DICOM edition label."),
+    ],
+    db: Annotated[
+        Path | None,
+        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
+    ] = None,
+    cache_dir: Annotated[
+        Path,
+        typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
+    ] = DEFAULT_CACHE_DIR,
+    context: Annotated[
+        str | None,
+        typer.Option("--context", help="Optional module, macro, or context label."),
+    ] = None,
+) -> None:
+    """Look up parsed defined terms for a DICOM attribute."""
+    with _connect_query_db(db, cache_dir=cache_dir, edition=edition) as connection:
+        _echo_response(
+            lookup_defined_terms(
+                connection,
+                attribute=attribute,
+                edition=edition,
+                context=context,
             )
         )
 

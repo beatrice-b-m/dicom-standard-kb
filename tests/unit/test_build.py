@@ -11,7 +11,11 @@ from dicom_kb.build import (
     build_sqlite_database,
     default_db_path,
 )
-from dicom_kb.query.resolver import lookup_data_element, lookup_sop_class
+from dicom_kb.query.resolver import (
+    lookup_data_element,
+    lookup_defined_terms,
+    lookup_sop_class,
+)
 from dicom_kb.sources.downloader import ArtifactRequest, register_local_artifacts
 from tests.fixtures_synthetic import FIXTURE_DIR
 
@@ -78,6 +82,11 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
             uid_or_name_or_keyword="CT Image Storage",
             edition="2026b",
         )
+        terms_response = lookup_defined_terms(
+            connection,
+            attribute="PatientName",
+            edition="2026b",
+        )
         metadata = connection.execute(
             "SELECT metadata_json, schema_version FROM build_metadata "
             "WHERE edition_id = ?",
@@ -86,7 +95,10 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
 
     assert tag_response.status == "ok"
     assert sop_response.status == "ok"
-    assert metadata["schema_version"] == "6"
+    assert terms_response.status == "ok"
+    assert terms_response.result is not None
+    assert len(terms_response.result["terms"]) == 2
+    assert metadata["schema_version"] == "7"
     payload = json.loads(metadata["metadata_json"])
     assert payload["edition"] == "2026b"
     assert set(payload["source_sha256"]) == {

@@ -25,6 +25,8 @@ from dicom_kb.query.resolver import (
     list_attributes_for_module,
     list_modules_for_iod,
     lookup_data_element,
+    lookup_defined_terms,
+    lookup_enumerated_values,
     lookup_iod,
     lookup_sop_class,
     lookup_uid,
@@ -154,6 +156,12 @@ def _run_case_route(case: AgentRegressionCase, invoke: ToolInvoker) -> None:
             "resolve_attribute_context",
             {"attribute": attribute, "iod_name": iod},
         )
+    elif case_id == "agent.values.modality.enumerated":
+        invoke("lookup_data_element", {"tag_or_keyword": "Modality"})
+        invoke("lookup_enumerated_values", {"attribute": "Modality"})
+    elif case_id == "agent.values.patient_name.defined":
+        invoke("lookup_data_element", {"tag_or_keyword": "Patient's Name"})
+        invoke("lookup_defined_terms", {"attribute": "Patient's Name"})
     elif case_id.startswith("agent.text."):
         case_key = case_id.removeprefix("agent.text.")
         part, anchor = _text_target(case_key)
@@ -285,6 +293,20 @@ def _invoke_tool(
         )
     if tool == "lookup_iod":
         return lookup_iod(connection, iod_name=arguments["iod_name"], edition=edition)
+    if tool == "lookup_enumerated_values":
+        return lookup_enumerated_values(
+            connection,
+            attribute=arguments["attribute"],
+            edition=edition,
+            context=arguments.get("context"),
+        )
+    if tool == "lookup_defined_terms":
+        return lookup_defined_terms(
+            connection,
+            attribute=arguments["attribute"],
+            edition=edition,
+            context=arguments.get("context"),
+        )
     if tool == "lookup_sop_class":
         return lookup_sop_class(
             connection,

@@ -6,6 +6,7 @@ import sqlite3
 from datetime import datetime
 
 from dicom_kb.db.repositories import (
+    AttributeValueTermRepository,
     DataElementRepository,
     DocumentRepository,
     Part03Repository,
@@ -20,6 +21,7 @@ from dicom_kb.ir.validators import (
 from dicom_kb.query.answer_contracts import (
     ToolResponse,
     attribute_context_result,
+    attribute_value_terms_result,
     data_element_result,
     iod_modules_result,
     iod_result,
@@ -491,6 +493,131 @@ def resolve_attribute_context(
         ),
         refs=refs,
         warnings=warnings,
+        trace=trace,
+    )
+
+
+def lookup_enumerated_values(
+    connection: sqlite3.Connection,
+    *,
+    attribute: str,
+    edition: str,
+    context: str | None = None,
+    query_id: str | None = None,
+    resolved_at: datetime | None = None,
+) -> ToolResponse:
+    """Return parsed enumerated values for a DICOM attribute."""
+    return _lookup_attribute_value_terms(
+        connection,
+        attribute=attribute,
+        edition=edition,
+        term_kind="enumerated_value",
+        tool="lookup_enumerated_values",
+        context=context,
+        query_id=query_id,
+        resolved_at=resolved_at,
+    )
+
+
+def lookup_defined_terms(
+    connection: sqlite3.Connection,
+    *,
+    attribute: str,
+    edition: str,
+    context: str | None = None,
+    query_id: str | None = None,
+    resolved_at: datetime | None = None,
+) -> ToolResponse:
+    """Return parsed defined terms for a DICOM attribute."""
+    return _lookup_attribute_value_terms(
+        connection,
+        attribute=attribute,
+        edition=edition,
+        term_kind="defined_term",
+        tool="lookup_defined_terms",
+        context=context,
+        query_id=query_id,
+        resolved_at=resolved_at,
+    )
+
+
+def _lookup_attribute_value_terms(
+    connection: sqlite3.Connection,
+    *,
+    attribute: str,
+    edition: str,
+    term_kind: str,
+    tool: str,
+    context: str | None,
+    query_id: str | None,
+    resolved_at: datetime | None,
+) -> ToolResponse:
+    trace = build_trace(
+        connection,
+        edition=edition,
+        query_id=query_id,
+        resolved_at=resolved_at,
+    )
+    response_input = {"attribute": attribute}
+    if context is not None:
+        response_input["context"] = context
+    if _looks_like_tag(attribute):
+        try:
+            normalize_tag(attribute)
+        except IdentifierValidationError as exc:
+            return ToolResponse(
+                edition=edition,
+                tool=tool,
+                input=response_input,
+                status="validation_error",
+                result={"message": str(exc)},
+                trace=trace,
+            )
+
+    element, element_warning = DataElementRepository(connection).find_by_tag_or_keyword(
+        attribute,
+        edition=edition,
+    )
+    if element is None:
+        return ToolResponse(
+            edition=edition,
+            tool=tool,
+            input=response_input,
+            status="not_found",
+            result={"message": "No DICOM data element matched the attribute input."},
+            trace=trace,
+        )
+
+    records = AttributeValueTermRepository(connection).list_terms_for_attribute(
+        attribute=attribute,
+        term_kind=term_kind,
+        edition=edition,
+        context=context,
+    )
+    if not records:
+        return ToolResponse(
+            edition=edition,
+            tool=tool,
+            input=response_input,
+            status="not_found",
+            result={"message": "No parsed value terms matched the input."},
+            refs=[standard_ref(element.source_ref)],
+            warnings=[element_warning] if element_warning else [],
+            trace=trace,
+        )
+
+    refs = unique_refs(
+        [standard_ref(element.source_ref)]
+        + [standard_ref(record.term.source_ref) for record in records]
+    )
+    return ToolResponse(
+        edition=edition,
+        tool=tool,
+        input=response_input,
+        status="ok",
+        result=attribute_value_terms_result(element, records),
+        refs=refs,
+        warnings=[element_warning] if element_warning else [],
         trace=trace,
     )
 

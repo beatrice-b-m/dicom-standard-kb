@@ -10,6 +10,7 @@ from typer.testing import CliRunner
 
 from dicom_kb.cli.main import app
 from dicom_kb.db.importers import (
+    import_attribute_value_terms,
     import_docbook_structure,
     import_part03,
     import_part04,
@@ -72,6 +73,11 @@ def _fixture_db(tmp_path: Path) -> Path:
         iod_module_uses=parsed_part03.iod_module_uses,
         iod_functional_group_uses=parsed_part03.iod_functional_group_uses,
         attribute_uses=parsed_part03.attribute_uses,
+    )
+    import_attribute_value_terms(
+        connection,
+        edition="2026b",
+        document=part03_document,
     )
     parsed_part04 = parse_part04(
         parse_docbook_xml(PS34_SOP_CLASSES_DOCBOOK, part="PS3.4"),
@@ -167,6 +173,28 @@ def test_cli_lookup_uid_outputs_retired_entry(tmp_path: Path) -> None:
     assert payload["result"]["uid_value"] == "1.2.840.10008.1.2.2"
     assert payload["result"]["retired"] is True
     assert payload["refs"][0]["part"] == "PS3.6"
+
+
+def test_cli_lookup_defined_terms_outputs_value_terms(tmp_path: Path) -> None:
+    payload = _invoke_json(
+        tmp_path,
+        "lookup",
+        "defined-terms",
+        "PatientName",
+        "--edition",
+        "2026b",
+        "--context",
+        "Patient",
+    )
+
+    assert payload["tool"] == "lookup_defined_terms"
+    assert payload["status"] == "ok"
+    assert payload["result"]["attribute"]["tag"] == "(0010,0010)"
+    assert [term["value"] for term in payload["result"]["terms"]] == [
+        "ALPHA",
+        "IDEOGRAPHIC",
+    ]
+    assert {ref["part"] for ref in payload["refs"]} == {"PS3.3", "PS3.6"}
 
 
 def test_cli_retrieve_text_outputs_capped_excerpt(tmp_path: Path) -> None:

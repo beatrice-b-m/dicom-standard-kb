@@ -9,6 +9,7 @@ from pathlib import Path
 
 from dicom_kb.db.importers import (
     ImportSummary,
+    import_attribute_value_terms,
     import_build_metadata,
     import_docbook_structure,
     import_manifest,
@@ -31,7 +32,7 @@ from dicom_kb.sources.manifest import (
     utc_now,
 )
 
-SCHEMA_VERSION = "6"
+SCHEMA_VERSION = "7"
 DOCBOOK_XML_FORMAT = "docbook_xml"
 
 
@@ -136,6 +137,13 @@ def build_sqlite_database(
                     iod_module_uses=parsed_part03.iod_module_uses,
                     iod_functional_group_uses=parsed_part03.iod_functional_group_uses,
                     attribute_uses=parsed_part03.attribute_uses,
+                )
+            )
+            summaries.append(
+                import_attribute_value_terms(
+                    connection,
+                    edition=manifest.edition,
+                    document=documents["PS3.3"],
                 )
             )
         if "PS3.4" in documents:

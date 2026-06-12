@@ -58,12 +58,14 @@ class _FakeFastMCP:
         self.run_transport = transport
 
 
-def test_mcp_tool_names_match_v1_spec() -> None:
+def test_mcp_tool_names_match_supported_spec() -> None:
     assert MCP_TOOL_NAMES == (
         "dicom_lookup_data_element",
         "dicom_lookup_uid",
         "dicom_lookup_sop_class",
         "dicom_lookup_iod",
+        "dicom_lookup_enumerated_values",
+        "dicom_lookup_defined_terms",
         "dicom_list_modules_for_iod",
         "dicom_list_attributes_for_module",
         "dicom_resolve_attribute_context",
@@ -72,7 +74,7 @@ def test_mcp_tool_names_match_v1_spec() -> None:
     )
 
 
-def test_create_mcp_server_registers_all_v1_tools(
+def test_create_mcp_server_registers_all_supported_tools(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -156,6 +158,21 @@ def test_execute_mcp_tool_resolves_attribute_context(tmp_path: Path) -> None:
     assert payload["tool"] == "resolve_attribute_context"
     assert payload["status"] == "ok"
     assert payload["result"]["effective_type"] == "2"
+
+
+def test_execute_mcp_tool_returns_defined_terms(tmp_path: Path) -> None:
+    payload = execute_mcp_tool(
+        "dicom_lookup_defined_terms",
+        {"attribute": "PatientName", "context": "Patient"},
+        config=MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)),
+    )
+
+    assert payload["tool"] == "lookup_defined_terms"
+    assert payload["status"] == "ok"
+    assert [term["value"] for term in payload["result"]["terms"]] == [
+        "ALPHA",
+        "IDEOGRAPHIC",
+    ]
 
 
 def test_execute_mcp_tool_reports_missing_db(tmp_path: Path) -> None:

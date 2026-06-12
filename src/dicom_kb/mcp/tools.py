@@ -11,6 +11,8 @@ from dicom_kb.query.resolver import (
     list_attributes_for_module,
     list_modules_for_iod,
     lookup_data_element,
+    lookup_defined_terms,
+    lookup_enumerated_values,
     lookup_iod,
     lookup_sop_class,
     lookup_uid,
@@ -54,6 +56,18 @@ def dispatch_mcp_tool(
             connection,
             iod_name=str(arguments["iod_name"]),
             edition=edition,
+        ),
+        "dicom_lookup_enumerated_values": lambda: lookup_enumerated_values(
+            connection,
+            attribute=str(arguments["attribute"]),
+            edition=edition,
+            context=_optional_string(arguments.get("context")),
+        ),
+        "dicom_lookup_defined_terms": lambda: lookup_defined_terms(
+            connection,
+            attribute=str(arguments["attribute"]),
+            edition=edition,
+            context=_optional_string(arguments.get("context")),
         ),
         "dicom_list_modules_for_iod": lambda: list_modules_for_iod(
             connection,
@@ -121,6 +135,28 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
             @_tool(server, name=spec["name"], description=spec["description"])
             def dicom_lookup_iod(iod_name: str) -> dict[str, Any]:
                 return executor("dicom_lookup_iod", {"iod_name": iod_name})
+
+        elif spec["name"] == "dicom_lookup_enumerated_values":
+            @_tool(server, name=spec["name"], description=spec["description"])
+            def dicom_lookup_enumerated_values(
+                attribute: str,
+                context: str | None = None,
+            ) -> dict[str, Any]:
+                return executor(
+                    "dicom_lookup_enumerated_values",
+                    {"attribute": attribute, "context": context},
+                )
+
+        elif spec["name"] == "dicom_lookup_defined_terms":
+            @_tool(server, name=spec["name"], description=spec["description"])
+            def dicom_lookup_defined_terms(
+                attribute: str,
+                context: str | None = None,
+            ) -> dict[str, Any]:
+                return executor(
+                    "dicom_lookup_defined_terms",
+                    {"attribute": attribute, "context": context},
+                )
 
         elif spec["name"] == "dicom_list_modules_for_iod":
             @_tool(server, name=spec["name"], description=spec["description"])

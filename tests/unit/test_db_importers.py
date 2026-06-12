@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from dicom_kb.db.importers import (
+    import_attribute_value_terms,
     import_docbook_structure,
     import_part03,
     import_part04,
@@ -267,6 +268,67 @@ def test_import_part03_graph_records(tmp_path: Path) -> None:
         """
     ).fetchone()
     assert nested["parent_name"] == "Referenced Patient Sequence"
+
+
+def test_import_attribute_value_terms_links_attribute_context(tmp_path: Path) -> None:
+    connection = _connection(tmp_path)
+    document = parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3")
+    parsed_part06 = parse_part06(
+        parse_docbook_xml(PS36_REGISTRY_DOCBOOK, part="PS3.6"), edition="2026b"
+    )
+    parsed_part03 = parse_part03(document, edition="2026b")
+    import_part06(
+        connection,
+        edition="2026b",
+        data_elements=parsed_part06.data_elements,
+        uid_registry_entries=parsed_part06.uid_registry_entries,
+    )
+    import_part03(
+        connection,
+        edition="2026b",
+        iods=parsed_part03.iods,
+        modules=parsed_part03.modules,
+        macros=parsed_part03.macros,
+        iod_module_uses=parsed_part03.iod_module_uses,
+        iod_functional_group_uses=parsed_part03.iod_functional_group_uses,
+        attribute_uses=parsed_part03.attribute_uses,
+    )
+
+    summary = import_attribute_value_terms(
+        connection,
+        edition="2026b",
+        document=document,
+    )
+
+    assert summary.attribute_value_terms == 2
+    rows = connection.execute(
+        """
+        SELECT avt.value, avt.meaning, avt.term_kind, avt.context_label,
+               de.keyword, au.attribute_name
+        FROM attribute_value_term avt
+        JOIN data_element de ON de.id = avt.data_element_id
+        JOIN attribute_use au ON au.id = avt.attribute_use_id
+        ORDER BY avt.value
+        """
+    ).fetchall()
+    assert [dict(row) for row in rows] == [
+        {
+            "value": "ALPHA",
+            "meaning": "Alphabetic representation.",
+            "term_kind": "defined_term",
+            "context_label": "Patient Module - Defined Terms:",
+            "keyword": "PatientName",
+            "attribute_name": "Patient's Name",
+        },
+        {
+            "value": "IDEOGRAPHIC",
+            "meaning": "Ideographic representation.",
+            "term_kind": "defined_term",
+            "context_label": "Patient Module - Defined Terms:",
+            "keyword": "PatientName",
+            "attribute_name": "Patient's Name",
+        },
+    ]
 
 
 def test_import_part03_rolls_back_on_duplicate_iods(tmp_path: Path) -> None:

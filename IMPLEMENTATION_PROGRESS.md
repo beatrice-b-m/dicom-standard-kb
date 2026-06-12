@@ -40,11 +40,11 @@ and SQLite FTS query construction live in the spec-aligned
 `query/search.py` modules; the MCP adapter keeps `mcp/server.py` focused on
 configuration, dependency loading, and stdio transport while tool metadata
 and resolver dispatch live in `mcp/schemas.py` and `mcp/tools.py`; DocBook
-`<variablelist>` parsing lives in `docbook/variablelists.py`; and the
-spec-listed `examples/` and `tests/fixtures_minimal_attributed/` paths
-exist. Storage/import wiring for parsed variable lists remains intentionally
-pending for a later value-constraint slice, and post-v1 `api/` plus v2 parser
-paths remain absent by design.
+`<variablelist>` parsing lives in `docbook/variablelists.py`; parsed
+enumerated values and defined terms are persisted as `attribute_value_term`
+rows with deterministic attribute links where possible; and the spec-listed
+`examples/` and `tests/fixtures_minimal_attributed/` paths exist. Post-v1
+`api/` plus v2 parser paths remain absent by design.
 
 Official `current` was fetched and resolved to concrete edition `2026b`, the
 local KB builds from real PS3.3/PS3.4/PS3.6 DocBook XML,
@@ -54,8 +54,9 @@ set has real-KB integration assertions. The former R2 parser limitations are
 now resolved for real 2026b content: official PS3.3 include rows persist as
 macro include provenance, and Enhanced-family functional-group usage rows
 persist without parser warnings. The rebuilt default-cache 2026b KB records
-1,161 include rows and 446 `iod_functional_group_use` rows. The repository
-has a working v1 foundation through:
+1,161 include rows, 446 `iod_functional_group_use` rows, and 4,644
+`attribute_value_term` rows. The repository has a working v1 foundation
+through:
 
 1. Work Order A: repository/build/legal scaffold.
 2. Work Order B: local source acquisition primitives.
@@ -155,21 +156,21 @@ has a working v1 foundation through:
     element and UID sets; and CT/Segmentation SOP Class to IOD traversals.
     Golden expectations are checked through public resolvers with PS3.3/PS3.6
     source-ref anchors where the public response envelope exposes them.
-32. R3 Work Order J prompt-case expansion from three cases to 65 committed
+32. R3 Work Order J prompt-case expansion from three cases to 67 committed
     agent regression cases. The cases are pinned to concrete edition `2026b`,
     systematically cover golden IODs, modules, data elements, UIDs, SOP Class
-    traversals, attribute context queries, text retrieval, text search,
-    multi-tool workflows, and 10 error/ambiguity paths, with an offline test
-    enforcing the coverage floors.
+    traversals, attribute context queries, value-term lookups, text retrieval,
+    text search, multi-tool workflows, and 10 error/ambiguity paths, with an
+    offline test enforcing the coverage floors.
 33. R4 Work Order J reference-agent runner and CLI. `dicom-kb eval run` opens a
     local KB, runs selected or all committed prompt cases through deterministic
     public resolver routes, writes compact transcript JSON consumable by
     `dicom-kb eval score`, and has offline synthetic-fixture coverage plus a
-    real-KB integration scorecard over all 65 prompt cases.
+    real-KB integration scorecard over all 67 prompt cases.
 34. R5 MCP protocol smoke coverage. An offline test launches `dicom-kb mcp
     serve` as a subprocess, connects with the official MCP Python stdio client,
     exercises initialize, `tools/list`, and two `tools/call` requests against
-    the synthetic fixture KB, and verifies all nine v1 tools expose input
+    the synthetic fixture KB, and verifies supported tools expose input
     schemas.
 35. R6 query layout reconciliation, first slice. `resolver.py` now keeps the
     public entry points while citation/trace assembly, condition payload
@@ -222,6 +223,14 @@ has a working v1 foundation through:
     plus a forced rebuild of the stale default-cache 2026b KB so the complete
     integration tier — including both external differentials — passes against
     the conventional cache path with no skips.
+46. Real PS3.3 macro graph completion: official include rows persist as
+    include-row provenance and Enhanced-family functional-group tables persist
+    as `iod_functional_group_use` rows with context traversal.
+47. Value-constraint slice: DocBook variable lists titled Enumerated Values or
+    Defined Terms import into `attribute_value_term`, deterministic PS3.6 and
+    attribute-use links are attached where available, and Python/CLI/MCP
+    lookup surfaces expose `lookup_enumerated_values` and
+    `lookup_defined_terms`.
 
 ## Completed commits
 
@@ -296,14 +305,14 @@ has a working v1 foundation through:
 
 ## Verification at stop
 
-The full local test suite was re-run on 2026-06-12 after the real PS3.3
-include-row and functional-group parser slice and a default-cache KB rebuild:
+The full local test suite was re-run on 2026-06-12 after the value-constraint
+slice and a default-cache KB rebuild:
 
 ```bash
 uv run pytest
 ```
 
-- pytest: 162 passed, 3 skipped. The skips are the optional external
+- pytest: 167 passed, 3 skipped. The skips are the optional external
   differential comparisons when their local inputs are not configured.
 
 The default-cache 2026b KB was rebuilt from the locally cached official
@@ -342,10 +351,11 @@ errors.
 
 Observed R3 prompt-case metrics (re-verified):
 
-- 65 committed cases with unique ids, all pinned to concrete edition `2026b`.
+- 67 committed cases with unique ids, all pinned to concrete edition `2026b`.
 - 10 error/ambiguity cases.
-- All nine v1 query tools appear in at least one case's `expected_tools`.
-- The deterministic reference runner scores all 65 cases against the local
+- All 11 supported MCP query tools appear in at least one case's
+  `expected_tools`.
+- The deterministic reference runner scores all 67 cases against the local
   real 2026b KB through `tests/integration_requires_dicom_download/`.
 - The synthetic fixture runner subset and `dicom-kb eval run` / `eval score`
   CLI path are covered by `tests/agent_regression/`.
@@ -357,7 +367,7 @@ The real 2026b build imports (re-verified against the rebuilt KB):
 - PS3.6: 5308 data elements, 489 UID registry entries.
 - PS3.3: 192 IODs, 403 modules, 3401 IOD module uses, 303 macros,
   446 IOD functional-group uses, 8955 attribute uses, including 1161 include
-  rows.
+  rows, plus 4644 imported attribute value terms.
 - PS3.4: 181 SOP Classes and 181 SOP Class to IOD edges.
 - 0 PS3.3 parser warnings in the graph import slice.
 
@@ -407,8 +417,8 @@ resolved per their completion conditions:
   manifest artifact and rejecting traversal outside the selected part tree.
 - Namespace-aware DocBook section, table, span, xref, and include-row parsing.
 - DocBook variable-list parsing into term/definition IR with parent section,
-  XML id, entry order, and embedded reference preservation; persistence remains
-  pending for the later value-constraint slice.
+  XML id, entry order, and embedded reference preservation, plus persistence as
+  `attribute_value_term` rows for Enumerated Values and Defined Terms lists.
 - Fixture-oriented examples for direct Python resolver usage, CLI lookup, MCP
   server launch, deterministic coding-agent harness runs, and local identifier
   validators.
@@ -529,20 +539,21 @@ resolved per their completion conditions:
 - Shared synthetic DocBook XML fixture files for current PS3.3, PS3.4, and
   PS3.6 parser coverage, with importer/query/CLI tests consuming the same
   fixture source.
-- MCP server adapter for the nine v1 query tools:
+- MCP server adapter for the supported query tools:
   `dicom_lookup_data_element`, `dicom_lookup_uid`,
   `dicom_lookup_sop_class`, `dicom_lookup_iod`,
+  `dicom_lookup_enumerated_values`, `dicom_lookup_defined_terms`,
   `dicom_list_modules_for_iod`, `dicom_list_attributes_for_module`,
   `dicom_resolve_attribute_context`, `dicom_retrieve_standard_text`, and
   `dicom_search_standard_text`.
 - `dicom-kb mcp serve --edition <edition>` command serving the MCP adapter
   over stdio from an explicit `--db` or the conventional cache database.
-- Offline FastMCP registration tests that verify the adapter exposes the v1
+- Offline FastMCP registration tests that verify the adapter exposes the
   tool set, preserves tool descriptions, maps registered tool arguments
   through the public query envelopes, and invokes stdio transport.
 - Offline MCP protocol smoke coverage using the official Python MCP stdio
   client against the synthetic fixture KB, verifying initialize,
-  `tools/list`, all nine v1 input schemas, and tool-call response envelopes.
+  `tools/list`, supported input schemas, and tool-call response envelopes.
 - `dicom-kb mcp serve` checks the configured SQLite KB path before starting
   stdio and reports actionable fetch/build or fixture-build commands when it is
   missing.
@@ -585,12 +596,13 @@ resolved per their completion conditions:
   short macro names, persist 446 functional-group usage rows for 2026b, and
   `resolve_attribute_context` traverses those macro attributes for Enhanced CT
   and related IODs.
+- DocBook variable lists titled Enumerated Values or Defined Terms persist as
+  `attribute_value_term` records; the 2026b KB imports 4644 rows, and
+  `dicom-kb lookup enumerated-values` / `dicom-kb lookup defined-terms` plus
+  matching MCP tools expose citation-preserving lookups.
 
 ## Not yet implemented
 
-- Storage/import wiring for parsed DocBook variable lists (enumerated values
-  and defined terms, §7.6) — parser exists in `docbook/variablelists.py`;
-  persistence is intentionally deferred to a later value-constraint slice.
 - General citation builder beyond direct source-ref conversion.
 - Optional real-LLM external-agent runner configuration. The committed R4
   runner is the deterministic reference agent; real-KB transcripts remain
@@ -609,7 +621,7 @@ resolved per their completion conditions:
 
 ## Recommended next work order
 
-Value-constraint slice: persist parsed DocBook variable lists for enumerated
-values and defined terms, wire them into query responses where appropriate,
-and add focused parser/import/query tests using synthetic fixtures before
-selectively exercising real PS3.3/PS3.6 content.
+Citation and condition refinement: move beyond direct source-ref conversion
+for compound responses and start normalizing raw condition records so
+conditional module and attribute usage can expose machine-status metadata
+instead of only raw description text.

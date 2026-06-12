@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from dicom_kb.db.repositories import (
     AttributeUseRecord,
+    AttributeValueTermRecord,
     DocumentSearchResult,
     IODModuleUseRecord,
     SOPClassIODRecord,
@@ -230,6 +231,26 @@ def standard_text_search_result(records: list[DocumentSearchResult]) -> dict[str
             }
             for record in records
         ]
+    }
+
+
+def attribute_value_terms_result(
+    attribute: DataElement | None,
+    records: list[AttributeValueTermRecord],
+) -> dict[str, Any]:
+    """Return parsed enumerated values or defined terms for an attribute."""
+    return {
+        "attribute": data_element_result(attribute) if attribute is not None else None,
+        "terms": [
+            {
+                "value": record.term.value,
+                "meaning": record.term.meaning,
+                "term_kind": record.term.term_kind,
+                "context_label": record.term.context_label,
+                "attribute_use_id": record.term.attribute_use_id,
+            }
+            for record in records
+        ],
     }
 
 

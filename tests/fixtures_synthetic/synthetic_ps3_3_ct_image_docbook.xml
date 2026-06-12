@@ -61,6 +61,21 @@
           </tbody>
         </tgroup>
       </table>
+      <variablelist xml:id="vl_patient_name_terms">
+        <title>Defined Terms:</title>
+        <varlistentry xml:id="vl_patient_name_alpha">
+          <term>ALPHA</term>
+          <listitem>
+            <para>Alphabetic representation.</para>
+          </listitem>
+        </varlistentry>
+        <varlistentry xml:id="vl_patient_name_ideographic">
+          <term>IDEOGRAPHIC</term>
+          <listitem>
+            <para>Ideographic representation.</para>
+          </listitem>
+        </varlistentry>
+      </variablelist>
     </section>
     <section xml:id="sect_10.7">
       <title>General Anatomy Optional Macro</title>

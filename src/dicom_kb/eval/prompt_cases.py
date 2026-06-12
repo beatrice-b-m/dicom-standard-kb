@@ -284,6 +284,23 @@ def _attribute_context_cases() -> tuple[AgentRegressionCase, ...]:
     )
 
 
+def _value_term_cases() -> tuple[AgentRegressionCase, ...]:
+    return (
+        _case(
+            "agent.values.modality.enumerated",
+            "Look up parsed enumerated values for Modality and cite the source.",
+            ("lookup_data_element", "lookup_enumerated_values"),
+            ("Modality", "enumerated values"),
+        ),
+        _case(
+            "agent.values.patient_name.defined",
+            "Look up parsed defined terms for Patient's Name and cite the source.",
+            ("lookup_data_element", "lookup_defined_terms"),
+            ("Patient's Name", "defined terms"),
+        ),
+    )
+
+
 def _text_retrieval_cases() -> tuple[AgentRegressionCase, ...]:
     return tuple(
         _case(
@@ -417,6 +434,7 @@ def _agent_regression_cases() -> tuple[AgentRegressionCase, ...]:
         *_uid_cases(),
         *_sop_class_cases(),
         *_attribute_context_cases(),
+        *_value_term_cases(),
         *_text_retrieval_cases(),
         *_search_cases(),
         *_workflow_cases(),

@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from dicom_kb.db.importers import (
+    import_attribute_value_terms,
     import_docbook_structure,
     import_part03,
     import_part04,
@@ -20,6 +21,8 @@ from dicom_kb.query.resolver import (
     list_attributes_for_module,
     list_modules_for_iod,
     lookup_data_element,
+    lookup_defined_terms,
+    lookup_enumerated_values,
     lookup_iod,
     lookup_sop_class,
     lookup_uid,
@@ -115,6 +118,11 @@ def _context_connection(tmp_path: Path) -> sqlite3.Connection:
         iod_module_uses=parsed_part03.iod_module_uses,
         iod_functional_group_uses=parsed_part03.iod_functional_group_uses,
         attribute_uses=parsed_part03.attribute_uses,
+    )
+    import_attribute_value_terms(
+        connection,
+        edition="2026b",
+        document=parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3"),
     )
     parsed_part04 = parse_part04(
         parse_docbook_xml(PS34_SOP_CLASSES_DOCBOOK, part="PS3.4"),
@@ -707,6 +715,72 @@ def test_resolve_attribute_context_traverses_functional_group_macros(
         }
     ]
     assert response.result["effective_type"] == "3"
+
+
+def test_lookup_defined_terms_returns_attribute_value_terms(tmp_path: Path) -> None:
+    response = lookup_defined_terms(
+        _context_connection(tmp_path),
+        attribute="PatientName",
+        edition="2026b",
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert response.status == "ok"
+    assert response.result is not None
+    assert response.result["attribute"]["tag"] == "(0010,0010)"
+    assert response.result["terms"] == [
+        {
+            "value": "ALPHA",
+            "meaning": "Alphabetic representation.",
+            "term_kind": "defined_term",
+            "context_label": "Patient Module - Defined Terms:",
+            "attribute_use_id": "2026b.module.patient.attribute_use.0",
+        },
+        {
+            "value": "IDEOGRAPHIC",
+            "meaning": "Ideographic representation.",
+            "term_kind": "defined_term",
+            "context_label": "Patient Module - Defined Terms:",
+            "attribute_use_id": "2026b.module.patient.attribute_use.0",
+        },
+    ]
+    assert {ref.part for ref in response.refs} == {"PS3.3", "PS3.6"}
+
+
+def test_lookup_value_terms_supports_context_and_missing_term_kind(
+    tmp_path: Path,
+) -> None:
+    connection = _context_connection(tmp_path)
+    matched_context = lookup_defined_terms(
+        connection,
+        attribute="PatientName",
+        edition="2026b",
+        context="Patient",
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+    missing_context = lookup_defined_terms(
+        connection,
+        attribute="PatientName",
+        edition="2026b",
+        context="CT Image",
+        query_id="query-2",
+        resolved_at=RESOLVED_AT,
+    )
+    missing_kind = lookup_enumerated_values(
+        connection,
+        attribute="PatientName",
+        edition="2026b",
+        query_id="query-3",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert matched_context.status == "ok"
+    assert matched_context.result is not None
+    assert len(matched_context.result["terms"]) == 2
+    assert missing_context.status == "not_found"
+    assert missing_kind.status == "not_found"
 
 
 def test_resolve_attribute_context_computes_lowest_type_for_multiple_uses(

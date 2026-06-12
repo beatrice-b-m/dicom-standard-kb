@@ -154,6 +154,22 @@ class AttributeUse(BaseModel):
     source_ref: SourceRef
 
 
+class AttributeValueTerm(BaseModel):
+    """A parsed enumerated value or defined term for an attribute context."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    edition_id: str
+    attribute_use_id: str | None = None
+    data_element_id: str | None = None
+    context_label: str | None = None
+    term_kind: str
+    value: str
+    meaning: str | None = None
+    source_ref: SourceRef
+
+
 class ServiceClass(BaseModel):
     """PS3.4 service class definition."""
 
