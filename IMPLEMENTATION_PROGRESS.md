@@ -4,24 +4,28 @@ Last updated: 2026-06-12
 
 ## Current stopping point
 
-Stopped after completing the R5 MCP protocol smoke test from
-`PROGRESS_REVIEW.md`: official `current` was fetched and resolved to concrete
-edition `2026b`, the local KB builds from real PS3.3/PS3.4/PS3.6 DocBook XML,
-`make test-integration` has a real-download integration tier that passes with
-local artifacts and skips cleanly without them, and the §15.2 golden entity set
-now has real-KB integration assertions. The agent regression prompt set now has
-65 edition-pinned cases, covers all nine v1 query tools, and includes an
-offline guard for the ≥50-case, unique-ID, edition-pin, all-tool, and
-error-case floors. `dicom-kb eval run` now records deterministic reference-agent
-transcripts in the existing compact scorecard schema, and both synthetic-fixture
-and real-KB tests score those transcripts without committing bulk real-KB outputs.
-The MCP server now has an offline protocol-level smoke test using the official
-Python MCP stdio client against the synthetic fixture KB, and `dicom-kb mcp
-serve` fails early with fetch/build guidance when the configured SQLite KB is
-missing. Two R2 parser limitations remain captured as strict xfails: real PS3.3
-include rows are not yet persisted as macro include provenance, and Enhanced CT
-functional-group usage rows are not yet persisted. The repository now has a
-working v1 foundation through:
+Stopped after starting R6 repository-layout reconciliation from
+`PROGRESS_REVIEW.md`: the public query API now retains `resolver.py` as a thin
+entry-point layer while citation assembly, condition payload shaping, PS3.3
+graph traversal, recursive macro expansion, and SQLite FTS query construction
+live in the spec-aligned `query/citations.py`, `query/conditions.py`,
+`query/graph.py`, and `query/search.py` modules. Official `current` was fetched
+and resolved to concrete edition `2026b`, the local KB builds from real
+PS3.3/PS3.4/PS3.6 DocBook XML, `make test-integration` has a real-download
+integration tier that passes with local artifacts and skips cleanly without
+them, and the §15.2 golden entity set now has real-KB integration assertions.
+The agent regression prompt set now has 65 edition-pinned cases, covers all
+nine v1 query tools, and includes an offline guard for the ≥50-case, unique-ID,
+edition-pin, all-tool, and error-case floors. `dicom-kb eval run` now records
+deterministic reference-agent transcripts in the existing compact scorecard
+schema, and both synthetic-fixture and real-KB tests score those transcripts
+without committing bulk real-KB outputs. The MCP server now has an offline
+protocol-level smoke test using the official Python MCP stdio client against
+the synthetic fixture KB, and `dicom-kb mcp serve` fails early with fetch/build
+guidance when the configured SQLite KB is missing. Two R2 parser limitations
+remain captured as strict xfails: real PS3.3 include rows are not yet persisted
+as macro include provenance, and Enhanced CT functional-group usage rows are
+not yet persisted. The repository now has a working v1 foundation through:
 
 1. Work Order A: repository/build/legal scaffold.
 2. Work Order B: local source acquisition primitives.
@@ -137,6 +141,11 @@ working v1 foundation through:
     exercises initialize, `tools/list`, and two `tools/call` requests against
     the synthetic fixture KB, and verifies all nine v1 tools expose input
     schemas.
+35. R6 query layout reconciliation, first slice. `resolver.py` now keeps the
+    public entry points while citation/trace assembly, condition payload
+    shaping, PS3.3 graph traversal, recursive macro expansion, and FTS query
+    construction live in `query/citations.py`, `query/conditions.py`,
+    `query/graph.py`, and `query/search.py` with no public API change.
 
 ## Completed commits
 
@@ -190,10 +199,11 @@ working v1 foundation through:
 - `4322f97 feat(eval): add reference agent runner`
 - `336544f docs(progress): record R4 reference runner`
 - `e7569ca test(mcp): add stdio protocol smoke coverage`
+- `4910279 refactor(query): split resolver internals by concern`
 
 ## Verification at stop
 
-The following checks passed after the R5 MCP protocol smoke test:
+The following checks passed after the R6 query-layout refactor:
 
 ```bash
 uv run --dev ruff check .
