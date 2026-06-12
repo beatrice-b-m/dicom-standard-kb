@@ -47,6 +47,24 @@ DOCBOOK = """\
           </tbody>
         </tgroup>
       </table>
+      <variablelist xml:id="vl_A.3-1">
+        <title>Defined Terms</title>
+        <varlistentry xml:id="vl_entry_ct">
+          <term xml:id="vl_term_ct">CT</term>
+          <listitem xml:id="vl_def_ct">
+            <para>
+              Computed Tomography, as defined near <xref linkend="sect_A.3"/>.
+            </para>
+          </listitem>
+        </varlistentry>
+        <varlistentry>
+          <term>MR</term>
+          <term>MRI</term>
+          <listitem>
+            <para>Magnetic Resonance Imaging.</para>
+          </listitem>
+        </varlistentry>
+      </variablelist>
     </section>
   </chapter>
 </book>
@@ -62,6 +80,8 @@ def test_docbook_parser_extracts_sections_tables_and_xrefs() -> None:
     assert parsed.sections[1].title == "CT Image"
     assert parsed.tables[0].xml_id == "table_A.3-1"
     assert parsed.tables[0].title == "CT Image IOD Modules"
+    assert parsed.variablelists[0].xml_id == "vl_A.3-1"
+    assert parsed.variablelists[0].title == "Defined Terms"
     assert "unresolved xref target: missing" in parsed.warnings
 
 
@@ -116,6 +136,25 @@ def test_table_parser_accepts_html_table_vocabulary() -> None:
     assert table.rows[1].cells[0].rowspan == 2
     assert table.rows[2].cells[0].column == 1
     assert table.rows[2].cells[0].colspan == 2
+
+
+def test_variablelist_parser_preserves_terms_definitions_and_source_context() -> None:
+    variablelist = parse_docbook_xml(DOCBOOK, part="PS3.3").variablelists[0]
+
+    assert variablelist.parent_xml_id == "sect_A.3"
+    assert variablelist.ordinal == 0
+
+    ct_entry = variablelist.entries[0]
+    assert ct_entry.entry_xml_id == "vl_entry_ct"
+    assert ct_entry.terms == ("CT",)
+    assert ct_entry.term_xml_ids == ("vl_term_ct",)
+    assert ct_entry.definition_xml_id == "vl_def_ct"
+    assert ct_entry.definition == "Computed Tomography, as defined near ."
+    assert ct_entry.xrefs == ("sect_A.3",)
+
+    multi_term_entry = variablelist.entries[1]
+    assert multi_term_entry.terms == ("MR", "MRI")
+    assert multi_term_entry.definition == "Magnetic Resonance Imaging."
 
 
 def test_zero_width_characters_are_removed_from_normalized_text() -> None:

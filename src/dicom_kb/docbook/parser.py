@@ -10,6 +10,7 @@ from lxml import etree
 from dicom_kb.docbook.namespaces import NSMAP, xml_id_name
 from dicom_kb.docbook.tables import ParsedTable, parse_tables
 from dicom_kb.docbook.text_chunks import normalize_text
+from dicom_kb.docbook.variablelists import ParsedVariableList, parse_variablelists
 from dicom_kb.docbook.xrefs import ParsedXref, extract_xrefs
 
 
@@ -34,6 +35,7 @@ class ParsedDocument:
     part: str
     sections: tuple[ParsedSection, ...]
     tables: tuple[ParsedTable, ...]
+    variablelists: tuple[ParsedVariableList, ...]
     xrefs: tuple[ParsedXref, ...]
     warnings: tuple[str, ...]
 
@@ -60,6 +62,7 @@ def parse_docbook_root(root: etree._Element, *, part: str) -> ParsedDocument:
         part=part,
         sections=tuple(_parse_sections(root)),
         tables=tuple(parse_tables(root)),
+        variablelists=tuple(parse_variablelists(root)),
         xrefs=xrefs,
         warnings=warnings,
     )
