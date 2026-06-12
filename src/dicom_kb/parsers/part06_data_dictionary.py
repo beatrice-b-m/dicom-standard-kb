@@ -84,7 +84,7 @@ def _parse_data_element_table(
 
         name = _cell(row, headers["name"])
         keyword = _optional_cell(row, headers.get("keyword"))
-        retired_text = _optional_cell(row, headers.get("retired"))
+        retired_text = _optional_cell(row, _retired_column(headers))
         retired = _is_retired(name, keyword, retired_text)
         records.append(
             DataElement(
@@ -122,7 +122,7 @@ def _parse_uid_table(
 
         uid_name = _cell(row, headers["uid name"])
         keyword = _optional_cell(row, headers.get("uid keyword"))
-        retired_text = _optional_cell(row, headers.get("retired"))
+        retired_text = _optional_cell(row, _retired_column(headers))
         retired = _is_retired(uid_name, keyword, retired_text)
         records.append(
             UIDRegistryEntry(
@@ -161,12 +161,27 @@ def _optional_cell(row: ParsedRow, column: int | None) -> str | None:
     return value or None
 
 
+def _retired_column(headers: dict[str, int]) -> int | None:
+    if "retired" in headers:
+        return headers["retired"]
+    return headers.get("")
+
+
 def _key(value: str) -> str:
     return normalize_text(value).lower()
 
 
 def _is_retired(*values: str | None) -> bool:
-    return any(value is not None and "retired" in value.lower() for value in values)
+    return any(_has_retired_marker(value) for value in values)
+
+
+def _has_retired_marker(value: str | None) -> bool:
+    if value is None:
+        return False
+    normalized = normalize_text(value)
+    if "retired" in normalized.lower():
+        return True
+    return any(token == "RET" for token in normalized.replace("-", " ").split())
 
 
 def _strip_retired_marker(value: str | None) -> str | None:

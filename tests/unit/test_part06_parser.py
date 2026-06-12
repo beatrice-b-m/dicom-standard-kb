@@ -29,6 +29,12 @@ def test_parse_part06_data_elements_and_range_tags() -> None:
     )
     assert retired.retired is True
     assert retired.name == "Curve Data"
+
+    retired_from_column = next(
+        element for element in result.data_elements if element.tag == "(0008,0001)"
+    )
+    assert retired_from_column.retired is True
+    assert retired_from_column.name == "Length to End"
     assert any("malformed tag" in warning.message for warning in result.warnings)
 
 

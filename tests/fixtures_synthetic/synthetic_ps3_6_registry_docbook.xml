@@ -6,7 +6,7 @@
         <thead>
           <row>
             <entry>Tag</entry><entry>Name</entry><entry>Keyword</entry>
-            <entry>VR</entry><entry>VM</entry><entry>Retired</entry>
+            <entry>VR</entry><entry>VM</entry><entry></entry>
           </row>
         </thead>
         <tbody>
@@ -37,6 +37,10 @@
           <row>
             <entry>(50xx,xxxx)</entry><entry>Curve Data (Retired)</entry>
             <entry>CurveData</entry><entry>OB</entry><entry>1</entry><entry>RET</entry>
+          </row>
+          <row>
+            <entry>(0008,0001)</entry><entry>Length to End</entry>
+            <entry>LengthToEnd</entry><entry>UL</entry><entry>1</entry><entry>RET</entry>
           </row>
           <row>
             <entry>not-a-tag</entry><entry>Bad</entry>
