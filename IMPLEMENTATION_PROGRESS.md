@@ -1,6 +1,6 @@
 # Implementation Progress
 
-Last updated: 2026-06-12
+Last updated: 2026-06-11
 
 ## Current stopping point
 
@@ -125,9 +125,33 @@ Observed test count: 43 passing tests.
 - Full PS3.3 parser coverage beyond the first v1 CT-style synthetic fixture
   slice, including broader real-standard table variants.
 - PS3.4 SOP class parser.
+- Recursive query-time macro expansion. `list_attributes_for_module` expands
+  only one include level; SYSTEM_SPECS.md sections 8.4 and 8.5 require
+  recursive expansion with dual provenance (macro source ref plus including
+  row's source ref) and effective `sequence_depth` reporting. Nested includes
+  are common in Enhanced-family IODs, and `resolve_attribute_context` must
+  traverse `via_macro` paths, so this should be fixed before that tool is
+  built on top of it.
+- `resolve_attribute_context` with effective-type computation (the most
+  important v1 tool per SYSTEM_SPECS.md section 8.5).
+- Spec query-layer modules beyond `query/resolver.py`: `query/graph.py`,
+  `query/conditions.py`, `query/citations.py`, and `query/search.py` (Work
+  Order H). Graph traversal currently lives in resolvers/repositories;
+  FTS5-backed `search_standard_text` has not been started.
+- Standalone `lookup_sop_class` and `lookup_iod` tools (SYSTEM_SPECS.md
+  section 8.7); IOD lookup exists only implicitly inside
+  `list_modules_for_iod`.
+- `retrieve_standard_text` (v1 tool, SYSTEM_SPECS.md section 8.6); blocked on
+  `doc_node` storage because no prose is persisted to retrieve.
 - General citation builder beyond direct source-ref conversion.
 - MCP server tool surface.
 - Agent regression harness.
+- Golden fixture coverage (SYSTEM_SPECS.md section 15.2) beyond the single
+  synthetic CT-style PS3.3 fixture and PS3.6 registry fixture: MR Image,
+  Enhanced CT Image (functional-group resolution exercised end-to-end through
+  the query layer), Segmentation, Comprehensive SR, and Encapsulated PDF
+  goldens are pending. These approach real-standard content, so they likely
+  belong with the integration-test work rather than synthetic fixtures.
 - Raw table IR persistence (SYSTEM_SPECS.md section 10.3): the DocBook layer
   builds table IR in memory, but the import stores only normalized
   `data_element`/`uid_registry_entry` rows. No `doc_node`, `xref`, or JSON
@@ -154,3 +178,16 @@ if run:
 Before MCP work, add minimal attributed fixture handling, then broaden PS3.3
 parser fixtures toward CT Image table variants that can be represented without
 redistributing bulk official artifacts.
+
+Refinements from the 2026-06-11 progress review:
+
+1. The critical path to the v1 acceptance criteria runs through build-sequence
+   steps 10 and 11 (SYSTEM_SPECS.md section 14): the PS3.4 SOP class parser
+   and `resolve_attribute_context`. The broadened PS3.3 fixtures above feed
+   directly into both, since `resolve_attribute_context` needs SOP Class →
+   IOD traversal and richer module/macro graphs to compute effective types
+   against.
+2. Fix recursive macro expansion (currently one level) before building
+   `resolve_attribute_context`, because effective-type computation must
+   traverse `via_macro` paths correctly and should not be layered on an
+   expansion that silently truncates nested includes.
