@@ -5,7 +5,8 @@ Last updated: 2026-06-12
 ## Current stopping point
 
 Stopped after a full verification review of the repository against
-`SYSTEM_SPECS.md` and `PROGRESS_REVIEW.md`. All seven review work items
+`SYSTEM_SPECS.md` and the June 2026 progress review (`PROGRESS_REVIEW.md`,
+since removed; retrievable from git history). All seven review work items
 (R1–R7) are resolved per their stated completion conditions. The review
 surfaced one environment issue: the default-cache 2026b KB at
 `~/.cache/dicom-standard-kb/db/2026b.sqlite` had been built at commit
@@ -217,8 +218,8 @@ synthetic fixtures). The repository has a working v1 foundation through:
     attribute conventions, and the configured run against a rebuilt 2026b KB
     passes with four data-element edition skews and one CT Image module-list
     edition skew recorded in the allowlist.
-45. Full verification review of R1–R7 against `PROGRESS_REVIEW.md`, plus a
-    forced rebuild of the stale default-cache 2026b KB so the complete
+45. Full verification review of R1–R7 against the June 2026 progress review,
+    plus a forced rebuild of the stale default-cache 2026b KB so the complete
     integration tier — including both external differentials — passes against
     the conventional cache path with no skips.
 
@@ -381,9 +382,11 @@ against synthetic fixtures):
   build, so `resolve_attribute_context` cannot yet report a non-empty
   `via_macro` path for an attribute reachable only through a functional group.
 
-## PROGRESS_REVIEW.md resolution status
+## Progress review resolution status
 
-All seven work items are resolved per their completion conditions:
+The June 2026 progress review (`PROGRESS_REVIEW.md`, removed after
+resolution; see git history) defined seven work items, R1–R7. All are
+resolved per their completion conditions:
 
 - R1 (real-edition validation): complete. Integration tier passes with
   artifacts and skips cleanly without them.
