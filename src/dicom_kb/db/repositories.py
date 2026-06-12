@@ -39,6 +39,7 @@ class AttributeUseRecord:
     owner_name: str
     included_macro: Macro | None = None
     expanded_from_include: AttributeUse | None = None
+    macro_path: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -58,7 +59,7 @@ class DataElementRepository:
     def find_by_tag_or_keyword(
         self, tag_or_keyword: str, *, edition: str
     ) -> tuple[DataElement | None, str | None]:
-        """Return an exact record and optional range-match warning."""
+        """Return an exact tag, keyword, or name record and optional warning."""
         try:
             tag = normalize_tag(tag_or_keyword)
         except IdentifierValidationError:
@@ -69,9 +70,10 @@ class DataElementRepository:
                        sr.title AS source_title, sr.canonical_url AS source_url
                 FROM data_element de
                 JOIN source_ref sr ON sr.id = de.source_ref_id
-                WHERE de.edition_id = ? AND lower(de.keyword) = lower(?)
+                WHERE de.edition_id = ?
+                  AND (lower(de.keyword) = lower(?) OR lower(de.name) = lower(?))
                 """,
-                (edition, tag_or_keyword),
+                (edition, tag_or_keyword, tag_or_keyword),
             ).fetchone()
             return (_data_element_from_row(row) if row else None), None
 

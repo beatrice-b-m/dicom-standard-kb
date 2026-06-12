@@ -238,3 +238,24 @@ def test_cli_module_attributes_expands_macros(tmp_path: Path) -> None:
     assert payload["result"]["attributes"][-1]["expanded_from_include_id"] == (
         "2026b.module.patient.attribute_use.3"
     )
+
+
+def test_cli_resolve_attribute_context_outputs_effective_type(
+    tmp_path: Path,
+) -> None:
+    payload = _invoke_json(
+        tmp_path,
+        "resolve",
+        "attribute-context",
+        "PatientName",
+        "--edition",
+        "2026b",
+        "--iod",
+        "CT Image",
+    )
+
+    assert payload["tool"] == "resolve_attribute_context"
+    assert payload["status"] == "ok"
+    assert payload["result"]["attribute"]["tag"] == "(0010,0010)"
+    assert payload["result"]["uses"][0]["module"] == "Patient"
+    assert payload["result"]["effective_type"] == "2"

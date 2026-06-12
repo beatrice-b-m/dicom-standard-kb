@@ -18,15 +18,18 @@ from dicom_kb.query.resolver import (
     lookup_iod,
     lookup_sop_class,
     lookup_uid,
+    resolve_attribute_context,
 )
 
 app = typer.Typer(help="Build and query a local DICOM standard knowledge base.")
 lookup_app = typer.Typer(help="Run exact lookups against a local SQLite KB.")
 iod_app = typer.Typer(help="Query PS3.3 IOD graph records.")
 module_app = typer.Typer(help="Query PS3.3 module graph records.")
+resolve_app = typer.Typer(help="Resolve DICOM facts in a usage context.")
 app.add_typer(lookup_app, name="lookup")
 app.add_typer(iod_app, name="iod")
 app.add_typer(module_app, name="module")
+app.add_typer(resolve_app, name="resolve")
 
 
 @app.callback()
@@ -212,6 +215,42 @@ def module_attributes(
                 module_name=module_name,
                 edition=edition,
                 expand_macros=expand_macros,
+            )
+        )
+
+
+@resolve_app.command("attribute-context")
+def resolve_attribute_context_command(
+    attribute: Annotated[
+        str,
+        typer.Argument(help="DICOM attribute tag, keyword, or name."),
+    ],
+    db: Annotated[
+        Path,
+        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
+    ],
+    edition: Annotated[
+        str,
+        typer.Option("--edition", help="Concrete DICOM edition label."),
+    ],
+    iod_name: Annotated[
+        str | None,
+        typer.Option("--iod", help="DICOM IOD name or keyword context."),
+    ] = None,
+    sop_class: Annotated[
+        str | None,
+        typer.Option("--sop-class", help="DICOM SOP Class UID, name, or keyword."),
+    ] = None,
+) -> None:
+    """Resolve an attribute's PS3.3 use and effective type in context."""
+    with _connect_existing_db(db) as connection:
+        _echo_response(
+            resolve_attribute_context(
+                connection,
+                attribute=attribute,
+                edition=edition,
+                iod_name=iod_name,
+                sop_class=sop_class,
             )
         )
 

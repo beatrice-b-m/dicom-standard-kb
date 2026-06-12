@@ -17,12 +17,16 @@ def test_parse_part06_data_elements_and_range_tags() -> None:
     assert modality.vm == "1"
     assert modality.source_ref.part == "PS3.6"
 
-    overlay = result.data_elements[1]
+    overlay = next(
+        element for element in result.data_elements if element.tag == "(60xx,3000)"
+    )
     assert overlay.tag == "(60xx,3000)"
     assert overlay.is_range is True
     assert tag_matches(overlay.tag, "(6002,3000)")
 
-    retired = result.data_elements[2]
+    retired = next(
+        element for element in result.data_elements if element.tag == "(50xx,xxxx)"
+    )
     assert retired.retired is True
     assert retired.name == "Curve Data"
     assert any("malformed tag" in warning.message for warning in result.warnings)

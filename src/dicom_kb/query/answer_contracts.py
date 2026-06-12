@@ -176,6 +176,22 @@ def module_attributes_result(
     }
 
 
+def attribute_context_result(
+    element: DataElement,
+    uses: list[dict[str, Any]],
+    *,
+    effective_type: str | None,
+    effective_type_explanation: str,
+) -> dict[str, Any]:
+    """Return the public result payload for an attribute-in-context traversal."""
+    return {
+        "attribute": data_element_result(element),
+        "uses": uses,
+        "effective_type": effective_type,
+        "effective_type_explanation": effective_type_explanation,
+    }
+
+
 def standard_ref(source_ref: SourceRef) -> StandardRef:
     """Convert an internal source ref to the public citation shape."""
     return StandardRef(

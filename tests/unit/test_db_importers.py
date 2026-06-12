@@ -40,7 +40,7 @@ def test_import_part06_and_lookup_tag_uid(tmp_path: Path) -> None:
         uid_registry_entries=parsed.uid_registry_entries,
     )
 
-    assert summary.data_elements == 3
+    assert summary.data_elements == 7
     assert summary.uid_registry_entries == 2
     element, warning = DataElementRepository(connection).find_by_tag_or_keyword(
         "Modality", edition="2026b"
@@ -118,7 +118,7 @@ def test_imports_keep_editions_isolated(tmp_path: Path) -> None:
     )
 
     count = connection.execute("SELECT count(*) FROM data_element").fetchone()[0]
-    assert count == 6
+    assert count == 14
 
 
 def test_import_part03_graph_records(tmp_path: Path) -> None:

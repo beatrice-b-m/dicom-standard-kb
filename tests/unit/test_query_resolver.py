@@ -18,6 +18,7 @@ from dicom_kb.query.resolver import (
     lookup_iod,
     lookup_sop_class,
     lookup_uid,
+    resolve_attribute_context,
 )
 from tests.fixtures_synthetic import (
     PS33_CT_IMAGE_DOCBOOK,
@@ -76,6 +77,69 @@ def _part034_connection(tmp_path: Path) -> sqlite3.Connection:
         service_classes=parsed.service_classes,
         sop_classes=parsed.sop_classes,
         sop_class_iods=parsed.sop_class_iods,
+    )
+    return connection
+
+
+def _context_connection(tmp_path: Path) -> sqlite3.Connection:
+    connection = _connection(tmp_path)
+    parsed_part03 = parse_part03(
+        parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3"),
+        edition="2026b",
+    )
+    import_part03(
+        connection,
+        edition="2026b",
+        iods=parsed_part03.iods,
+        modules=parsed_part03.modules,
+        macros=parsed_part03.macros,
+        iod_module_uses=parsed_part03.iod_module_uses,
+        iod_functional_group_uses=parsed_part03.iod_functional_group_uses,
+        attribute_uses=parsed_part03.attribute_uses,
+    )
+    parsed_part04 = parse_part04(
+        parse_docbook_xml(PS34_SOP_CLASSES_DOCBOOK, part="PS3.4"),
+        edition="2026b",
+    )
+    import_part04(
+        connection,
+        edition="2026b",
+        service_classes=parsed_part04.service_classes,
+        sop_classes=parsed_part04.sop_classes,
+        sop_class_iods=parsed_part04.sop_class_iods,
+    )
+    return connection
+
+
+def _context_connection_with_duplicate_attribute(tmp_path: Path) -> sqlite3.Connection:
+    connection = _connection(tmp_path)
+    parsed_part03 = parse_part03(
+        parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3"),
+        edition="2026b",
+    )
+    duplicate = AttributeUse(
+        id="2026b.module.ct_image.attribute_use.0",
+        edition_id="2026b",
+        owner_type="module",
+        owner_id="2026b.module.ct_image",
+        row_kind="attribute",
+        attribute_tag="(0010,0010)",
+        attribute_name="Patient's Name",
+        type_designation="1",
+        description_text="Duplicate contextual use.",
+        sequence_depth=0,
+        row_order=0,
+        source_ref=parsed_part03.modules[2].source_ref,
+    )
+    import_part03(
+        connection,
+        edition="2026b",
+        iods=parsed_part03.iods,
+        modules=parsed_part03.modules,
+        macros=parsed_part03.macros,
+        iod_module_uses=parsed_part03.iod_module_uses,
+        iod_functional_group_uses=parsed_part03.iod_functional_group_uses,
+        attribute_uses=[*parsed_part03.attribute_uses, duplicate],
     )
     return connection
 
@@ -368,6 +432,157 @@ def test_lookup_sop_class_by_name_and_malformed_uid_paths(tmp_path: Path) -> Non
     assert malformed.status == "validation_error"
     assert malformed.result is not None
     assert "malformed DICOM UID" in malformed.result["message"]
+
+
+def test_resolve_attribute_context_for_iod_returns_effective_type(
+    tmp_path: Path,
+) -> None:
+    response = resolve_attribute_context(
+        _context_connection(tmp_path),
+        attribute="PatientName",
+        iod_name="CT Image",
+        edition="2026b",
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert response.status == "ok"
+    assert response.result is not None
+    assert response.result["attribute"] == {
+        "tag": "(0010,0010)",
+        "name": "Patient's Name",
+        "keyword": "PatientName",
+        "vr": "PN",
+        "vm": "1",
+        "retired": False,
+    }
+    assert response.result["uses"] == [
+        {
+            "iod": "CT Image",
+            "module": "Patient",
+            "information_entity": "Patient",
+            "module_usage": "M",
+            "module_usage_condition_text": None,
+            "attribute_use_id": "2026b.module.patient.attribute_use.0",
+            "type_designation": "2",
+            "sequence_path": [],
+            "via_macro": None,
+            "condition": None,
+        }
+    ]
+    assert response.result["effective_type"] == "2"
+    assert response.result["effective_type_explanation"] == (
+        "Single applicable use in resolved context."
+    )
+    assert {ref.part for ref in response.refs} == {"PS3.3", "PS3.6"}
+
+
+def test_resolve_attribute_context_for_sop_class_preserves_sequence_path(
+    tmp_path: Path,
+) -> None:
+    response = resolve_attribute_context(
+        _context_connection(tmp_path),
+        attribute="ReferencedSOPClassUID",
+        sop_class="CT Image Storage",
+        edition="2026b",
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert response.status == "ok"
+    assert response.result is not None
+    use = response.result["uses"][0]
+    assert use["iod"] == "CT Image"
+    assert use["module"] == "Patient"
+    assert use["type_designation"] == "1"
+    assert use["sequence_path"] == ["Referenced Patient Sequence"]
+    assert response.result["effective_type"] == "1"
+    assert {ref.part for ref in response.refs} == {"PS3.3", "PS3.4", "PS3.6"}
+
+
+def test_resolve_attribute_context_reports_macro_path(tmp_path: Path) -> None:
+    response = resolve_attribute_context(
+        _context_connection(tmp_path),
+        attribute="AnatomicRegionSequence",
+        iod_name="CT Image",
+        edition="2026b",
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert response.status == "ok"
+    assert response.result is not None
+    assert response.result["uses"][0]["via_macro"] == [
+        "General Anatomy Optional Macro"
+    ]
+    assert response.result["effective_type"] == "3"
+
+
+def test_resolve_attribute_context_computes_lowest_type_for_multiple_uses(
+    tmp_path: Path,
+) -> None:
+    response = resolve_attribute_context(
+        _context_connection_with_duplicate_attribute(tmp_path),
+        attribute="Patient's Name",
+        iod_name="CT Image",
+        edition="2026b",
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert response.status == "ok"
+    assert response.result is not None
+    assert [use["type_designation"] for use in response.result["uses"]] == ["2", "1"]
+    assert response.result["effective_type"] == "1"
+    assert response.result["effective_type_explanation"].startswith(
+        "Multiple applicable uses"
+    )
+    assert response.warnings == [
+        "effective type assumes no attribute description overrides the "
+        "multiple-module lowest-type rule"
+    ]
+
+
+def test_resolve_attribute_context_reports_missing_and_invalid_inputs(
+    tmp_path: Path,
+) -> None:
+    connection = _context_connection(tmp_path)
+    missing_attribute = resolve_attribute_context(
+        connection,
+        attribute="MissingAttribute",
+        iod_name="CT Image",
+        edition="2026b",
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+    missing_context = resolve_attribute_context(
+        connection,
+        attribute="PatientName",
+        iod_name="Missing IOD",
+        edition="2026b",
+        query_id="query-2",
+        resolved_at=RESOLVED_AT,
+    )
+    invalid_context_choice = resolve_attribute_context(
+        connection,
+        attribute="PatientName",
+        edition="2026b",
+        query_id="query-3",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert missing_attribute.status == "not_found"
+    assert missing_attribute.result == {
+        "message": "No DICOM data element matched the attribute input."
+    }
+    assert missing_context.status == "not_found"
+    assert missing_context.result == {
+        "message": "No DICOM IOD matched the context input."
+    }
+    assert invalid_context_choice.status == "validation_error"
+    assert invalid_context_choice.result == {
+        "message": "Provide exactly one context: iod_name or sop_class."
+    }
 
 
 def test_list_modules_for_iod_returns_ordered_ps33_modules(tmp_path: Path) -> None:

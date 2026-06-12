@@ -15,6 +15,22 @@
             <entry>Modality</entry><entry>CS</entry><entry>1</entry><entry></entry>
           </row>
           <row>
+            <entry>(0008,1120)</entry><entry>Referenced Patient Sequence</entry>
+            <entry>ReferencedPatientSequence</entry><entry>SQ</entry><entry>1</entry><entry></entry>
+          </row>
+          <row>
+            <entry>(0008,1150)</entry><entry>Referenced SOP Class UID</entry>
+            <entry>ReferencedSOPClassUID</entry><entry>UI</entry><entry>1</entry><entry></entry>
+          </row>
+          <row>
+            <entry>(0008,2218)</entry><entry>Anatomic Region Sequence</entry>
+            <entry>AnatomicRegionSequence</entry><entry>SQ</entry><entry>1</entry><entry></entry>
+          </row>
+          <row>
+            <entry>(0010,0010)</entry><entry>Patient's Name</entry>
+            <entry>PatientName</entry><entry>PN</entry><entry>1</entry><entry></entry>
+          </row>
+          <row>
             <entry>(60xx,3000)</entry><entry>Overlay Data</entry>
             <entry>OverlayData</entry><entry>OW</entry><entry>1</entry><entry></entry>
           </row>
