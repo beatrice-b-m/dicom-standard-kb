@@ -4,9 +4,8 @@ Last updated: 2026-06-12
 
 ## Current stopping point
 
-Stopped after adding persisted DocBook structure storage and
-`retrieve_standard_text` over capped excerpts. The repository now has a
-working offline foundation through:
+Stopped after adding local FTS5-backed standard text search over persisted
+DocBook nodes. The repository now has a working offline foundation through:
 
 1. Work Order A: repository/build/legal scaffold.
 2. Work Order B: local source acquisition primitives.
@@ -51,6 +50,10 @@ working offline foundation through:
 17. Public `retrieve_standard_text` response envelope plus CLI command
     `dicom-kb retrieve-text`, resolving persisted DocBook nodes by part and
     anchor/section number, returning capped excerpts and related table refs.
+18. Public `search_standard_text` response envelope plus CLI command
+    `dicom-kb search-text`, using a local SQLite FTS5 index over persisted
+    DocBook node titles/text with part filtering, bounded result limits,
+    snippets, and citation-preserving refs.
 
 ## Completed commits
 
@@ -79,10 +82,12 @@ working offline foundation through:
 - `0f6296b feat(query): resolve attribute context`
 - `174851a feat(db): persist DocBook structure`
 - `014cd42 feat(query): retrieve standard text excerpts`
+- `64cd07f docs(progress): record text retrieval slice`
+- `03631f8 feat(query): search persisted standard text`
 
 ## Verification at stop
 
-The following offline checks passed after standard text retrieval work:
+The following offline checks passed after standard text search work:
 
 ```bash
 make lint
@@ -90,7 +95,7 @@ uv run mypy
 uv run pytest
 ```
 
-Observed test count: 64 passing tests.
+Observed test count: 68 passing tests.
 
 ## Implemented behavior
 
@@ -151,6 +156,8 @@ Observed test count: 64 passing tests.
 - SQLite schema and transactional import for `doc_node`, `xref`, and
   `raw_table_ir`, preserving document structure, local cross-reference
   resolution, and raw table JSON snapshot hashes for parser debugging.
+- SQLite FTS5 schema and transactional import population for local full-text
+  search over persisted DocBook titles and plain text.
 - Repository traversal from SOP Class UID/name/PS3.6 UID keyword to linked IODs.
 - Repository lookup of persisted DocBook nodes by part and exact `xml:id`,
   anchor, or section number, with recursive table listing below matched nodes.
@@ -177,6 +184,12 @@ Observed test count: 64 passing tests.
   citation-preserving related table refs.
 - CLI command `dicom-kb retrieve-text` that reads an explicit local SQLite
   database path and emits the public text-retrieval JSON envelope.
+- `search_standard_text` resolver with query/part/limit validation,
+  deterministic FTS query construction, not-found responses, SQLite-generated
+  snippets, and citation-preserving match refs.
+- CLI command `dicom-kb search-text` that reads an explicit local SQLite
+  database path, supports `--part` and `--limit`, and emits the public search
+  JSON envelope.
 - JSON Schema contract files for tool response envelopes, standard references,
   source manifests, and condition facts.
 - Offline schema drift tests that keep schema field names and response status
@@ -194,9 +207,8 @@ Observed test count: 64 passing tests.
   slice, including broader real-standard table variants.
 - Spec query-layer modules beyond `query/resolver.py`: `query/graph.py`,
   `query/conditions.py`, `query/citations.py`, and `query/search.py` (Work
-  Order H). Graph traversal currently lives in resolvers/repositories;
-  FTS5-backed `search_standard_text` has not been started.
-- `search_standard_text` (v1 tool, SYSTEM_SPECS.md section 8.7).
+  Order H). Graph traversal and FTS5-backed text search currently live in
+  resolvers/repositories.
 - General citation builder beyond direct source-ref conversion.
 - MCP server tool surface.
 - Agent regression harness.
@@ -224,6 +236,6 @@ if run:
 
 ## Recommended next work order
 
-Continue the v1 critical path by adding `search_standard_text` over persisted
-DocBook text, likely via an additive FTS5-backed index populated from
-`doc_node.plain_text` with short, citation-preserving snippets.
+Continue the v1 critical path by wiring CLI fetch/build workflows and default
+cache/database discovery, so the implemented parsers/importers/query tools can
+be exercised without hand-built SQLite fixture databases.
