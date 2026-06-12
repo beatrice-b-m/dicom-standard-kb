@@ -4,9 +4,9 @@ Last updated: 2026-06-12
 
 ## Current stopping point
 
-Stopped after wiring local fetch/build CLI workflows over cached DocBook
-artifacts and default edition database discovery. The repository now has a
-working offline foundation through:
+Stopped after adding official current-release DocBook XML fetch over the
+existing cache manifest/build workflow. The repository now has a working v1
+foundation through:
 
 1. Work Order A: repository/build/legal scaffold.
 2. Work Order B: local source acquisition primitives.
@@ -71,6 +71,10 @@ working offline foundation through:
 23. First Work Order J slice: edition-pinned agent regression prompt cases,
     expected tool traces, deterministic scoring contracts, and offline scoring
     tests under `tests/agent_regression/`.
+24. Official current-release source acquisition for v1 DocBook XML parts,
+    including concrete edition discovery from DICOM release metadata,
+    immutable manifest writing, CLI `dicom-kb fetch --edition current`, and
+    offline unit coverage with mocked URL reads.
 
 ## Completed commits
 
@@ -106,10 +110,12 @@ working offline foundation through:
 - `63dbfb9 feat(mcp): expose query resolvers as MCP tools`
 - `2d246d3 test(mcp): cover FastMCP tool registration`
 - `8f3b719 feat(eval): add agent regression scoring`
+- `0d7d4f6 docs(progress): record agent scoring harness`
+- `1210ba8 feat(sources): fetch official DocBook artifacts`
 
 ## Verification at stop
 
-The following offline checks passed after the MCP server adapter work:
+The following offline checks passed after the official DocBook fetch work:
 
 ```bash
 uv run --dev ruff check .
@@ -117,7 +123,7 @@ uv run --dev mypy
 uv run --dev pytest
 ```
 
-Observed test count: 84 passing tests.
+Observed test count: 88 passing tests.
 
 ## Implemented behavior
 
@@ -127,6 +133,11 @@ Observed test count: 84 passing tests.
 - Concrete edition resolution with safe handling of mutable `current`.
 - SHA-256 helpers and immutable source manifests.
 - Local artifact registration into the external cache layout.
+- Official current-release discovery from DICOM directory metadata, resolving
+  `current` to one concrete edition before manifest storage.
+- Official DocBook XML download into the external cache for the v1 parsed
+  parts PS3.3, PS3.4, and PS3.6, with optional `--part` filtering and
+  source URLs/checksums recorded in manifests.
 - Namespace-aware DocBook section, table, span, xref, and include-row parsing.
 - DocBook section/table parent and ordinal metadata for persistent structure
   storage.
@@ -213,9 +224,9 @@ Observed test count: 84 passing tests.
   database path, supports `--part` and `--limit`, and emits the public search
   JSON envelope.
 - `dicom-kb fetch` command that registers local DocBook XML artifacts via
-  repeatable `--docbook-xml PART=PATH` arguments into the immutable external
-  cache manifest. Official network URL discovery remains intentionally
-  unimplemented.
+  repeatable `--docbook-xml PART=PATH` arguments or downloads official
+  current-release DocBook XML artifacts into the immutable external cache
+  manifest.
 - `dicom-kb build` command that reads cached manifest artifacts and builds a
   local SQLite KB under `~/.cache/dicom-standard-kb/db/<edition>.sqlite` by
   default, with optional `--db`, `--cache-dir`, `--backend sqlite`, and
@@ -255,9 +266,11 @@ Observed test count: 84 passing tests.
 
 ## Not yet implemented
 
-- Official network fetch URL discovery for concrete/current edition metadata.
-- CLI fetch currently supports local `--docbook-xml PART=PATH` registration,
-  not official URL download/discovery.
+- Historical/non-current official edition archive discovery. Official fetch
+  currently downloads from the DICOM `current` release and rejects a concrete
+  edition if it does not match the discovered current edition.
+- Official fetch currently downloads v1 DocBook XML parts only; PDF, HTML,
+  CHTML, target database, and release archive acquisition are still pending.
 - Full PS3.3 parser coverage beyond the first v1 CT-style synthetic fixture
   slice, including broader real-standard table variants.
 - Spec query-layer modules beyond `query/resolver.py`: `query/graph.py`,
@@ -296,5 +309,5 @@ if run:
 
 Continue the v1 critical path by adding an external-agent runner and expanding
 the agent regression case set, adding external MCP protocol/client smoke tests,
-or adding official edition URL discovery for networked fetches if source
-acquisition should be completed first.
+or extending source acquisition to historical edition archives and additional
+official artifact formats.
