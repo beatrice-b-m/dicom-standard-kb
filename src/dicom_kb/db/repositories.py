@@ -366,7 +366,7 @@ class Part04Repository:
     def find_sop_class_by_uid_or_name(
         self, uid_or_name: str, *, edition: str
     ) -> tuple[SOPClass, ServiceClass | None] | None:
-        """Return a SOP Class by exact UID value or case-insensitive name."""
+        """Return a SOP Class by UID value, name, or PS3.6 UID keyword."""
         row = self.connection.execute(
             """
             SELECT
@@ -397,10 +397,16 @@ class Part04Repository:
             JOIN source_ref sop_sr ON sop_sr.id = sc.source_ref_id
             LEFT JOIN service_class svc ON svc.id = sc.service_class_id
             LEFT JOIN source_ref service_sr ON service_sr.id = svc.source_ref_id
+            LEFT JOIN uid_registry_entry uid
+              ON uid.edition_id = sc.edition_id AND uid.uid_value = sc.uid_value
             WHERE sc.edition_id = ?
-              AND (sc.uid_value = ? OR lower(sc.name) = lower(?))
+              AND (
+                sc.uid_value = ?
+                OR lower(sc.name) = lower(?)
+                OR lower(uid.uid_keyword) = lower(?)
+              )
             """,
-            (edition, uid_or_name, uid_or_name),
+            (edition, uid_or_name, uid_or_name, uid_or_name),
         ).fetchone()
         if row is None:
             return None

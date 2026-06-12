@@ -15,6 +15,8 @@ from dicom_kb.query.resolver import (
     list_attributes_for_module,
     list_modules_for_iod,
     lookup_data_element,
+    lookup_iod,
+    lookup_sop_class,
     lookup_uid,
 )
 
@@ -97,6 +99,58 @@ def lookup_uid_command(
             lookup_uid(
                 connection,
                 uid_or_keyword=uid_or_keyword,
+                edition=edition,
+            )
+        )
+
+
+@lookup_app.command("iod")
+def lookup_iod_command(
+    iod_name: Annotated[
+        str,
+        typer.Argument(help="DICOM IOD name or keyword, for example 'CT Image'."),
+    ],
+    db: Annotated[
+        Path,
+        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
+    ],
+    edition: Annotated[
+        str,
+        typer.Option("--edition", help="Concrete DICOM edition label."),
+    ],
+) -> None:
+    """Look up a PS3.3 IOD by name or keyword."""
+    with _connect_existing_db(db) as connection:
+        _echo_response(
+            lookup_iod(
+                connection,
+                iod_name=iod_name,
+                edition=edition,
+            )
+        )
+
+
+@lookup_app.command("sop-class")
+def lookup_sop_class_command(
+    uid_or_name_or_keyword: Annotated[
+        str,
+        typer.Argument(help="DICOM SOP Class UID, name, or UID keyword."),
+    ],
+    db: Annotated[
+        Path,
+        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
+    ],
+    edition: Annotated[
+        str,
+        typer.Option("--edition", help="Concrete DICOM edition label."),
+    ],
+) -> None:
+    """Look up a PS3.4 SOP Class and linked IODs."""
+    with _connect_existing_db(db) as connection:
+        _echo_response(
+            lookup_sop_class(
+                connection,
+                uid_or_name_or_keyword=uid_or_name_or_keyword,
                 edition=edition,
             )
         )

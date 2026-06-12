@@ -9,6 +9,7 @@ from dicom_kb.db.repositories import (
     AttributeUseRecord,
     DataElementRepository,
     Part03Repository,
+    Part04Repository,
     UIDRepository,
 )
 from dicom_kb.ir.models import AttributeUse
@@ -23,7 +24,9 @@ from dicom_kb.query.answer_contracts import (
     ToolResponse,
     data_element_result,
     iod_modules_result,
+    iod_result,
     module_attributes_result,
+    sop_class_result,
     standard_ref,
     uid_result,
 )
@@ -135,6 +138,121 @@ def lookup_uid(
         status="ok",
         result=uid_result(uid),
         refs=[standard_ref(uid.source_ref)],
+        trace=trace,
+    )
+
+
+def lookup_iod(
+    connection: sqlite3.Connection,
+    *,
+    iod_name: str,
+    edition: str,
+    query_id: str | None = None,
+    resolved_at: datetime | None = None,
+) -> ToolResponse:
+    """Resolve a PS3.3 IOD by name or keyword."""
+    trace = _trace(
+        connection,
+        edition=edition,
+        query_id=query_id,
+        resolved_at=resolved_at,
+    )
+    response_input = {"iod_name": iod_name}
+    iod = Part03Repository(connection).find_iod_by_name_or_keyword(
+        iod_name, edition=edition
+    )
+    if iod is None:
+        return ToolResponse(
+            edition=edition,
+            tool="lookup_iod",
+            input=response_input,
+            status="not_found",
+            result={"message": "No DICOM IOD matched the input."},
+            trace=trace,
+        )
+
+    return ToolResponse(
+        edition=edition,
+        tool="lookup_iod",
+        input=response_input,
+        status="ok",
+        result=iod_result(iod),
+        refs=[standard_ref(iod.source_ref)],
+        trace=trace,
+    )
+
+
+def lookup_sop_class(
+    connection: sqlite3.Connection,
+    *,
+    uid_or_name_or_keyword: str,
+    edition: str,
+    query_id: str | None = None,
+    resolved_at: datetime | None = None,
+) -> ToolResponse:
+    """Resolve a PS3.4 SOP Class and linked IODs."""
+    trace = _trace(
+        connection,
+        edition=edition,
+        query_id=query_id,
+        resolved_at=resolved_at,
+    )
+    response_input = {"uid_or_name_or_keyword": uid_or_name_or_keyword}
+    if _looks_like_uid(uid_or_name_or_keyword):
+        try:
+            normalize_uid(uid_or_name_or_keyword)
+        except IdentifierValidationError as exc:
+            return ToolResponse(
+                edition=edition,
+                tool="lookup_sop_class",
+                input=response_input,
+                status="validation_error",
+                result={"message": str(exc)},
+                trace=trace,
+            )
+
+    repository = Part04Repository(connection)
+    found = repository.find_sop_class_by_uid_or_name(
+        uid_or_name_or_keyword,
+        edition=edition,
+    )
+    if found is None:
+        return ToolResponse(
+            edition=edition,
+            tool="lookup_sop_class",
+            input=response_input,
+            status="not_found",
+            result={"message": "No DICOM SOP Class matched the input."},
+            trace=trace,
+        )
+
+    sop_class, service_class = found
+    iod_records = repository.list_iods_for_sop_class(sop_class.id, edition=edition)
+    refs = _unique_refs(
+        [standard_ref(sop_class.source_ref)]
+        + ([standard_ref(service_class.source_ref)] if service_class else [])
+        + [
+            ref
+            for record in iod_records
+            for ref in (
+                standard_ref(record.edge.source_ref),
+                standard_ref(record.iod.source_ref),
+            )
+        ]
+    )
+    warnings = [
+        record.edge.resolution_warning
+        for record in iod_records
+        if record.edge.resolution_warning is not None
+    ]
+    return ToolResponse(
+        edition=edition,
+        tool="lookup_sop_class",
+        input=response_input,
+        status="ok",
+        result=sop_class_result(sop_class, service_class, iod_records),
+        refs=refs,
+        warnings=warnings,
         trace=trace,
     )
 

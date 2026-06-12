@@ -4,19 +4,26 @@ import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 
-from dicom_kb.db.importers import import_part03, import_part06
+from dicom_kb.db.importers import import_part03, import_part04, import_part06
 from dicom_kb.db.models import apply_migrations, connect_sqlite
 from dicom_kb.docbook.parser import parse_docbook_xml
 from dicom_kb.ir.models import AttributeUse, Macro, SourceRef
 from dicom_kb.parsers.part03_iods import parse_part03
+from dicom_kb.parsers.part04_sop_classes import parse_part04
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
 from dicom_kb.query.resolver import (
     list_attributes_for_module,
     list_modules_for_iod,
     lookup_data_element,
+    lookup_iod,
+    lookup_sop_class,
     lookup_uid,
 )
-from tests.fixtures_synthetic import PS33_CT_IMAGE_DOCBOOK, PS36_REGISTRY_DOCBOOK
+from tests.fixtures_synthetic import (
+    PS33_CT_IMAGE_DOCBOOK,
+    PS34_SOP_CLASSES_DOCBOOK,
+    PS36_REGISTRY_DOCBOOK,
+)
 
 RESOLVED_AT = datetime(2026, 6, 11, tzinfo=UTC)
 
@@ -53,6 +60,22 @@ def _part03_connection(tmp_path: Path) -> sqlite3.Connection:
         iod_module_uses=parsed.iod_module_uses,
         iod_functional_group_uses=parsed.iod_functional_group_uses,
         attribute_uses=parsed.attribute_uses,
+    )
+    return connection
+
+
+def _part034_connection(tmp_path: Path) -> sqlite3.Connection:
+    connection = _part03_connection(tmp_path)
+    parsed = parse_part04(
+        parse_docbook_xml(PS34_SOP_CLASSES_DOCBOOK, part="PS3.4"),
+        edition="2026b",
+    )
+    import_part04(
+        connection,
+        edition="2026b",
+        service_classes=parsed.service_classes,
+        sop_classes=parsed.sop_classes,
+        sop_class_iods=parsed.sop_class_iods,
     )
     return connection
 
@@ -270,6 +293,81 @@ def test_lookup_uid_reports_retired_entry(tmp_path: Path) -> None:
         "retired": True,
     }
     assert response.refs[0].part == "PS3.6"
+
+
+def test_lookup_iod_returns_ps33_iod(tmp_path: Path) -> None:
+    response = lookup_iod(
+        _part03_connection(tmp_path),
+        iod_name="ct_image",
+        edition="2026b",
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert response.status == "ok"
+    assert response.result == {
+        "id": "2026b.iod.ct_image",
+        "name": "CT Image",
+        "keyword": "ct_image",
+        "iod_type": "composite",
+        "part": "PS3.3",
+        "section": "table_A.3-1",
+    }
+    assert response.refs[0].part == "PS3.3"
+
+
+def test_lookup_sop_class_returns_linked_iod(tmp_path: Path) -> None:
+    response = lookup_sop_class(
+        _part034_connection(tmp_path),
+        uid_or_name_or_keyword="1.2.840.10008.5.1.4.1.1.2",
+        edition="2026b",
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert response.status == "ok"
+    assert response.result is not None
+    assert response.result["sop_class"] == {
+        "id": "2026b.sop_class.1.2.840.10008.5.1.4.1.1.2",
+        "name": "CT Image Storage",
+        "uid_value": "1.2.840.10008.5.1.4.1.1.2",
+    }
+    assert response.result["service_class"]["name"] == "Storage Service Class"
+    assert response.result["iods"] == [
+        {
+            "iod_id": "2026b.iod.ct_image",
+            "iod_name": "CT Image",
+            "iod_keyword": "ct_image",
+            "resolution": "parsed",
+            "resolution_warning": None,
+        }
+    ]
+    assert {ref.part for ref in response.refs} == {"PS3.3", "PS3.4"}
+
+
+def test_lookup_sop_class_by_name_and_malformed_uid_paths(tmp_path: Path) -> None:
+    connection = _part034_connection(tmp_path)
+    by_name = lookup_sop_class(
+        connection,
+        uid_or_name_or_keyword="enhanced ct image storage",
+        edition="2026b",
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+    malformed = lookup_sop_class(
+        connection,
+        uid_or_name_or_keyword="1.2.bad",
+        edition="2026b",
+        query_id="query-2",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert by_name.status == "ok"
+    assert by_name.result is not None
+    assert by_name.result["iods"][0]["iod_name"] == "Enhanced CT Image"
+    assert malformed.status == "validation_error"
+    assert malformed.result is not None
+    assert "malformed DICOM UID" in malformed.result["message"]
 
 
 def test_list_modules_for_iod_returns_ordered_ps33_modules(tmp_path: Path) -> None:

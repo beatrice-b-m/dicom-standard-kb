@@ -7,12 +7,17 @@ from typing import Any
 from typer.testing import CliRunner
 
 from dicom_kb.cli.main import app
-from dicom_kb.db.importers import import_part03, import_part06
+from dicom_kb.db.importers import import_part03, import_part04, import_part06
 from dicom_kb.db.models import apply_migrations, connect_sqlite
 from dicom_kb.docbook.parser import parse_docbook_xml
 from dicom_kb.parsers.part03_iods import parse_part03
+from dicom_kb.parsers.part04_sop_classes import parse_part04
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
-from tests.fixtures_synthetic import PS33_CT_IMAGE_DOCBOOK, PS36_REGISTRY_DOCBOOK
+from tests.fixtures_synthetic import (
+    PS33_CT_IMAGE_DOCBOOK,
+    PS34_SOP_CLASSES_DOCBOOK,
+    PS36_REGISTRY_DOCBOOK,
+)
 
 
 def _fixture_db(tmp_path: Path) -> Path:
@@ -42,6 +47,17 @@ def _fixture_db(tmp_path: Path) -> Path:
         iod_module_uses=parsed_part03.iod_module_uses,
         iod_functional_group_uses=parsed_part03.iod_functional_group_uses,
         attribute_uses=parsed_part03.attribute_uses,
+    )
+    parsed_part04 = parse_part04(
+        parse_docbook_xml(PS34_SOP_CLASSES_DOCBOOK, part="PS3.4"),
+        edition="2026b",
+    )
+    import_part04(
+        connection,
+        edition="2026b",
+        service_classes=parsed_part04.service_classes,
+        sop_classes=parsed_part04.sop_classes,
+        sop_class_iods=parsed_part04.sop_class_iods,
     )
     connection.close()
     return db_path
@@ -126,6 +142,41 @@ def test_cli_lookup_uid_outputs_retired_entry(tmp_path: Path) -> None:
     assert payload["result"]["uid_value"] == "1.2.840.10008.1.2.2"
     assert payload["result"]["retired"] is True
     assert payload["refs"][0]["part"] == "PS3.6"
+
+
+def test_cli_lookup_iod_outputs_ps33_iod(tmp_path: Path) -> None:
+    payload = _invoke_json(
+        tmp_path,
+        "lookup",
+        "iod",
+        "CT Image",
+        "--edition",
+        "2026b",
+    )
+
+    assert payload["tool"] == "lookup_iod"
+    assert payload["status"] == "ok"
+    assert payload["result"]["name"] == "CT Image"
+    assert payload["refs"][0]["part"] == "PS3.3"
+
+
+def test_cli_lookup_sop_class_outputs_linked_iod(tmp_path: Path) -> None:
+    payload = _invoke_json(
+        tmp_path,
+        "lookup",
+        "sop-class",
+        "CT Image Storage",
+        "--edition",
+        "2026b",
+    )
+
+    assert payload["tool"] == "lookup_sop_class"
+    assert payload["status"] == "ok"
+    assert payload["result"]["sop_class"]["uid_value"] == (
+        "1.2.840.10008.5.1.4.1.1.2"
+    )
+    assert payload["result"]["iods"][0]["iod_name"] == "CT Image"
+    assert {ref["part"] for ref in payload["refs"]} == {"PS3.3", "PS3.4"}
 
 
 def test_cli_lookup_tag_requires_existing_db(tmp_path: Path) -> None:

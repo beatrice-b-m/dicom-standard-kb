@@ -8,12 +8,18 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from dicom_kb.db.repositories import AttributeUseRecord, IODModuleUseRecord
+from dicom_kb.db.repositories import (
+    AttributeUseRecord,
+    IODModuleUseRecord,
+    SOPClassIODRecord,
+)
 from dicom_kb.ir.models import (
     IOD,
     AttributeUse,
     DataElement,
     Module,
+    ServiceClass,
+    SOPClass,
     SourceRef,
     UIDRegistryEntry,
 )
@@ -106,6 +112,52 @@ def iod_modules_result(iod: IOD, records: list[IODModuleUseRecord]) -> dict[str,
                 "usage_condition_text": record.use.usage_condition_text,
             }
             for record in records
+        ],
+    }
+
+
+def iod_result(iod: IOD) -> dict[str, Any]:
+    """Return the public result payload for an IOD."""
+    return {
+        "id": iod.id,
+        "name": iod.name,
+        "keyword": iod.keyword,
+        "iod_type": iod.iod_type,
+        "part": iod.part,
+        "section": iod.section,
+    }
+
+
+def sop_class_result(
+    sop_class: SOPClass,
+    service_class: ServiceClass | None,
+    iod_records: list[SOPClassIODRecord],
+) -> dict[str, Any]:
+    """Return the public result payload for a SOP Class traversal."""
+    return {
+        "sop_class": {
+            "id": sop_class.id,
+            "name": sop_class.name,
+            "uid_value": sop_class.uid_value,
+        },
+        "service_class": (
+            {
+                "id": service_class.id,
+                "name": service_class.name,
+                "section": service_class.section,
+            }
+            if service_class is not None
+            else None
+        ),
+        "iods": [
+            {
+                "iod_id": record.iod.id,
+                "iod_name": record.iod.name,
+                "iod_keyword": record.iod.keyword,
+                "resolution": record.edge.resolution,
+                "resolution_warning": record.edge.resolution_warning,
+            }
+            for record in iod_records
         ],
     }
 
