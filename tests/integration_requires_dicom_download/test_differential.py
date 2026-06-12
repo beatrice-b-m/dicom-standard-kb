@@ -5,7 +5,7 @@ import os
 import sqlite3
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -13,6 +13,7 @@ from dicom_kb.ir.validators import IdentifierValidationError, normalize_tag
 
 ALLOWLIST_PATH = Path(__file__).with_name("differential_allowlist.json")
 DATA_ELEMENT_FIELDS = ("name", "keyword", "vr", "vm", "retired")
+DIFF_CLASSIFICATIONS = {"parser_issue", "interpretation_issue", "edition_skew"}
 DATA_ELEMENT_GOLDEN_TAGS = {
     "(0008,0060)",
     "(0008,0016)",
@@ -23,6 +24,42 @@ DATA_ELEMENT_GOLDEN_TAGS = {
     "(0020,000D)",
     "(0020,000E)",
 }
+
+
+def test_ps36_data_elements_match_pydicom_dictionary(
+    connection: sqlite3.Connection, edition: str
+) -> None:
+    external_elements = _load_pydicom_data_elements()
+    local_elements = _local_data_elements(connection, edition=edition)
+    compared_tags = sorted(set(local_elements) & set(external_elements))
+    if not DATA_ELEMENT_GOLDEN_TAGS.issubset(external_elements):
+        missing = sorted(DATA_ELEMENT_GOLDEN_TAGS - set(external_elements))
+        pytest.fail(f"pydicom data dictionary does not include golden tags: {missing}")
+    if not compared_tags:
+        pytest.skip("no overlapping PS3.6 data elements found in pydicom")
+
+    allowlist = _load_allowlist()
+    mismatches: list[dict[str, object]] = []
+    for tag in compared_tags:
+        local = local_elements[tag]
+        external = external_elements[tag]
+        for field in DATA_ELEMENT_FIELDS:
+            local_value = local.get(field)
+            external_value = external.get(field)
+            if external_value is None or local_value == external_value:
+                continue
+            mismatch = {
+                "external": "pydicom",
+                "entity_type": "data_element",
+                "id": tag,
+                "field": field,
+                "local": local_value,
+                "external_value": external_value,
+            }
+            if not _is_allowlisted(mismatch, allowlist):
+                mismatches.append(mismatch)
+
+    assert not mismatches, json.dumps(mismatches, indent=2, sort_keys=True)
 
 
 def test_ps36_data_elements_match_innolitics_json(
@@ -52,13 +89,14 @@ def test_ps36_data_elements_match_innolitics_json(
             if external_value is None or local_value == external_value:
                 continue
             mismatch = {
+                "external": "innolitics",
                 "entity_type": "data_element",
                 "id": tag,
                 "field": field,
                 "local": local_value,
-                "external": external_value,
+                "external_value": external_value,
             }
-            if mismatch not in allowlist:
+            if not _is_allowlisted(mismatch, allowlist):
                 mismatches.append(mismatch)
 
     assert not mismatches, json.dumps(mismatches, indent=2, sort_keys=True)
@@ -90,13 +128,16 @@ def test_ct_image_module_list_matches_innolitics_json(
     }
     allowlist = _load_allowlist()
     mismatch = {
+        "external": "innolitics",
         "entity_type": "iod_modules",
         "id": "CT Image",
         "field": "modules",
         "local": sorted(local_modules),
-        "external": sorted(external_modules),
+        "external_value": sorted(external_modules),
     }
-    if local_modules != external_modules and mismatch not in allowlist:
+    if local_modules != external_modules and not _is_allowlisted(
+        mismatch, allowlist
+    ):
         pytest.fail(json.dumps(mismatch, indent=2, sort_keys=True))
 
 
@@ -141,6 +182,24 @@ def _load_innolitics_data_elements(path: Path) -> dict[str, dict[str, object]]:
         previous_score = _populated_field_count(previous) if previous else -1
         if previous is None or candidate_score > previous_score:
             elements[tag] = candidate
+    return elements
+
+
+def _load_pydicom_data_elements() -> dict[str, dict[str, object]]:
+    datadict = pytest.importorskip(
+        "pydicom.datadict",
+        reason="install pydicom to run pydicom dictionary differential checks",
+    )
+    dictionary = cast(dict[object, object], datadict.DicomDictionary)
+    elements: dict[str, dict[str, object]] = {}
+    for raw_tag, raw_record in dictionary.items():
+        tag = _pydicom_tag(raw_tag)
+        if tag is None:
+            continue
+        record = _pydicom_record(raw_record)
+        if record is None:
+            continue
+        elements[tag] = record
     return elements
 
 
@@ -210,7 +269,27 @@ def _load_allowlist() -> list[dict[str, object]]:
     payload = json.loads(ALLOWLIST_PATH.read_text(encoding="utf-8"))
     entries = payload.get("accepted_diffs", [])
     assert isinstance(entries, list)
-    return [entry for entry in entries if isinstance(entry, dict)]
+    allowlist: list[dict[str, object]] = []
+    for entry in entries:
+        assert isinstance(entry, dict), "accepted differential entries must be objects"
+        assert isinstance(entry.get("external"), str)
+        assert isinstance(entry.get("entity_type"), str)
+        assert isinstance(entry.get("id"), str)
+        assert isinstance(entry.get("field"), str)
+        assert entry.get("classification") in DIFF_CLASSIFICATIONS
+        assert isinstance(entry.get("reason"), str) and entry["reason"]
+        allowlist.append(entry)
+    return allowlist
+
+
+def _is_allowlisted(
+    mismatch: dict[str, object], allowlist: list[dict[str, object]]
+) -> bool:
+    match_fields = ("external", "entity_type", "id", "field", "local", "external_value")
+    return any(
+        all(entry.get(field) == mismatch.get(field) for field in match_fields)
+        for entry in allowlist
+    )
 
 
 def _first_text(item: dict[str, Any], *keys: str) -> str | None:
@@ -256,6 +335,32 @@ def _retired_value(item: dict[str, Any]) -> bool | None:
         if isinstance(value, str):
             return value.strip().lower() in {"1", "true", "retired", "yes"}
     return None
+
+
+def _pydicom_tag(value: object) -> str | None:
+    if isinstance(value, int):
+        return f"({value >> 16:04X},{value & 0xFFFF:04X})"
+    return None
+
+
+def _pydicom_record(value: object) -> dict[str, object] | None:
+    if not isinstance(value, tuple) or len(value) < 5:
+        return None
+    vr, vm, name, keyword, retired = value[:5]
+    return {
+        "name": _normalize_value(name),
+        "keyword": _normalize_value(keyword),
+        "vr": _normalize_value(vr),
+        "vm": _normalize_value(vm),
+        "retired": _pydicom_retired_value(retired),
+    }
+
+
+def _pydicom_retired_value(value: object) -> bool | None:
+    text = _normalize_value(value)
+    if text is None:
+        return None
+    return text.lower() == "retired"
 
 
 def _populated_field_count(item: dict[str, object]) -> int:
