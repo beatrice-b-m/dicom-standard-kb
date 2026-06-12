@@ -4,7 +4,7 @@ Last updated: 2026-06-12
 
 ## Current stopping point
 
-Stopped after completing the R3 agent prompt-case expansion from
+Stopped after completing the R4 reference-agent runner from
 `PROGRESS_REVIEW.md`: official `current` was fetched and resolved to concrete
 edition `2026b`, the local KB builds from real PS3.3/PS3.4/PS3.6 DocBook XML,
 `make test-integration` has a real-download integration tier that passes with
@@ -12,10 +12,13 @@ local artifacts and skips cleanly without them, and the §15.2 golden entity set
 now has real-KB integration assertions. The agent regression prompt set now has
 65 edition-pinned cases, covers all nine v1 query tools, and includes an
 offline guard for the ≥50-case, unique-ID, edition-pin, all-tool, and
-error-case floors. Two R2 parser limitations remain captured as strict xfails:
-real PS3.3 include rows are not yet persisted as macro include provenance, and
-Enhanced CT functional-group usage rows are not yet persisted. The repository
-now has a working v1 foundation through:
+error-case floors. `dicom-kb eval run` now records deterministic reference-agent
+transcripts in the existing compact scorecard schema, and both synthetic-fixture
+and real-KB tests score those transcripts without committing bulk real-KB
+outputs. Two R2 parser limitations remain captured as strict xfails: real PS3.3
+include rows are not yet persisted as macro include provenance, and Enhanced CT
+functional-group usage rows are not yet persisted. The repository now has a
+working v1 foundation through:
 
 1. Work Order A: repository/build/legal scaffold.
 2. Work Order B: local source acquisition primitives.
@@ -121,6 +124,11 @@ now has a working v1 foundation through:
     traversals, attribute context queries, text retrieval, text search,
     multi-tool workflows, and 10 error/ambiguity paths, with an offline test
     enforcing the coverage floors.
+33. R4 Work Order J reference-agent runner and CLI. `dicom-kb eval run` opens a
+    local KB, runs selected or all committed prompt cases through deterministic
+    public resolver routes, writes compact transcript JSON consumable by
+    `dicom-kb eval score`, and has offline synthetic-fixture coverage plus a
+    real-KB integration scorecard over all 65 prompt cases.
 
 ## Completed commits
 
@@ -170,10 +178,12 @@ now has a working v1 foundation through:
 - `f770617 test(integration): add real KB golden coverage`
 - `ecaad27 docs(progress): record R2 golden coverage`
 - `9c8a3ec feat(eval): expand agent prompt cases`
+- `f473605 docs(progress): record R3 prompt expansion`
+- `4322f97 feat(eval): add reference agent runner`
 
 ## Verification at stop
 
-The following offline checks passed after the R3 prompt-case expansion:
+The following checks passed after the R4 reference-agent runner:
 
 ```bash
 uv run --dev ruff check .
@@ -181,7 +191,7 @@ uv run --dev mypy
 uv run --dev pytest
 ```
 
-Observed local test result with the built real KB present: 147 passed and 2
+Observed local test result with the built real KB present: 150 passed and 2
 strict xfailed tests.
 
 Observed R3 prompt-case metrics:
@@ -189,6 +199,10 @@ Observed R3 prompt-case metrics:
 - 65 committed cases.
 - 10 error/ambiguity cases.
 - All nine v1 query tools appear in at least one case's `expected_tools`.
+- The deterministic reference runner scores all 65 cases against the local
+  real 2026b KB through `tests/integration_requires_dicom_download/`.
+- The synthetic fixture runner subset and `dicom-kb eval run` / `eval score`
+  CLI path are covered by `tests/agent_regression/`.
 
 The following integration checks were also run against locally fetched and
 built official DICOM edition `2026b`:
@@ -384,6 +398,12 @@ Accepted R2 strict-xfail limitations:
 - `dicom-kb eval score` command for scoring recorded agent transcripts,
   emitting stable JSON reports and exiting nonzero by default when any run
   fails.
+- Deterministic reference-agent runner for committed prompt cases, using the
+  public query resolvers to record compact `AgentRun` transcripts with tool
+  arguments, response status, edition, and source-reference counts.
+- `dicom-kb eval run` command for selected or all committed cases via repeated
+  `--case`/`--cases`, writing transcripts scoreable by `dicom-kb eval score`
+  without requiring LLM API keys.
 - Real DocBook table IR accepts official HTML-style table vocabulary in
   addition to the existing CALS fixture vocabulary.
 - Real PS3.3 IOD module parsing handles `IE` header aliases and IOD module
@@ -408,14 +428,9 @@ Accepted R2 strict-xfail limitations:
 - MCP server is present for the implemented v1 query resolvers with offline
   registration coverage. External MCP protocol/client smoke testing is still
   pending.
-- Agent regression harness has offline scoring and scorecard CLI/reporting. A
-  configured external-agent runner, committed recorded answer transcripts, and
-  the spec target of at least 50 v1 prompt cases are still pending.
-- Golden fixture coverage (SYSTEM_SPECS.md section 15.2) beyond the R1 smoke
-  assertions: MR Image, Enhanced CT Image functional-group traversal,
-  Segmentation, Comprehensive SR, and Encapsulated PDF goldens are pending.
-  These should build on `tests/integration_requires_dicom_download/` and use
-  strict xfails where parser limitations remain.
+- Optional real-LLM external-agent runner configuration remains pending. The
+  committed R4 runner is the deterministic reference agent; real-KB transcripts
+  remain uncommitted build outputs by design.
 - Spec-mandated repository directories and files:
   `tests/fixtures_minimal_attributed/`, `examples/`, and
   `docbook/variablelists.py`.
@@ -431,7 +446,6 @@ if run:
 
 ## Recommended next work order
 
-Continue the v1 critical path with R2 golden integration coverage over the
-real 2026b KB, starting with CT Image, MR Image, Encapsulated PDF, the §15.2
-data element/UID set, and strict-xfail documentation for any still-blocked
-Enhanced CT functional-group traversal.
+Continue with the independent medium-priority remediation items. R5 is the
+next best target: add a real MCP protocol smoke test with the official Python
+MCP client and improve `dicom-kb mcp serve` missing-KB ergonomics.
