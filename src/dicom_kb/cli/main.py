@@ -31,7 +31,11 @@ from dicom_kb.query.resolver import (
 )
 from dicom_kb.sources.downloader import (
     DEFAULT_CACHE_DIR,
+    DEFAULT_DICOM_CURRENT_BASE_URL,
+    V1_DOCBOOK_PARTS,
     ArtifactRequest,
+    OfficialFetchError,
+    fetch_official_docbook_artifacts,
     register_local_artifacts,
 )
 from dicom_kb.sources.edition_resolver import EditionResolver
@@ -118,6 +122,16 @@ def fetch_command(
             help="Register a local DocBook XML artifact as PART=PATH; repeatable.",
         ),
     ] = None,
+    part: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--part",
+            help=(
+                "Official DocBook part to download when --docbook-xml is omitted; "
+                "repeatable. Defaults to v1 parts PS3.3, PS3.4, and PS3.6."
+            ),
+        ),
+    ] = None,
     current_edition: Annotated[
         str | None,
         typer.Option(
@@ -125,6 +139,13 @@ def fetch_command(
             help="Concrete edition used when --edition current is requested.",
         ),
     ] = None,
+    source_base_url: Annotated[
+        str,
+        typer.Option(
+            "--source-base-url",
+            help="Official DICOM current release base URL.",
+        ),
+    ] = DEFAULT_DICOM_CURRENT_BASE_URL,
     cache_dir: Annotated[
         Path,
         typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
@@ -134,16 +155,33 @@ def fetch_command(
         typer.Option("--force", help="Overwrite existing cached artifacts/manifest."),
     ] = False,
 ) -> None:
-    """Register local source artifacts into the dicom-kb cache."""
-    resolved = EditionResolver(current_edition=current_edition).resolve(edition)
-    artifacts = _docbook_xml_artifacts(docbook_xml, edition=resolved.edition)
-    manifest = register_local_artifacts(
-        edition=edition,
-        current_edition=current_edition,
-        artifacts=artifacts,
-        cache_dir=cache_dir,
-        force=force,
-    )
+    """Fetch or register source artifacts into the dicom-kb cache."""
+    if docbook_xml:
+        resolved = EditionResolver(current_edition=current_edition).resolve(edition)
+        artifacts = _docbook_xml_artifacts(docbook_xml, edition=resolved.edition)
+        manifest = register_local_artifacts(
+            edition=edition,
+            current_edition=current_edition,
+            artifacts=artifacts,
+            cache_dir=cache_dir,
+            force=force,
+        )
+    else:
+        parts = (
+            tuple(_normalize_part(value) for value in part)
+            if part
+            else V1_DOCBOOK_PARTS
+        )
+        try:
+            manifest = fetch_official_docbook_artifacts(
+                edition=edition,
+                parts=parts,
+                cache_dir=cache_dir,
+                base_url=source_base_url,
+                force=force,
+            )
+        except OfficialFetchError as exc:
+            raise typer.BadParameter(str(exc)) from exc
     typer.echo(_json_model(manifest))
 
 
@@ -547,8 +585,7 @@ def _docbook_xml_artifacts(
 ) -> list[ArtifactRequest]:
     if not specs:
         raise typer.BadParameter(
-            "v1 fetch requires at least one --docbook-xml PART=PATH; "
-            "official URL discovery is not implemented yet"
+            "local artifact registration requires at least one --docbook-xml PART=PATH"
         )
     return [_docbook_xml_artifact(spec, edition=edition) for spec in specs]
 

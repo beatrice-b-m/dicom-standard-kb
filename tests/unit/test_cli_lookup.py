@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
+import pytest
 from typer.testing import CliRunner
 
 from dicom_kb.cli.main import app
@@ -18,12 +20,21 @@ from dicom_kb.docbook.parser import parse_docbook_xml
 from dicom_kb.parsers.part03_iods import parse_part03
 from dicom_kb.parsers.part04_sop_classes import parse_part04
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
+from dicom_kb.sources.downloader import official_docbook_xml_url
 from tests.fixtures_synthetic import (
     FIXTURE_DIR,
     PS33_CT_IMAGE_DOCBOOK,
     PS34_SOP_CLASSES_DOCBOOK,
     PS36_REGISTRY_DOCBOOK,
 )
+
+
+class _FakeResponse(BytesIO):
+    def __enter__(self) -> _FakeResponse:
+        return self
+
+    def __exit__(self, *_exc_info: object) -> None:
+        self.close()
 
 
 def _fixture_db(tmp_path: Path) -> Path:
@@ -345,6 +356,52 @@ def test_cli_fetch_registers_local_docbook_for_build(tmp_path: Path) -> None:
     payload = json.loads(lookup_result.output)
     assert payload["status"] == "ok"
     assert payload["result"]["keyword"] == "Modality"
+
+
+def test_cli_fetch_downloads_official_docbook(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    base_url = "https://dicom.example/current/"
+    part_url = official_docbook_xml_url(base_url, "PS3.6")
+    responses = {
+        base_url: (
+            b'<a href="DocBookDICOM2026b_release_docbook_20260327091344.zip">'
+            b"docbook</a>"
+        ),
+        part_url: b"<book><title>Part 6</title></book>",
+    }
+
+    def fake_urlopen(url: str, timeout: int) -> _FakeResponse:
+        assert timeout == 60
+        return _FakeResponse(responses[url])
+
+    monkeypatch.setattr("dicom_kb.sources.downloader.urlopen", fake_urlopen)
+    cache_dir = tmp_path / "cache"
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "fetch",
+            "--edition",
+            "current",
+            "--cache-dir",
+            str(cache_dir),
+            "--source-base-url",
+            base_url,
+            "--part",
+            "PS3.6",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["edition"] == "2026b"
+    assert payload["resolved_from"] == "current"
+    assert payload["artifacts"][0]["source_url"] == part_url
+    assert payload["artifacts"][0]["local_path"] == (
+        "artifacts/2026b/raw/source/docbook/part06/part06.xml"
+    )
 
 
 def test_cli_iod_modules_outputs_ps33_module_envelope(tmp_path: Path) -> None:

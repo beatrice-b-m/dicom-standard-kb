@@ -1,9 +1,17 @@
+from io import BytesIO
 from pathlib import Path
 
 import pytest
 
 from dicom_kb.sources.checksums import sha256_bytes, sha256_file
-from dicom_kb.sources.downloader import ArtifactRequest, register_local_artifacts
+from dicom_kb.sources.downloader import (
+    ArtifactRequest,
+    OfficialFetchError,
+    discover_official_current_edition,
+    fetch_official_docbook_artifacts,
+    official_docbook_xml_url,
+    register_local_artifacts,
+)
 from dicom_kb.sources.edition_resolver import EditionResolutionError, EditionResolver
 from dicom_kb.sources.manifest import (
     ManifestChecksumError,
@@ -11,6 +19,14 @@ from dicom_kb.sources.manifest import (
     read_manifest,
     write_manifest,
 )
+
+
+class _FakeResponse(BytesIO):
+    def __enter__(self) -> "_FakeResponse":
+        return self
+
+    def __exit__(self, *_exc_info: object) -> None:
+        self.close()
 
 
 def test_resolver_requires_concrete_current() -> None:
@@ -101,3 +117,89 @@ def test_manifest_checksum_mismatch_fails(tmp_path: Path) -> None:
 
     with pytest.raises(ManifestChecksumError):
         read_manifest(path)
+
+
+def test_discover_official_current_edition_from_release_listing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    base_url = "https://dicom.example/current/"
+
+    def fake_urlopen(url: str, timeout: int) -> _FakeResponse:
+        assert timeout == 60
+        assert url == base_url
+        return _FakeResponse(
+            b'<a href="DocBookDICOM2026b_release_docbook_20260327091344.zip">'
+            b"docbook</a>"
+        )
+
+    monkeypatch.setattr("dicom_kb.sources.downloader.urlopen", fake_urlopen)
+
+    assert discover_official_current_edition(base_url) == "2026b"
+
+
+def test_fetch_official_docbook_artifacts_writes_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    base_url = "https://dicom.example/current/"
+    part_url = official_docbook_xml_url(base_url, "PS3.6")
+    responses = {
+        base_url: (
+            b'<a href="DocBookDICOM2026b_release_docbook_20260327091344.zip">'
+            b"docbook</a>"
+        ),
+        part_url: b"<book><title>Part 6</title></book>",
+    }
+
+    def fake_urlopen(url: str, timeout: int) -> _FakeResponse:
+        assert timeout == 60
+        return _FakeResponse(responses[url])
+
+    monkeypatch.setattr("dicom_kb.sources.downloader.urlopen", fake_urlopen)
+
+    manifest = fetch_official_docbook_artifacts(
+        edition="current",
+        parts=("PS3.6",),
+        cache_dir=tmp_path / "cache",
+        base_url=base_url,
+    )
+
+    assert manifest.edition == "2026b"
+    assert manifest.resolved_from == "current"
+    assert manifest.artifacts[0].source_url == part_url
+    assert manifest.artifacts[0].sha256 == sha256_bytes(responses[part_url])
+    assert (
+        tmp_path
+        / "cache"
+        / "artifacts"
+        / "2026b"
+        / "raw"
+        / "source"
+        / "docbook"
+        / "part06"
+        / "part06.xml"
+    ).read_bytes() == responses[part_url]
+    assert read_manifest(
+        tmp_path / "cache" / "artifacts" / "2026b" / "manifest.json"
+    ) == manifest
+
+
+def test_fetch_official_docbook_rejects_non_current_concrete_edition(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    base_url = "https://dicom.example/current/"
+
+    def fake_urlopen(url: str, timeout: int) -> _FakeResponse:
+        return _FakeResponse(
+            b'<a href="DocBookDICOM2026b_release_docbook_20260327091344.zip">'
+            b"docbook</a>"
+        )
+
+    monkeypatch.setattr("dicom_kb.sources.downloader.urlopen", fake_urlopen)
+
+    with pytest.raises(OfficialFetchError, match="requested '2025e'"):
+        fetch_official_docbook_artifacts(
+            edition="2025e",
+            parts=("PS3.6",),
+            cache_dir=tmp_path / "cache",
+            base_url=base_url,
+        )
