@@ -4,20 +4,23 @@ Last updated: 2026-06-12
 
 ## Current stopping point
 
-Stopped after the second R7 differential-testing slice from
+Stopped after the third R7 differential-testing slice from
 `PROGRESS_REVIEW.md`: the integration tier now has skip-clean external
 differential checks for optional Innolitics JSON and optional pydicom. The
 Innolitics harness reads `DICOM_KB_INNOLITICS_PATH`, compares parseable PS3.6
 data element fields and CT Image module lists against the local KB, and the
 pydicom harness compares local PS3.6 data element fields against pydicom's
-packaged data dictionary when that optional dependency is installed. Accepted
-differences must now be recorded through an explicit allowlist entry with
-external source, classification, and reason metadata. Neither a real Innolitics
-JSON run nor a pydicom-installed run has been performed in this environment, so
-R7 remains open until configured external data produces zero unexplained
-mismatches or documented allowlisted differences. R6 repository-layout
-reconciliation is complete: the public query API now retains `resolver.py` as a
-thin entry-point layer while citation
+packaged data dictionary when that optional dependency is installed. A
+pydicom-installed run against a freshly rebuilt temporary 2026b KB now passes
+with five explicit accepted differences: two pydicom VM simplifications, two
+pydicom keyword edition skews, and one pydicom retired-flag edition skew. The
+pydicom run also exposed and fixed a real PS3.6 parser bug: the official data
+element table's retired marker column can have an empty header and use `RET`
+without spelling out "Retired". A real Innolitics JSON run has not yet been
+performed in this environment, so R7 remains open until configured Innolitics
+data produces zero unexplained mismatches or documented allowlisted
+differences. R6 repository-layout reconciliation is complete: the public query
+API now retains `resolver.py` as a thin entry-point layer while citation
 assembly, condition payload shaping, PS3.3 graph traversal, recursive macro
 expansion, and SQLite FTS query construction live in the spec-aligned
 `query/citations.py`, `query/conditions.py`, `query/graph.py`, and
@@ -185,6 +188,14 @@ yet persisted. The repository now has a working v1 foundation through:
     optional pydicom data dictionary comparison for PS3.6 element fields, and
     differential allowlist entries must include the external source,
     classification, and reason before they can suppress a mismatch.
+42. R7 parser hardening from pydicom differential feedback. PS3.6 data element
+    and UID parsers now treat an empty trailing registry-table header as the
+    retired marker column and recognize `RET` markers even when the name does
+    not include "(Retired)", with synthetic fixture coverage.
+43. R7 pydicom differential triage. The pydicom adapter now normalizes
+    pydicom-specific dictionary conventions, and the focused pydicom run
+    against a rebuilt 2026b KB passes with five explicit accepted differences
+    recorded as interpretation or edition skew.
 
 ## Completed commits
 
@@ -250,10 +261,13 @@ yet persisted. The repository now has a working v1 foundation through:
 - `78033dd docs(progress): record R7 differential harness`
 - `97a00f0 test(mcp): isolate server startup failure cases`
 - `96820fd test(integration): add pydicom differential check`
+- `7b96148 docs(progress): record pydicom differential slice`
+- `4abf56f fix(parsers): detect PS3.6 RET retired markers`
+- `e75c528 test(integration): triage pydicom dictionary skew`
 
 ## Verification at stop
 
-The following checks passed after the R7 pydicom differential slice:
+The following checks passed after the R7 pydicom differential triage slice:
 
 ```bash
 uv run --dev ruff check .
@@ -263,6 +277,21 @@ uv run --dev pytest
 
 Observed local test result without external differential data or pydicom
 installed: 157 passed, 3 skipped, and 2 strict xfailed tests.
+
+The focused pydicom differential was also run against a fresh temporary build
+from the locally cached official 2026b DocBook artifacts:
+
+```bash
+uv run --dev dicom-kb build --edition 2026b \
+  --db /private/tmp/dicom-kb-2026b-pydicom-check-v2.sqlite
+DICOM_KB_CACHE_DIR=/private/tmp/dicom-kb-pydicom-cache \
+  uv run --with pydicom --dev pytest \
+  tests/integration_requires_dicom_download/test_differential.py::test_ps36_data_elements_match_pydicom_dictionary
+```
+
+Observed focused pydicom result: 1 passed. The five accepted pydicom
+differences are recorded in
+`tests/integration_requires_dicom_download/differential_allowlist.json`.
 
 Observed R3 prompt-case metrics:
 
@@ -355,14 +384,16 @@ Accepted R2 strict-xfail limitations:
   Image module lists, with clean skips when external comparison data is not
   configured.
 - Optional pydicom differential harness for PS3.6 data element fields, with a
-  clean skip when pydicom is not installed.
+  clean skip when pydicom is not installed and a passing focused run against a
+  fresh 2026b temporary build when pydicom is installed.
 - Explicit differential allowlist validation requiring accepted mismatches to
   name the external source, entity, field, classification, and reason.
 - DocBook section/table parent and ordinal metadata for persistent structure
   storage.
 - Zero-width character removal and normalized text helpers.
-- PS3.6 data element parsing with tag normalization, retired markers, malformed
-  row warnings, and range-tag detection.
+- PS3.6 data element parsing with tag normalization, explicit/empty-header
+  retired marker columns, `RET` retired markers, malformed row warnings, and
+  range-tag detection.
 - PS3.6 UID registry parsing with UID validation, retired markers, malformed
   row warnings, and zero-width keyword cleanup.
 - SQLite schema for editions, artifacts, source refs, data elements, and UID
