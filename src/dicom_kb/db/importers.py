@@ -6,7 +6,17 @@ import sqlite3
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from dicom_kb.ir.models import DataElement, SourceRef, UIDRegistryEntry
+from dicom_kb.ir.models import (
+    IOD,
+    AttributeUse,
+    DataElement,
+    IODFunctionalGroupUse,
+    IODModuleUse,
+    Macro,
+    Module,
+    SourceRef,
+    UIDRegistryEntry,
+)
 from dicom_kb.sources.manifest import SourceManifest
 
 
@@ -18,6 +28,12 @@ class ImportSummary:
     source_refs: int
     data_elements: int = 0
     uid_registry_entries: int = 0
+    iods: int = 0
+    modules: int = 0
+    macros: int = 0
+    iod_module_uses: int = 0
+    iod_functional_group_uses: int = 0
+    attribute_uses: int = 0
 
 
 def import_manifest(connection: sqlite3.Connection, manifest: SourceManifest) -> None:
@@ -98,6 +114,64 @@ def import_part06(
     )
 
 
+def import_part03(
+    connection: sqlite3.Connection,
+    *,
+    edition: str,
+    iods: Iterable[IOD],
+    modules: Iterable[Module],
+    macros: Iterable[Macro],
+    iod_module_uses: Iterable[IODModuleUse],
+    iod_functional_group_uses: Iterable[IODFunctionalGroupUse],
+    attribute_uses: Iterable[AttributeUse],
+) -> ImportSummary:
+    """Import parsed PS3.3 graph records transactionally."""
+    iod_records = tuple(iods)
+    module_records = tuple(modules)
+    macro_records = tuple(macros)
+    module_use_records = tuple(iod_module_uses)
+    functional_group_use_records = tuple(iod_functional_group_uses)
+    attribute_use_records = tuple(attribute_uses)
+    source_refs = _unique_source_refs(
+        [record.source_ref for record in iod_records]
+        + [record.source_ref for record in module_records]
+        + [record.source_ref for record in macro_records]
+        + [record.source_ref for record in module_use_records]
+        + [record.source_ref for record in functional_group_use_records]
+        + [record.source_ref for record in attribute_use_records]
+    )
+
+    try:
+        with connection:
+            for source_ref in source_refs:
+                _insert_source_ref(connection, source_ref)
+            for iod in iod_records:
+                _insert_iod(connection, iod)
+            for module in module_records:
+                _insert_module(connection, module)
+            for macro in macro_records:
+                _insert_macro(connection, macro)
+            for module_use in module_use_records:
+                _insert_iod_module_use(connection, module_use)
+            for functional_group_use in functional_group_use_records:
+                _insert_iod_functional_group_use(connection, functional_group_use)
+            for attribute_use in attribute_use_records:
+                _insert_attribute_use(connection, attribute_use)
+    except sqlite3.IntegrityError as exc:
+        raise ImportError(f"failed to import PS3.3 records for {edition}") from exc
+
+    return ImportSummary(
+        edition=edition,
+        source_refs=len(source_refs),
+        iods=len(iod_records),
+        modules=len(module_records),
+        macros=len(macro_records),
+        iod_module_uses=len(module_use_records),
+        iod_functional_group_uses=len(functional_group_use_records),
+        attribute_uses=len(attribute_use_records),
+    )
+
+
 def _unique_source_refs(source_refs: Iterable[SourceRef]) -> tuple[SourceRef, ...]:
     unique: dict[str, SourceRef] = {}
     for source_ref in source_refs:
@@ -172,5 +246,143 @@ def _insert_uid(connection: sqlite3.Connection, uid: UIDRegistryEntry) -> None:
             int(uid.retired),
             uid.retired_in_or_last_seen,
             uid.source_ref.id,
+        ),
+    )
+
+
+def _insert_iod(connection: sqlite3.Connection, iod: IOD) -> None:
+    connection.execute(
+        """
+        INSERT INTO iod (
+          id, edition_id, name, keyword, iod_type, part, section, source_ref_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            iod.id,
+            iod.edition_id,
+            iod.name,
+            iod.keyword,
+            iod.iod_type,
+            iod.part,
+            iod.section,
+            iod.source_ref.id,
+        ),
+    )
+
+
+def _insert_module(connection: sqlite3.Connection, module: Module) -> None:
+    connection.execute(
+        """
+        INSERT INTO module (
+          id, edition_id, name, section, description, source_ref_id
+        ) VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            module.id,
+            module.edition_id,
+            module.name,
+            module.section,
+            module.description,
+            module.source_ref.id,
+        ),
+    )
+
+
+def _insert_macro(connection: sqlite3.Connection, macro: Macro) -> None:
+    connection.execute(
+        """
+        INSERT INTO macro (
+          id, edition_id, name, table_id, section, macro_kind, source_ref_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            macro.id,
+            macro.edition_id,
+            macro.name,
+            macro.table_id,
+            macro.section,
+            macro.macro_kind,
+            macro.source_ref.id,
+        ),
+    )
+
+
+def _insert_iod_module_use(
+    connection: sqlite3.Connection, module_use: IODModuleUse
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO iod_module_use (
+          id, edition_id, iod_id, information_entity, module_id, usage,
+          usage_condition_text, condition_id, source_ref_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            module_use.id,
+            module_use.edition_id,
+            module_use.iod_id,
+            module_use.information_entity,
+            module_use.module_id,
+            module_use.usage,
+            module_use.usage_condition_text,
+            module_use.condition_id,
+            module_use.source_ref.id,
+        ),
+    )
+
+
+def _insert_iod_functional_group_use(
+    connection: sqlite3.Connection, functional_group_use: IODFunctionalGroupUse
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO iod_functional_group_use (
+          id, edition_id, iod_id, macro_id, usage, usage_condition_text,
+          condition_id, source_ref_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            functional_group_use.id,
+            functional_group_use.edition_id,
+            functional_group_use.iod_id,
+            functional_group_use.macro_id,
+            functional_group_use.usage,
+            functional_group_use.usage_condition_text,
+            functional_group_use.condition_id,
+            functional_group_use.source_ref.id,
+        ),
+    )
+
+
+def _insert_attribute_use(
+    connection: sqlite3.Connection, attribute_use: AttributeUse
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO attribute_use (
+          id, edition_id, owner_type, owner_id, parent_attribute_use_id, row_kind,
+          attribute_tag, attribute_keyword, attribute_name, type_designation,
+          description_text, condition_id, included_macro_id, include_target_text,
+          sequence_depth, row_order, source_ref_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            attribute_use.id,
+            attribute_use.edition_id,
+            attribute_use.owner_type,
+            attribute_use.owner_id,
+            attribute_use.parent_attribute_use_id,
+            attribute_use.row_kind,
+            attribute_use.attribute_tag,
+            attribute_use.attribute_keyword,
+            attribute_use.attribute_name,
+            attribute_use.type_designation,
+            attribute_use.description_text,
+            attribute_use.condition_id,
+            attribute_use.included_macro_id,
+            attribute_use.include_target_text,
+            attribute_use.sequence_depth,
+            attribute_use.row_order,
+            attribute_use.source_ref.id,
         ),
     )

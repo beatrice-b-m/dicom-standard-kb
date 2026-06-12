@@ -3,11 +3,13 @@ from pathlib import Path
 
 import pytest
 
-from dicom_kb.db.importers import import_part06
+from dicom_kb.db.importers import import_part03, import_part06
 from dicom_kb.db.models import apply_migrations, connect_sqlite
 from dicom_kb.db.repositories import DataElementRepository, UIDRepository
 from dicom_kb.docbook.parser import parse_docbook_xml
+from dicom_kb.parsers.part03_iods import parse_part03
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
+from tests.unit.test_part03_parser import PS33_FIXTURE
 from tests.unit.test_part06_parser import PS36_FIXTURE
 
 
@@ -109,3 +111,90 @@ def test_imports_keep_editions_isolated(tmp_path: Path) -> None:
 
     count = connection.execute("SELECT count(*) FROM data_element").fetchone()[0]
     assert count == 6
+
+
+def test_import_part03_graph_records(tmp_path: Path) -> None:
+    connection = _connection(tmp_path)
+    parsed = parse_part03(
+        parse_docbook_xml(PS33_FIXTURE, part="PS3.3"), edition="2026b"
+    )
+
+    summary = import_part03(
+        connection,
+        edition="2026b",
+        iods=parsed.iods,
+        modules=parsed.modules,
+        macros=parsed.macros,
+        iod_module_uses=parsed.iod_module_uses,
+        iod_functional_group_uses=parsed.iod_functional_group_uses,
+        attribute_uses=parsed.attribute_uses,
+    )
+
+    assert summary.iods == 2
+    assert summary.modules == 3
+    assert summary.macros == 1
+    assert summary.iod_module_uses == 3
+    assert summary.iod_functional_group_uses == 1
+    assert summary.attribute_uses == 5
+
+    required_modules = connection.execute(
+        """
+        SELECT m.name, imu.usage
+        FROM iod_module_use imu
+        JOIN module m ON m.id = imu.module_id
+        WHERE imu.iod_id = ?
+        ORDER BY imu.id
+        """,
+        ("2026b.iod.ct_image",),
+    ).fetchall()
+    assert [(row["name"], row["usage"]) for row in required_modules] == [
+        ("Patient", "M"),
+        ("Contrast/Bolus", "C"),
+        ("CT Image", "M"),
+    ]
+
+    include = connection.execute(
+        """
+        SELECT au.row_kind, au.included_macro_id, au.include_target_text
+        FROM attribute_use au
+        WHERE au.owner_id = ? AND au.row_kind = 'include'
+        """,
+        ("2026b.module.patient",),
+    ).fetchone()
+    assert include["included_macro_id"] == "2026b.macro.table_10_7"
+    assert include["include_target_text"] == (
+        'Include Table 10-7 "General Anatomy Optional Macro"'
+    )
+
+    nested = connection.execute(
+        """
+        SELECT child.parent_attribute_use_id, parent.attribute_name AS parent_name
+        FROM attribute_use child
+        JOIN attribute_use parent ON parent.id = child.parent_attribute_use_id
+        WHERE child.attribute_name = 'Referenced SOP Class UID'
+        """
+    ).fetchone()
+    assert nested["parent_name"] == "Referenced Patient Sequence"
+
+
+def test_import_part03_rolls_back_on_duplicate_iods(tmp_path: Path) -> None:
+    connection = _connection(tmp_path)
+    parsed = parse_part03(
+        parse_docbook_xml(PS33_FIXTURE, part="PS3.3"), edition="2026b"
+    )
+    duplicate = parsed.iods[0].model_copy(update={"id": "duplicate"})
+
+    with pytest.raises(ImportError):
+        import_part03(
+            connection,
+            edition="2026b",
+            iods=[*parsed.iods, duplicate],
+            modules=parsed.modules,
+            macros=parsed.macros,
+            iod_module_uses=parsed.iod_module_uses,
+            iod_functional_group_uses=parsed.iod_functional_group_uses,
+            attribute_uses=parsed.attribute_uses,
+        )
+
+    count = connection.execute("SELECT count(*) FROM iod").fetchone()[0]
+    assert count == 0
