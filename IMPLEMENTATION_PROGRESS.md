@@ -4,41 +4,57 @@ Last updated: 2026-06-12
 
 ## Current stopping point
 
-Stopped after completing R7 differential-testing remediation from
-`PROGRESS_REVIEW.md`: the integration tier now has skip-clean external
-differential checks for optional Innolitics JSON and optional pydicom. The
-Innolitics harness reads `DICOM_KB_INNOLITICS_PATH`, compares parseable PS3.6
-data element fields and CT Image module lists against the local KB, including
-the finalized split-file shape (`attributes.json`, `ciods.json`,
-`ciod_to_modules.json`, and `modules.json`). The pydicom harness compares local
-PS3.6 data element fields against pydicom's packaged data dictionary when that
-optional dependency is installed. Runs against freshly rebuilt temporary 2026b
-KBs now pass for both external sources: pydicom with five explicit accepted
-differences, and Innolitics with four data-element edition skews plus one CT
-Image module-list edition skew. The pydicom run also exposed and fixed a real
-PS3.6 parser bug: the official data element table's retired marker column can
-have an empty header and use `RET` without spelling out "Retired". R7's
-completion conditions are now satisfied for the configured external datasets.
-R6 repository-layout reconciliation is complete: the public query API now
-retains `resolver.py` as a thin entry-point layer while citation
-assembly, condition payload shaping, PS3.3 graph traversal, recursive macro
-expansion, and SQLite FTS query construction live in the spec-aligned
+Stopped after a full verification review of the repository against
+`SYSTEM_SPECS.md` and `PROGRESS_REVIEW.md`. All seven review work items
+(R1–R7) are resolved per their stated completion conditions. The review
+surfaced one environment issue: the default-cache 2026b KB at
+`~/.cache/dicom-standard-kb/db/2026b.sqlite` had been built at commit
+`0c927e1`, before the `4abf56f` PS3.6 `RET` retired-marker parser fix, and the
+optional external differential tests failed against it with four stale
+retired-flag mismatches. The KB was rebuilt with
+`dicom-kb build --edition 2026b --force` at commit `8020648`; the full
+integration tier with both external differential sources configured now
+passes with no skips. The build-metadata `repository_commit` field made the
+staleness diagnosis trivial, which is the mechanism working as designed.
+
+The integration tier has skip-clean external differential checks for optional
+Innolitics JSON and optional pydicom. The Innolitics harness reads
+`DICOM_KB_INNOLITICS_PATH`, compares parseable PS3.6 data element fields and
+CT Image module lists against the local KB, including the finalized
+split-file shape (`attributes.json`, `ciods.json`, `ciod_to_modules.json`,
+and `modules.json`). The pydicom harness compares local PS3.6 data element
+fields against pydicom's packaged data dictionary when that optional
+dependency is installed. Both pass against the rebuilt default-cache 2026b
+KB: pydicom with five explicit accepted differences, and Innolitics with
+four data-element edition skews plus one CT Image module-list edition skew.
+The pydicom run also exposed and fixed a real PS3.6 parser bug: the official
+data element table's retired marker column can have an empty header and use
+`RET` without spelling out "Retired".
+
+R6 repository-layout reconciliation is complete: the public query API
+retains `resolver.py` as a thin entry-point layer while citation assembly,
+condition payload shaping, PS3.3 graph traversal, recursive macro expansion,
+and SQLite FTS query construction live in the spec-aligned
 `query/citations.py`, `query/conditions.py`, `query/graph.py`, and
-`query/search.py` modules; the MCP adapter now keeps `mcp/server.py` focused on
-configuration, dependency loading, and stdio transport while tool metadata and
-resolver dispatch live in `mcp/schemas.py` and `mcp/tools.py`; DocBook
-`<variablelist>` parsing now lives in `docbook/variablelists.py`; and the
-spec-listed `examples/` and `tests/fixtures_minimal_attributed/` paths now
+`query/search.py` modules; the MCP adapter keeps `mcp/server.py` focused on
+configuration, dependency loading, and stdio transport while tool metadata
+and resolver dispatch live in `mcp/schemas.py` and `mcp/tools.py`; DocBook
+`<variablelist>` parsing lives in `docbook/variablelists.py`; and the
+spec-listed `examples/` and `tests/fixtures_minimal_attributed/` paths
 exist. Storage/import wiring for parsed variable lists remains intentionally
 pending for a later value-constraint slice, and post-v1 `api/` plus v2 parser
-paths remain absent by design. Official `current` was fetched and resolved to
-concrete edition `2026b`, the local KB builds from real PS3.3/PS3.4/PS3.6
-DocBook XML, `make test-integration` has a real-download integration tier that
-passes with local artifacts and skips cleanly without them, and the §15.2 golden
-entity set now has real-KB integration assertions. Two R2 parser limitations
-remain captured as strict xfails: real PS3.3 include rows are not yet persisted
-as macro include provenance, and Enhanced CT functional-group usage rows are not
-yet persisted. The repository now has a working v1 foundation through:
+paths remain absent by design.
+
+Official `current` was fetched and resolved to concrete edition `2026b`, the
+local KB builds from real PS3.3/PS3.4/PS3.6 DocBook XML,
+`make test-integration` has a real-download integration tier that passes with
+local artifacts and skips cleanly without them, and the §15.2 golden entity
+set has real-KB integration assertions. Two R2 parser limitations remain
+captured as strict xfails: real PS3.3 include rows are not yet persisted as
+macro include provenance, and Enhanced CT functional-group usage rows are not
+yet persisted. These are the largest remaining gaps against v1 acceptance
+criteria 5 and 9 for real standard content (both are satisfied against
+synthetic fixtures). The repository has a working v1 foundation through:
 
 1. Work Order A: repository/build/legal scaffold.
 2. Work Order B: local source acquisition primitives.
@@ -201,6 +217,10 @@ yet persisted. The repository now has a working v1 foundation through:
     attribute conventions, and the configured run against a rebuilt 2026b KB
     passes with four data-element edition skews and one CT Image module-list
     edition skew recorded in the allowlist.
+45. Full verification review of R1–R7 against `PROGRESS_REVIEW.md`, plus a
+    forced rebuild of the stale default-cache 2026b KB so the complete
+    integration tier — including both external differentials — passes against
+    the conventional cache path with no skips.
 
 ## Completed commits
 
@@ -271,10 +291,12 @@ yet persisted. The repository now has a working v1 foundation through:
 - `e75c528 test(integration): triage pydicom dictionary skew`
 - `f0172d6 docs(progress): record pydicom triage results`
 - `3a321e0 test(integration): support Innolitics finalized JSON`
+- `8020648 docs(progress): mark R7 differential testing complete`
 
 ## Verification at stop
 
-The following checks passed after the R7 Innolitics differential completion:
+All checks below were re-run on 2026-06-12 against commit `8020648` after the
+default-cache KB rebuild:
 
 ```bash
 uv run --dev ruff check .
@@ -282,42 +304,51 @@ uv run --dev mypy
 uv run --dev pytest
 ```
 
-Observed local test result without external differential data or pydicom
-installed: 157 passed, 3 skipped, and 2 strict xfailed tests.
+- ruff: clean.
+- mypy: clean, 48 source files.
+- pytest (no external differential data, no pydicom installed): 157 passed,
+  3 skipped, 2 strict xfailed. The 3 skips are the optional external
+  differential comparisons; the 2 xfails are the documented R2 parser
+  limitations below.
 
-The focused pydicom differential was also run against a fresh temporary build
-from the locally cached official 2026b DocBook artifacts:
-
-```bash
-uv run --dev dicom-kb build --edition 2026b \
-  --db /private/tmp/dicom-kb-2026b-pydicom-check-v2.sqlite
-DICOM_KB_CACHE_DIR=/private/tmp/dicom-kb-pydicom-cache \
-  uv run --with pydicom --dev pytest \
-  tests/integration_requires_dicom_download/test_differential.py::test_ps36_data_elements_match_pydicom_dictionary
-```
-
-Observed focused pydicom result: 1 passed. The five accepted pydicom
-differences are recorded in
-`tests/integration_requires_dicom_download/differential_allowlist.json`.
-
-The focused Innolitics differential was run against the downloaded finalized
-JSON files in `/Users/beatrice/TestingFiles/innolitics-dcm-standard` and the
-same fresh temporary 2026b build:
+The default-cache 2026b KB was rebuilt from the locally cached official
+DocBook artifacts after the verification review found it stale (built at
+`0c927e1`, predating the `4abf56f` retired-marker fix; the differential tests
+failed against it with four stale retired-flag mismatches):
 
 ```bash
-DICOM_KB_CACHE_DIR=/private/tmp/dicom-kb-pydicom-cache \
-  DICOM_KB_INNOLITICS_PATH=/Users/beatrice/TestingFiles/innolitics-dcm-standard \
-  uv run --dev pytest tests/integration_requires_dicom_download/test_differential.py
+uv run dicom-kb build --edition 2026b --force
 ```
 
-Observed focused Innolitics result: 2 passed, 1 skipped (the skip is the
-optional pydicom check in an environment without pydicom installed). The five
-accepted Innolitics differences are recorded in
-`tests/integration_requires_dicom_download/differential_allowlist.json`.
+The rebuilt KB records `repository_commit` `8020648`. The full integration
+tier was then run with both external differential sources configured:
 
-Observed R3 prompt-case metrics:
+```bash
+DICOM_KB_INNOLITICS_PATH=/Users/beatrice/TestingFiles/innolitics-dcm-standard \
+  uv run --with pydicom --dev pytest tests/integration_requires_dicom_download
+```
 
-- 65 committed cases.
+Observed result: 41 passed, 2 strict xfailed, 0 skipped. The five accepted
+pydicom differences and five accepted Innolitics differences (four
+data-element edition skews plus one CT Image module-list edition skew) are
+recorded in
+`tests/integration_requires_dicom_download/differential_allowlist.json`;
+every entry names the external source, entity, field, classification, and
+reason.
+
+The no-artifact path was verified with an empty cache:
+
+```bash
+DICOM_KB_CACHE_DIR=$(mktemp -d) \
+  uv run --dev pytest tests/integration_requires_dicom_download
+```
+
+Observed no-artifact result: 43 skipped tests, exit code 0, no collection
+errors.
+
+Observed R3 prompt-case metrics (re-verified):
+
+- 65 committed cases with unique ids, all pinned to concrete edition `2026b`.
 - 10 error/ambiguity cases.
 - All nine v1 query tools appear in at least one case's `expected_tools`.
 - The deterministic reference runner scores all 65 cases against the local
@@ -327,41 +358,21 @@ Observed R3 prompt-case metrics:
 - The official MCP Python stdio client smoke test passes against the synthetic
   fixture KB and verifies initialize, tool listing, schemas, and tool calls.
 
-The following integration checks were also run against locally fetched and
-built official DICOM edition `2026b`:
-
-```bash
-uv run --dev pytest tests/integration_requires_dicom_download
-```
-
-Observed integration result with artifacts before the first R7 harness: 37
-passing tests and 2 strict xfailed tests. The R7 differential test file was run
-directly without `DICOM_KB_INNOLITICS_PATH` and without pydicom installed; all
-three external comparisons skipped cleanly.
-
-The no-artifact path was verified with an empty cache:
-
-```bash
-DICOM_KB_CACHE_DIR=/private/tmp/dicom-kb-empty-cache \
-  uv run --dev pytest tests/integration_requires_dicom_download
-```
-
-Observed no-artifact result: 39 skipped tests, exit code 0.
-
-The real 2026b build imports:
+The real 2026b build imports (re-verified against the rebuilt KB):
 
 - PS3.6: 5308 data elements, 489 UID registry entries.
 - PS3.3: 192 IODs, 403 modules, 3401 IOD module uses, 303 macros,
   8955 attribute uses.
 - PS3.4: 181 SOP Classes and 181 SOP Class to IOD edges.
+- 0 `iod_functional_group_use` rows (see accepted limitations below).
 
 Accepted R1 parser warning class: 446 `unresolved functional group` warnings
-from PS3.3 functional-group usage tables. The real build no longer crashes,
-and the R1 smoke assertions do not depend on functional-group traversal. This
-remains a documented parser limitation for R2 Enhanced CT/functional-group
-golden coverage.
+from PS3.3 functional-group usage tables. The real build does not crash, and
+the R1 smoke assertions do not depend on functional-group traversal.
 
-Accepted R2 strict-xfail limitations:
+Accepted R2 strict-xfail limitations (the remaining gaps against v1
+acceptance criteria 5 and 9 for real standard content; both criteria pass
+against synthetic fixtures):
 
 - Real PS3.3 module include rows are currently imported as plain attribute rows
   in the real 2026b build, so `expand_macros=true` cannot yet demonstrate
@@ -369,6 +380,24 @@ Accepted R2 strict-xfail limitations:
 - Enhanced CT functional-group usage rows are not persisted in the real 2026b
   build, so `resolve_attribute_context` cannot yet report a non-empty
   `via_macro` path for an attribute reachable only through a functional group.
+
+## PROGRESS_REVIEW.md resolution status
+
+All seven work items are resolved per their completion conditions:
+
+- R1 (real-edition validation): complete. Integration tier passes with
+  artifacts and skips cleanly without them.
+- R2 (§15.2 golden coverage): complete, with the two strict xfails above as
+  the explicitly permitted documented limitations.
+- R3 (≥50 prompt cases): complete at 65 cases with enforced floors.
+- R4 (runner and transcripts): complete via the deterministic reference
+  runner; real-KB transcripts remain uncommitted build outputs by design.
+- R5 (MCP protocol smoke test): complete, including the actionable
+  missing-KB error path.
+- R6 (spec §6.2 layout): complete; post-v1 `api/` and v2 parsers absent by
+  design.
+- R7 (differential testing): complete; zero unexplained mismatches against
+  both external sources.
 
 ## Implemented behavior
 
@@ -404,11 +433,11 @@ Accepted R2 strict-xfail limitations:
   excerpts and defines attribution/minimization rules for future parser cases.
 - Optional Innolitics differential harness for PS3.6 data element fields and CT
   Image module lists, with clean skips when external comparison data is not
-  configured, support for finalized split JSON files, and a passing focused run
-  against a fresh 2026b temporary build.
+  configured, support for finalized split JSON files, and a passing run
+  against the rebuilt default-cache 2026b KB.
 - Optional pydicom differential harness for PS3.6 data element fields, with a
-  clean skip when pydicom is not installed and a passing focused run against a
-  fresh 2026b temporary build when pydicom is installed.
+  clean skip when pydicom is not installed and a passing run against the
+  rebuilt default-cache 2026b KB when pydicom is installed.
 - Explicit differential allowlist validation requiring accepted mismatches to
   name the external source, entity, field, classification, and reason.
 - DocBook section/table parent and ordinal metadata for persistent structure
@@ -531,7 +560,7 @@ Accepted R2 strict-xfail limitations:
 - Offline MCP protocol smoke coverage using the official Python MCP stdio
   client against the synthetic fixture KB, verifying initialize,
   `tools/list`, all nine v1 input schemas, and tool-call response envelopes.
-- `dicom-kb mcp serve` now checks the configured SQLite KB path before starting
+- `dicom-kb mcp serve` checks the configured SQLite KB path before starting
   stdio and reports actionable fetch/build or fixture-build commands when it is
   missing.
 - `dicom_kb.eval` package with committed agent prompt cases, expected
@@ -563,35 +592,48 @@ Accepted R2 strict-xfail limitations:
   `dicom-kb build`.
 - `tests/integration_requires_dicom_download/` covers local real-KB discovery,
   skip-clean behavior without artifacts, source-manifest shape validation,
-  real entity count floors, and well-known resolver smoke assertions.
+  real entity count floors, well-known resolver smoke assertions, §15.2
+  golden coverage, the reference-runner scorecard, and the optional external
+  differential comparisons.
 
 ## Not yet implemented
 
 - Full PS3.3 functional-group macro resolution for real standard tables. The
-  2026b build currently reports 446 `unresolved functional group` warnings.
-- Spec query-layer modules beyond `query/resolver.py`: `query/graph.py`,
-  `query/conditions.py`, `query/citations.py`, and `query/search.py` (Work
-  Order H). Graph traversal and FTS5-backed text search currently live in
-  resolvers/repositories.
+  2026b build reports 446 `unresolved functional group` warnings and persists
+  zero `iod_functional_group_use` rows. This blocks the Enhanced CT
+  functional-group strict xfail and v1 acceptance criterion 9's
+  functional-group clause for real content.
+- Real PS3.3 include-row provenance. Include rows in the real 2026b build are
+  imported as plain attribute rows, so query-time macro expansion cannot
+  demonstrate dual include/macro provenance against official content (the
+  other strict xfail; v1 acceptance criterion 5's include clause for real
+  content).
+- Storage/import wiring for parsed DocBook variable lists (enumerated values
+  and defined terms, §7.6) — parser exists in `docbook/variablelists.py`;
+  persistence is intentionally deferred to a later value-constraint slice.
 - General citation builder beyond direct source-ref conversion.
-- Optional real-LLM external-agent runner configuration remains pending. The
-  committed R4 runner is the deterministic reference agent; real-KB transcripts
-  remain uncommitted build outputs by design.
-- Spec-mandated repository directories and files:
-  `tests/fixtures_minimal_attributed/`, `examples/`, and
-  `docbook/variablelists.py`.
+- Optional real-LLM external-agent runner configuration. The committed R4
+  runner is the deterministic reference agent; real-KB transcripts remain
+  uncommitted build outputs by design.
+- Post-v1 by design: HTTP `api/` surface, PostgreSQL deployment, and v2
+  parsers (`part16_templates.py`, `part18_web_services.py`).
 
-## Known broken placeholders
+## Known limitations of convenience targets
 
-These Makefile targets are forward declarations that currently fail or no-op
-if run:
-
-- `make run-mcp` now invokes the MCP stdio server with the optional `mcp`
-  extra, but it still requires a local `2026b` database to exist in the
-  conventional cache path.
+- `make run-mcp` works when a built `2026b` KB exists at the conventional
+  cache path (it currently does on this machine) and otherwise fails with an
+  actionable message naming the fetch/build commands.
+- `make test` discovers a locally built real KB when one exists, so on a
+  machine with artifacts it also runs the integration tier; on a clean
+  checkout it passes fully offline with the integration directory skipping.
 
 ## Recommended next work order
 
-Continue with R6 repository layout reconciliation: split existing query and MCP
-internals into the spec layout modules, then add `docbook/variablelists.py`,
-`examples/`, and `tests/fixtures_minimal_attributed/`.
+Real PS3.3 include-row and functional-group resolution: persist include rows
+from the official 2026b tables as `row_kind='include'` with resolved
+`included_macro_id`, and resolve the 446 unresolved functional-group
+references so `iod_functional_group_use` rows are persisted for the Enhanced
+family IODs. Completion flips both strict xfails in
+`tests/integration_requires_dicom_download/test_real_kb_goldens.py` to
+passes, closing v1 acceptance criteria 5 and 9 against real standard
+content.
