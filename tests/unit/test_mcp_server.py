@@ -100,6 +100,7 @@ def test_create_mcp_server_registers_all_v1_tools(
 
 
 def test_serve_mcp_stdio_runs_fastmcp_stdio_transport(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from dicom_kb.mcp import server
@@ -107,7 +108,7 @@ def test_serve_mcp_stdio_runs_fastmcp_stdio_transport(
     _FakeFastMCP.last_instance = None
     monkeypatch.setattr(server, "_load_fastmcp", lambda: _FakeFastMCP)
 
-    serve_mcp_stdio(MCPServerConfig(edition="2026b"))
+    serve_mcp_stdio(MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)))
 
     assert _FakeFastMCP.last_instance is not None
     assert _FakeFastMCP.last_instance.run_transport == "stdio"
@@ -166,6 +167,26 @@ def test_execute_mcp_tool_reports_missing_db(tmp_path: Path) -> None:
                 db_path=tmp_path / "missing.sqlite",
             ),
         )
+
+
+def test_mcp_cli_missing_db_names_fetch_and_build_commands(tmp_path: Path) -> None:
+    result = CliRunner().invoke(
+        app,
+        [
+            "mcp",
+            "serve",
+            "--edition",
+            "2026b",
+            "--db",
+            str(tmp_path / "missing.sqlite"),
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "SQLite KB does not exist" in result.output
+    assert "dicom-kb fetch --edition current" in result.output
+    assert "dicom-kb build --edition <resolved-edition>" in result.output
+    assert "dicom-kb build-fixture --edition 2026b" in result.output
 
 
 def test_mcp_cli_exposes_serve_command_without_optional_dependency() -> None:

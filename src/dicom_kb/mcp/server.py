@@ -58,6 +58,20 @@ class MissingMCPDependencyError(RuntimeError):
     """Raised when the optional mcp dependency is unavailable."""
 
 
+def validate_mcp_database(config: MCPServerConfig) -> None:
+    """Fail early with an actionable message when the configured KB is missing."""
+    path = config.resolved_db_path
+    if path.exists():
+        return
+    raise FileNotFoundError(
+        f"SQLite KB does not exist: {path}. Build a local KB with "
+        "`dicom-kb fetch --edition current` followed by "
+        "`dicom-kb build --edition <resolved-edition>`, or build the offline "
+        f"fixture with `dicom-kb build-fixture --edition {config.edition}`. "
+        "Pass --db to use a non-default SQLite path."
+    )
+
+
 def execute_mcp_tool(
     tool_name: str,
     arguments: dict[str, Any],
@@ -219,6 +233,7 @@ def create_mcp_server(config: MCPServerConfig) -> Any:
 
 def serve_mcp_stdio(config: MCPServerConfig) -> None:
     """Run the MCP server over stdio."""
+    validate_mcp_database(config)
     server = create_mcp_server(config)
     server.run(transport="stdio")
 
