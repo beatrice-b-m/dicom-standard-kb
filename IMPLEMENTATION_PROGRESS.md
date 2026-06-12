@@ -68,6 +68,9 @@ working offline foundation through:
 22. Offline MCP adapter integration coverage using an in-process FastMCP
     double to verify v1 tool registration, descriptions, argument mapping into
     public response envelopes, and stdio transport invocation.
+23. First Work Order J slice: edition-pinned agent regression prompt cases,
+    expected tool traces, deterministic scoring contracts, and offline scoring
+    tests under `tests/agent_regression/`.
 
 ## Completed commits
 
@@ -102,6 +105,7 @@ working offline foundation through:
 - `8890264 feat(cli): register local DocBook artifacts`
 - `63dbfb9 feat(mcp): expose query resolvers as MCP tools`
 - `2d246d3 test(mcp): cover FastMCP tool registration`
+- `8f3b719 feat(eval): add agent regression scoring`
 
 ## Verification at stop
 
@@ -113,7 +117,7 @@ uv run --dev mypy
 uv run --dev pytest
 ```
 
-Observed test count: 81 passing tests.
+Observed test count: 84 passing tests.
 
 ## Implemented behavior
 
@@ -241,6 +245,13 @@ Observed test count: 81 passing tests.
 - Offline FastMCP registration tests that verify the adapter exposes the v1
   tool set, preserves tool descriptions, maps registered tool arguments
   through the public query envelopes, and invokes stdio transport.
+- `dicom_kb.eval` package with committed agent prompt cases, expected
+  tool-call traces, transcript models, and deterministic scorecards.
+- Agent regression scoring checks for required tools, expected trace order,
+  exact expected arguments, response metadata, source-reference evidence,
+  edition-aware answers, and unsupported normative claims.
+- `tests/agent_regression/` test coverage for passing transcripts, missing
+  tools/citations, unsupported claims, and argument mismatch diagnostics.
 
 ## Not yet implemented
 
@@ -257,7 +268,9 @@ Observed test count: 81 passing tests.
 - MCP server is present for the implemented v1 query resolvers with offline
   registration coverage. External MCP protocol/client smoke testing is still
   pending.
-- Agent regression harness.
+- Agent regression harness has a first offline scoring slice. A configured
+  external-agent runner, recorded answer transcripts, scorecard CLI/reporting,
+  and the spec target of at least 50 v1 prompt cases are still pending.
 - Golden fixture coverage (SYSTEM_SPECS.md section 15.2) beyond the single
   synthetic CT-style PS3.3 fixture and PS3.6 registry fixture: MR Image,
   Enhanced CT Image (functional-group resolution exercised end-to-end through
@@ -265,8 +278,8 @@ Observed test count: 81 passing tests.
   goldens are pending. These approach real-standard content, so they likely
   belong with the integration-test work rather than synthetic fixtures.
 - Spec-mandated repository directories and files:
-  `tests/fixtures_minimal_attributed/`, `tests/agent_regression/`, `examples/`,
-  and `docbook/variablelists.py`.
+  `tests/fixtures_minimal_attributed/`, `examples/`, and
+  `docbook/variablelists.py`.
 
 ## Known broken placeholders
 
@@ -281,7 +294,7 @@ if run:
 
 ## Recommended next work order
 
-Continue the v1 critical path by adding external MCP protocol/client smoke
-tests and the agent regression harness, or by adding official edition URL
-discovery for networked fetches if source acquisition should be completed
-first.
+Continue the v1 critical path by adding an external-agent runner and expanding
+the agent regression case set, adding external MCP protocol/client smoke tests,
+or adding official edition URL discovery for networked fetches if source
+acquisition should be completed first.
