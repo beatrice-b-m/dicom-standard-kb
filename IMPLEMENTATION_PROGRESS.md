@@ -1,6 +1,6 @@
 # Implementation Progress
 
-Last updated: 2026-06-12
+Last updated: 2026-06-11
 
 ## Current stopping point
 
@@ -63,6 +63,27 @@ Observed test count: 17 passing tests.
 - Query response envelopes and citation builder.
 - MCP server tool surface.
 - Agent regression harness.
+- Raw table IR persistence (SYSTEM_SPECS.md section 10.3): the DocBook layer
+  builds table IR in memory, but the import stores only normalized
+  `data_element`/`uid_registry_entry` rows. No `doc_node`, `xref`, or JSON
+  table-snapshot storage exists yet, so parser bugs cannot be investigated
+  without reparsing the source.
+- Spec-mandated repository directories and files: `schemas/` (the four JSON
+  Schema files; needed for the response envelope work order),
+  `tests/fixtures_synthetic/`, `tests/fixtures_minimal_attributed/`,
+  `tests/agent_regression/`, `examples/`, and `docbook/variablelists.py`.
+
+## Known broken placeholders
+
+These Makefile targets are forward declarations that currently fail or no-op
+if run:
+
+- `make test-integration` points at `tests/integration_requires_dicom_download/`,
+  which does not exist yet (pytest exits with a collection error).
+- `make run-mcp` invokes `dicom-kb mcp serve`, a CLI command that does not
+  exist yet.
+- `make ingest-fixture` runs the `build-fixture` placeholder, which only
+  prints a not-implemented message.
 
 ## Recommended next work order
 
