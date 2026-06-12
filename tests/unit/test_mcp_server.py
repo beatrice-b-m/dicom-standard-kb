@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, ClassVar
 
 import pytest
 from typer.testing import CliRunner
@@ -10,10 +13,47 @@ from dicom_kb.mcp.server import (
     MCP_TOOL_NAMES,
     MCPServerConfig,
     MissingMCPDependencyError,
+    create_mcp_server,
     execute_mcp_tool,
     serve_mcp_stdio,
 )
 from tests.unit.test_cli_lookup import _fixture_db
+
+
+@dataclass(frozen=True)
+class _RegisteredTool:
+    description: str
+    function: Callable[..., dict[str, Any]]
+
+
+class _FakeFastMCP:
+    last_instance: ClassVar[_FakeFastMCP | None] = None
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.tools: dict[str, _RegisteredTool] = {}
+        self.run_transport: str | None = None
+        _FakeFastMCP.last_instance = self
+
+    def tool(
+        self,
+        *,
+        name: str,
+        description: str,
+    ) -> Callable[[Callable[..., dict[str, Any]]], Callable[..., dict[str, Any]]]:
+        def decorator(
+            function: Callable[..., dict[str, Any]],
+        ) -> Callable[..., dict[str, Any]]:
+            self.tools[name] = _RegisteredTool(
+                description=description,
+                function=function,
+            )
+            return function
+
+        return decorator
+
+    def run(self, *, transport: str) -> None:
+        self.run_transport = transport
 
 
 def test_mcp_tool_names_match_v1_spec() -> None:
@@ -28,6 +68,48 @@ def test_mcp_tool_names_match_v1_spec() -> None:
         "dicom_retrieve_standard_text",
         "dicom_search_standard_text",
     )
+
+
+def test_create_mcp_server_registers_all_v1_tools(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dicom_kb.mcp import server
+
+    monkeypatch.setattr(server, "_load_fastmcp", lambda: _FakeFastMCP)
+    fake_server = create_mcp_server(
+        MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path))
+    )
+
+    assert isinstance(fake_server, _FakeFastMCP)
+    assert fake_server.name == "dicom-standard-kb"
+    assert tuple(fake_server.tools) == MCP_TOOL_NAMES
+    assert all(tool.description for tool in fake_server.tools.values())
+
+    payload = fake_server.tools["dicom_search_standard_text"].function(
+        "Patient name",
+        part_filter="PS3.3",
+        limit=2,
+    )
+
+    assert payload["tool"] == "search_standard_text"
+    assert payload["status"] == "ok"
+    assert payload["input"]["part_filter"] == "PS3.3"
+    assert len(payload["result"]["matches"]) <= 2
+
+
+def test_serve_mcp_stdio_runs_fastmcp_stdio_transport(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dicom_kb.mcp import server
+
+    _FakeFastMCP.last_instance = None
+    monkeypatch.setattr(server, "_load_fastmcp", lambda: _FakeFastMCP)
+
+    serve_mcp_stdio(MCPServerConfig(edition="2026b"))
+
+    assert _FakeFastMCP.last_instance is not None
+    assert _FakeFastMCP.last_instance.run_transport == "stdio"
 
 
 def test_execute_mcp_tool_returns_public_lookup_envelope(tmp_path: Path) -> None:
@@ -105,4 +187,3 @@ def test_serve_mcp_stdio_reports_missing_optional_dependency(
 
     with pytest.raises(MissingMCPDependencyError, match="missing mcp"):
         serve_mcp_stdio(MCPServerConfig(edition="2026b"))
-
