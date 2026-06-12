@@ -1,10 +1,10 @@
 # Implementation Progress
 
-Last updated: 2026-06-11
+Last updated: 2026-06-12
 
 ## Current stopping point
 
-Stopped after organizing the synthetic parser fixture directory. The repository
+Stopped after adding recursive query-time macro expansion. The repository
 now has a working offline foundation through:
 
 1. Work Order A: repository/build/legal scaffold.
@@ -31,6 +31,9 @@ now has a working offline foundation through:
 11. Spec-mandated `tests/fixtures_synthetic/` directory containing shared
     synthetic DocBook XML fixtures for PS3.3 and PS3.6 parser/import/query
     tests.
+12. Recursive `list_attributes_for_module(..., expand_macros=True)` expansion
+    with effective `sequence_depth` adjustment, include-row provenance, and
+    macro include cycle warnings.
 
 ## Completed commits
 
@@ -49,10 +52,13 @@ now has a working offline foundation through:
 - `152f5e9 feat(query): add PS3.3 graph traversal`
 - `b380b4f feat(schemas): add public JSON Schema contracts`
 - `6e1dbe6 test(fixtures): move synthetic DocBook into fixture files`
+- `01b8106 docs(progress): record synthetic fixture layout`
+- `b9b0c6d docs(progress): record review gaps and next-step refinements`
+- `324922a feat(query): expand macros recursively`
 
 ## Verification at stop
 
-The following offline checks passed after the PS3.3 parser/storage work:
+The following offline checks passed after recursive macro expansion:
 
 ```bash
 make lint
@@ -60,7 +66,7 @@ uv run mypy
 uv run pytest
 ```
 
-Observed test count: 43 passing tests.
+Observed test count: 45 passing tests.
 
 ## Implemented behavior
 
@@ -106,8 +112,9 @@ Observed test count: 43 passing tests.
 - `list_modules_for_iod` resolver with exact IOD name/keyword lookup,
   citation-preserving module usage payloads, and not-found responses.
 - `list_attributes_for_module` resolver with exact module lookup, include-row
-  preservation, optional one-level macro expansion, citation-preserving
-  attribute payloads, and not-found responses.
+  preservation, optional recursive macro expansion, citation-preserving
+  attribute payloads, effective sequence-depth reporting, include cycle
+  warnings, and not-found responses.
 - CLI commands `dicom-kb iod modules` and `dicom-kb module attributes` that
   read an explicit local SQLite database path and emit JSON envelopes.
 - JSON Schema contract files for tool response envelopes, standard references,
@@ -125,13 +132,6 @@ Observed test count: 43 passing tests.
 - Full PS3.3 parser coverage beyond the first v1 CT-style synthetic fixture
   slice, including broader real-standard table variants.
 - PS3.4 SOP class parser.
-- Recursive query-time macro expansion. `list_attributes_for_module` expands
-  only one include level; SYSTEM_SPECS.md sections 8.4 and 8.5 require
-  recursive expansion with dual provenance (macro source ref plus including
-  row's source ref) and effective `sequence_depth` reporting. Nested includes
-  are common in Enhanced-family IODs, and `resolve_attribute_context` must
-  traverse `via_macro` paths, so this should be fixed before that tool is
-  built on top of it.
 - `resolve_attribute_context` with effective-type computation (the most
   important v1 tool per SYSTEM_SPECS.md section 8.5).
 - Spec query-layer modules beyond `query/resolver.py`: `query/graph.py`,
@@ -175,19 +175,7 @@ if run:
 
 ## Recommended next work order
 
-Before MCP work, add minimal attributed fixture handling, then broaden PS3.3
-parser fixtures toward CT Image table variants that can be represented without
-redistributing bulk official artifacts.
-
-Refinements from the 2026-06-11 progress review:
-
-1. The critical path to the v1 acceptance criteria runs through build-sequence
-   steps 10 and 11 (SYSTEM_SPECS.md section 14): the PS3.4 SOP class parser
-   and `resolve_attribute_context`. The broadened PS3.3 fixtures above feed
-   directly into both, since `resolve_attribute_context` needs SOP Class →
-   IOD traversal and richer module/macro graphs to compute effective types
-   against.
-2. Fix recursive macro expansion (currently one level) before building
-   `resolve_attribute_context`, because effective-type computation must
-   traverse `via_macro` paths correctly and should not be layered on an
-   expansion that silently truncates nested includes.
+Continue the v1 critical path with SYSTEM_SPECS.md section 14, build-sequence
+step 10: add the PS3.4 SOP Class parser and SOP Class → IOD traversal. That
+unblocks `resolve_attribute_context`, which needs SOP Class → IOD → modules →
+attributes traversal plus the recursive macro expansion now in place.
