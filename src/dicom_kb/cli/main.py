@@ -146,6 +146,16 @@ def fetch_command(
             ),
         ),
     ] = None,
+    mirror_chtml_tree: Annotated[
+        bool,
+        typer.Option(
+            "--mirror-chtml-tree",
+            help=(
+                "When --format chtml is requested, recursively mirror the full "
+                "per-part CHTML directory instead of only the part entry page."
+            ),
+        ),
+    ] = False,
     current_edition: Annotated[
         str | None,
         typer.Option(
@@ -178,6 +188,10 @@ def fetch_command(
 ) -> None:
     """Fetch or register source artifacts into the dicom-kb cache."""
     if docbook_xml:
+        if mirror_chtml_tree:
+            raise typer.BadParameter(
+                "--mirror-chtml-tree is only valid for official --format chtml fetches"
+            )
         resolved = EditionResolver(current_edition=current_edition).resolve(edition)
         artifacts = _docbook_xml_artifacts(docbook_xml, edition=resolved.edition)
         manifest = register_local_artifacts(
@@ -199,6 +213,13 @@ def fetch_command(
                 if artifact_format
                 else (DOCBOOK_XML_FORMAT,)
             )
+            if mirror_chtml_tree and not any(
+                value.strip().lower().replace("-", "_") == "chtml"
+                for value in formats
+            ):
+                raise typer.BadParameter(
+                    "--mirror-chtml-tree requires --format chtml"
+                )
             manifest = fetch_official_artifacts(
                 edition=edition,
                 parts=parts,
@@ -206,6 +227,7 @@ def fetch_command(
                 cache_dir=cache_dir,
                 base_url=source_base_url,
                 archive_base_url=archive_base_url,
+                mirror_chtml_tree=mirror_chtml_tree,
                 force=force,
             )
         except OfficialFetchError as exc:

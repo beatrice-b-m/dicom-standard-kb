@@ -35,6 +35,13 @@ Supported official formats are `docbook_xml`, `pdf`, `html`, `chtml`, and
 `targetdb`. The SQLite build reads the `docbook_xml` artifacts and preserves
 the other artifact checksums in the manifest/build metadata.
 
+By default, `--format chtml` downloads the part entry page. To mirror the full
+per-part CHTML directory for local inspection, add `--mirror-chtml-tree`:
+
+```bash
+dicom-kb fetch --edition current --part PS3.6 --format chtml --mirror-chtml-tree
+```
+
 Local fixture or pre-downloaded XML registration is still available:
 
 ```bash

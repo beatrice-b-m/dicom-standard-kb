@@ -5,6 +5,7 @@ import pytest
 
 from dicom_kb.sources.checksums import sha256_bytes, sha256_file
 from dicom_kb.sources.downloader import (
+    CHTML_FORMAT,
     DOCBOOK_XML_FORMAT,
     HTML_FORMAT,
     PDF_FORMAT,
@@ -18,6 +19,8 @@ from dicom_kb.sources.downloader import (
     official_archive_release_url,
     official_artifact_destination,
     official_artifact_url,
+    official_chtml_directory_url,
+    official_chtml_tree_destination,
     official_docbook_xml_url,
     register_local_artifacts,
 )
@@ -197,6 +200,15 @@ def test_official_artifact_urls_and_destinations_are_format_specific() -> None:
     ) == "https://dicom.example/dicom/2025e/"
 
 
+def test_official_chtml_tree_destination_rejects_unsafe_paths() -> None:
+    with pytest.raises(OfficialFetchError, match="unsafe"):
+        official_chtml_tree_destination(
+            "2026b",
+            part="PS3.6",
+            relative_path="../part05/PS3.5.html",
+        )
+
+
 def test_fetch_official_docbook_artifacts_writes_manifest(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -302,6 +314,74 @@ def test_fetch_official_artifacts_writes_requested_formats(
         / "targetdb"
         / "PS3_06_target.db"
     ).read_bytes() == responses[targetdb_url]
+
+
+def test_fetch_official_artifacts_mirrors_chtml_tree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    base_url = "https://dicom.example/current/"
+    chtml_root = official_chtml_directory_url(base_url, part="PS3.6")
+    entry_url = f"{chtml_root}PS3.6.html"
+    chapter_url = f"{chtml_root}chapter/"
+    section_url = f"{chapter_url}sect_A.html"
+    responses = {
+        base_url: (
+            b'<a href="DocBookDICOM2026b_release_docbook_20260327091344.zip">'
+            b"docbook</a>"
+        ),
+        chtml_root: (
+            b'<a href="../">Parent</a>'
+            b'<a href="PS3.6.html">entry</a>'
+            b'<a href="chapter/">chapter</a>'
+            b'<a href="?C=N">sort</a>'
+            b'<a href="https://other.example/elsewhere.html">external</a>'
+        ),
+        entry_url: b"<html>Part 6 entry</html>",
+        chapter_url: (
+            b'<a href="../">Parent</a>'
+            b'<a href="sect_A.html">section</a>'
+        ),
+        section_url: b"<html>Section A</html>",
+    }
+
+    def fake_urlopen(url: str, timeout: int) -> _FakeResponse:
+        assert timeout == 60
+        return _FakeResponse(responses[url])
+
+    monkeypatch.setattr("dicom_kb.sources.downloader.urlopen", fake_urlopen)
+
+    manifest = fetch_official_artifacts(
+        edition="current",
+        parts=("PS3.6",),
+        formats=(CHTML_FORMAT,),
+        cache_dir=tmp_path / "cache",
+        base_url=base_url,
+        mirror_chtml_tree=True,
+    )
+
+    assert [artifact.source_url for artifact in manifest.artifacts] == [
+        entry_url,
+        section_url,
+    ]
+    assert [artifact.local_path for artifact in manifest.artifacts] == [
+        "artifacts/2026b/raw/chtml/part06/PS3.6.html",
+        "artifacts/2026b/raw/chtml/part06/chapter/sect_A.html",
+    ]
+    assert [artifact.format for artifact in manifest.artifacts] == [
+        CHTML_FORMAT,
+        CHTML_FORMAT,
+    ]
+    assert (
+        tmp_path
+        / "cache"
+        / "artifacts"
+        / "2026b"
+        / "raw"
+        / "chtml"
+        / "part06"
+        / "chapter"
+        / "sect_A.html"
+    ).read_bytes() == responses[section_url]
 
 
 def test_fetch_official_artifacts_uses_archive_for_concrete_edition(

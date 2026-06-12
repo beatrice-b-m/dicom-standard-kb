@@ -7,8 +7,9 @@ import shutil
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path
+from posixpath import normpath
 from typing import cast
-from urllib.parse import urljoin
+from urllib.parse import unquote, urldefrag, urljoin, urlparse
 from urllib.request import urlopen
 
 from dicom_kb.sources.checksums import sha256_file
@@ -131,6 +132,7 @@ def fetch_official_artifacts(
     cache_dir: Path = DEFAULT_CACHE_DIR,
     base_url: str = DEFAULT_DICOM_CURRENT_BASE_URL,
     archive_base_url: str = DEFAULT_DICOM_ARCHIVE_BASE_URL,
+    mirror_chtml_tree: bool = False,
     force: bool = False,
 ) -> SourceManifest:
     """Download selected official artifacts into the local cache."""
@@ -147,6 +149,17 @@ def fetch_official_artifacts(
     for part in parts:
         normalized_part = _normalize_docbook_part(part)
         for normalized_format in normalized_formats:
+            if normalized_format == CHTML_FORMAT and mirror_chtml_tree:
+                entries.extend(
+                    fetch_official_chtml_tree_artifacts(
+                        edition=resolved.edition,
+                        part=normalized_part,
+                        release_base_url=release_base_url,
+                        cache_dir=cache_dir,
+                        force=force,
+                    )
+                )
+                continue
             url = official_artifact_url(
                 release_base_url,
                 part=normalized_part,
@@ -177,6 +190,69 @@ def fetch_official_artifacts(
     )
     write_manifest(manifest, cache_dir, force=force)
     return manifest.with_digest()
+
+
+def fetch_official_chtml_tree_artifacts(
+    *,
+    edition: str,
+    part: str,
+    release_base_url: str,
+    cache_dir: Path = DEFAULT_CACHE_DIR,
+    force: bool = False,
+) -> list[SourceArtifact]:
+    """Recursively mirror one official CHTML part directory into the cache."""
+    normalized_part = _normalize_docbook_part(part)
+    root_url = official_chtml_directory_url(release_base_url, part=normalized_part)
+    root_destination = Path(
+        official_chtml_tree_destination(
+            edition,
+            part=normalized_part,
+            relative_path=".",
+        )
+    )
+    queue = [root_url]
+    seen_directories: set[str] = set()
+    seen_files: set[str] = set()
+    artifacts: list[SourceArtifact] = []
+
+    while queue:
+        directory_url = queue.pop(0)
+        if directory_url in seen_directories:
+            continue
+        seen_directories.add(directory_url)
+        listing = _read_url_text(directory_url)
+        parser = _HrefParser()
+        parser.feed(listing)
+        for href in sorted(parser.hrefs):
+            child_url = _normalize_mirror_url(directory_url, href)
+            if child_url is None or not _is_url_within_root(child_url, root_url):
+                continue
+            relative_path = _relative_mirror_path(root_url, child_url)
+            if relative_path is None:
+                continue
+            if child_url.endswith("/"):
+                queue.append(child_url)
+                continue
+            if child_url in seen_files:
+                continue
+            seen_files.add(child_url)
+            destination = cache_dir / root_destination / relative_path
+            download_artifact(child_url, destination, force=force)
+            artifacts.append(
+                SourceArtifact(
+                    part=normalized_part,
+                    format=CHTML_FORMAT,
+                    local_path=str(destination.relative_to(cache_dir)),
+                    source_url=child_url,
+                    sha256=sha256_file(destination),
+                    byte_size=destination.stat().st_size,
+                )
+            )
+    if not artifacts:
+        raise OfficialFetchError(
+            f"no CHTML files were discovered under {root_url!r}"
+        )
+    return artifacts
 
 
 def resolve_official_release(
@@ -294,6 +370,13 @@ def official_artifact_url(base_url: str, *, part: str, artifact_format: str) -> 
     return urljoin(base, path)
 
 
+def official_chtml_directory_url(base_url: str, *, part: str) -> str:
+    """Return the official CHTML directory URL for a DICOM part."""
+    normalized_part = _normalize_docbook_part(part)
+    part_number = normalized_part.removeprefix("PS3.").zfill(2)
+    return urljoin(_ensure_trailing_slash(base_url), f"output/chtml/part{part_number}/")
+
+
 def official_artifact_destination(
     edition: str, *, part: str, artifact_format: str
 ) -> str:
@@ -318,6 +401,19 @@ def official_artifact_destination(
     if normalized_format == TARGETDB_FORMAT:
         return f"artifacts/{edition}/raw/targetdb/PS3_{part_number}_target.db"
     raise OfficialFetchError(f"unsupported artifact format: {artifact_format!r}")
+
+
+def official_chtml_tree_destination(
+    edition: str, *, part: str, relative_path: str
+) -> str:
+    """Return a cache-relative destination for a mirrored CHTML tree member."""
+    normalized_part = _normalize_docbook_part(part)
+    part_number = normalized_part.removeprefix("PS3.").zfill(2)
+    normalized_relative_path = _safe_relative_path(relative_path)
+    base = f"artifacts/{edition}/raw/chtml/part{part_number}"
+    if normalized_relative_path == ".":
+        return base
+    return f"{base}/{normalized_relative_path}"
 
 
 def _normalize_official_artifact_format(artifact_format: str) -> str:
@@ -375,6 +471,49 @@ def _read_url_text(url: str) -> str:
     with urlopen(url, timeout=60) as response:
         data = cast(bytes, response.read())
         return data.decode("utf-8", errors="replace")
+
+
+def _normalize_mirror_url(directory_url: str, href: str) -> str | None:
+    stripped = href.strip()
+    if not stripped or stripped.startswith(("#", "?")):
+        return None
+    joined, _fragment = urldefrag(
+        urljoin(_ensure_trailing_slash(directory_url), stripped)
+    )
+    parsed = urlparse(joined)
+    if parsed.query:
+        return None
+    return joined
+
+
+def _is_url_within_root(url: str, root_url: str) -> bool:
+    parsed_url = urlparse(url)
+    parsed_root = urlparse(root_url)
+    if (parsed_url.scheme, parsed_url.netloc) != (
+        parsed_root.scheme,
+        parsed_root.netloc,
+    ):
+        return False
+    root_path = _ensure_trailing_slash(parsed_root.path)
+    return parsed_url.path == root_path or parsed_url.path.startswith(root_path)
+
+
+def _relative_mirror_path(root_url: str, url: str) -> str | None:
+    root_path = _ensure_trailing_slash(urlparse(root_url).path)
+    target_path = urlparse(url).path
+    if not target_path.startswith(root_path):
+        return None
+    relative_path = unquote(target_path.removeprefix(root_path))
+    if not relative_path:
+        return None
+    return _safe_relative_path(relative_path)
+
+
+def _safe_relative_path(relative_path: str) -> str:
+    normalized = normpath(relative_path.strip("/"))
+    if normalized.startswith("../") or normalized == ".." or normalized.startswith("/"):
+        raise OfficialFetchError(f"unsafe relative artifact path: {relative_path!r}")
+    return normalized
 
 
 def _ensure_trailing_slash(url: str) -> str:

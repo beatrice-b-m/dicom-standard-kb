@@ -23,6 +23,7 @@ from dicom_kb.parsers.part06_data_dictionary import parse_part06
 from dicom_kb.sources.downloader import (
     official_archive_release_url,
     official_artifact_url,
+    official_chtml_directory_url,
     official_docbook_xml_url,
 )
 from tests.fixtures_synthetic import (
@@ -464,6 +465,61 @@ def test_cli_fetch_downloads_requested_official_formats(
     assert payload["artifacts"][1]["local_path"] == (
         "artifacts/2026b/raw/pdf/part06.pdf"
     )
+
+
+def test_cli_fetch_mirrors_chtml_tree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    base_url = "https://dicom.example/current/"
+    chtml_root = official_chtml_directory_url(base_url, part="PS3.6")
+    entry_url = f"{chtml_root}PS3.6.html"
+    section_url = f"{chtml_root}chapter/sect_A.html"
+    responses = {
+        base_url: (
+            b'<a href="DocBookDICOM2026b_release_docbook_20260327091344.zip">'
+            b"docbook</a>"
+        ),
+        chtml_root: b'<a href="PS3.6.html">entry</a><a href="chapter/">chapter</a>',
+        entry_url: b"<html>Part 6 entry</html>",
+        f"{chtml_root}chapter/": b'<a href="sect_A.html">section</a>',
+        section_url: b"<html>Section A</html>",
+    }
+
+    def fake_urlopen(url: str, timeout: int) -> _FakeResponse:
+        assert timeout == 60
+        return _FakeResponse(responses[url])
+
+    monkeypatch.setattr("dicom_kb.sources.downloader.urlopen", fake_urlopen)
+    cache_dir = tmp_path / "cache"
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "fetch",
+            "--edition",
+            "current",
+            "--cache-dir",
+            str(cache_dir),
+            "--source-base-url",
+            base_url,
+            "--part",
+            "PS3.6",
+            "--format",
+            "chtml",
+            "--mirror-chtml-tree",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert [artifact["source_url"] for artifact in payload["artifacts"]] == [
+        entry_url,
+        section_url,
+    ]
+    assert [artifact["local_path"] for artifact in payload["artifacts"]] == [
+        "artifacts/2026b/raw/chtml/part06/PS3.6.html",
+        "artifacts/2026b/raw/chtml/part06/chapter/sect_A.html",
+    ]
 
 
 def test_cli_fetch_downloads_concrete_edition_from_archive(
