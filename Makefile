@@ -19,7 +19,7 @@ ingest-fixture:
 	uv run --dev dicom-kb build-fixture
 
 run-mcp:
-	uv run --dev dicom-kb mcp serve
+	uv run --all-extras --dev dicom-kb mcp serve --edition 2026b
 
 run-api:
 	@echo "HTTP API is post-v1 optional and is not implemented yet."

@@ -11,6 +11,11 @@ import typer
 from pydantic import BaseModel
 
 from dicom_kb.build import build_sqlite_database, default_db_path
+from dicom_kb.mcp.server import (
+    MCPServerConfig,
+    MissingMCPDependencyError,
+    serve_mcp_stdio,
+)
 from dicom_kb.metadata import LEGAL_NOTICE, __version__
 from dicom_kb.query.answer_contracts import ToolResponse
 from dicom_kb.query.resolver import (
@@ -36,10 +41,12 @@ lookup_app = typer.Typer(help="Run exact lookups against a local SQLite KB.")
 iod_app = typer.Typer(help="Query PS3.3 IOD graph records.")
 module_app = typer.Typer(help="Query PS3.3 module graph records.")
 resolve_app = typer.Typer(help="Resolve DICOM facts in a usage context.")
+mcp_app = typer.Typer(help="Run the MCP server adapter.")
 app.add_typer(lookup_app, name="lookup")
 app.add_typer(iod_app, name="iod")
 app.add_typer(module_app, name="module")
 app.add_typer(resolve_app, name="resolve")
+app.add_typer(mcp_app, name="mcp")
 
 
 @app.callback()
@@ -173,6 +180,32 @@ def build_command(
         force=force,
     )
     typer.echo(json.dumps(summary.as_jsonable(), indent=2, sort_keys=True))
+
+
+@mcp_app.command("serve")
+def mcp_serve_command(
+    edition: Annotated[
+        str,
+        typer.Option("--edition", help="Concrete DICOM edition label."),
+    ],
+    db: Annotated[
+        Path | None,
+        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
+    ] = None,
+    cache_dir: Annotated[
+        Path,
+        typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
+    ] = DEFAULT_CACHE_DIR,
+) -> None:
+    """Serve v1 query tools over MCP stdio."""
+    config = MCPServerConfig(edition=edition, db_path=db, cache_dir=cache_dir)
+    try:
+        serve_mcp_stdio(config)
+    except MissingMCPDependencyError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    except FileNotFoundError as exc:
+        raise typer.BadParameter(str(exc)) from exc
 
 
 @app.command("retrieve-text")
