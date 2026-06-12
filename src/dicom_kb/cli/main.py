@@ -12,6 +12,11 @@ from pydantic import BaseModel
 
 from dicom_kb.build import build_sqlite_database, default_db_path
 from dicom_kb.eval.reporting import report_as_jsonable, score_agent_run_file
+from dicom_kb.eval.runner import (
+    run_reference_agent_cases,
+    select_agent_regression_cases,
+    write_agent_runs,
+)
 from dicom_kb.mcp.server import (
     MCPServerConfig,
     MissingMCPDependencyError,
@@ -334,6 +339,62 @@ def eval_score_command(
         output.write_text(payload + "\n", encoding="utf-8")
     if fail_on_issues and report.failed_runs:
         raise typer.Exit(code=1)
+
+
+@eval_app.command("run")
+def eval_run_command(
+    edition: Annotated[
+        str,
+        typer.Option("--edition", help="Concrete DICOM edition label."),
+    ],
+    out: Annotated[
+        Path,
+        typer.Option(
+            "--out",
+            help="Write compact agent transcripts to this JSON file.",
+        ),
+    ],
+    db: Annotated[
+        Path | None,
+        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
+    ] = None,
+    cache_dir: Annotated[
+        Path,
+        typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
+    ] = DEFAULT_CACHE_DIR,
+    cases: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--case",
+            "--cases",
+            help=(
+                "Agent regression case id to run; repeatable. "
+                "Defaults to every committed case."
+            ),
+        ),
+    ] = None,
+) -> None:
+    """Run deterministic reference agent transcripts for prompt cases."""
+    selected_cases = select_agent_regression_cases(tuple(cases or ()))
+    with _connect_query_db(db, cache_dir=cache_dir, edition=edition) as connection:
+        runs = run_reference_agent_cases(
+            connection,
+            edition=edition,
+            cases=selected_cases,
+        )
+    write_agent_runs(out, runs)
+    typer.echo(
+        json.dumps(
+            {
+                "agent": "reference",
+                "edition": edition,
+                "runs": len(runs),
+                "output": str(out),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
 
 
 @app.command("retrieve-text")
