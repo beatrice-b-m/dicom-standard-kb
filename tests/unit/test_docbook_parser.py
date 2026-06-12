@@ -80,5 +80,60 @@ def test_table_parser_preserves_spans_and_include_rows() -> None:
     assert following_row.cells[0].column == 1
 
 
+def test_table_parser_accepts_html_table_vocabulary() -> None:
+    xml = """\
+<book xmlns="http://docbook.org/ns/docbook" xmlns:xml="http://www.w3.org/XML/1998/namespace">
+  <chapter xml:id="chapter_6">
+    <title>Registry</title>
+    <table xml:id="table_6-1">
+      <caption>Registry of DICOM Data Elements</caption>
+      <thead>
+        <tr>
+          <th>Tag</th>
+          <th>Name</th>
+          <th>Keyword</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td rowspan="2">(0008,0060)</td>
+          <td>Modality</td>
+          <td>Modality</td>
+        </tr>
+        <tr>
+          <td colspan="2">continued</td>
+        </tr>
+      </tbody>
+    </table>
+  </chapter>
+</book>
+"""
+
+    table = parse_docbook_xml(xml, part="PS3.6").tables[0]
+
+    assert table.title == "Registry of DICOM Data Elements"
+    assert [cell.text for cell in table.rows[0].cells] == ["Tag", "Name", "Keyword"]
+    assert table.rows[1].cells[0].rowspan == 2
+    assert table.rows[2].cells[0].column == 1
+    assert table.rows[2].cells[0].colspan == 2
+
+
 def test_zero_width_characters_are_removed_from_normalized_text() -> None:
     assert normalize_text("Explicit\u200bVRLittleEndian") == "ExplicitVRLittleEndian"
+
+
+def test_section_body_ignores_processing_instructions() -> None:
+    xml = """\
+<book xmlns="http://docbook.org/ns/docbook" xmlns:xml="http://www.w3.org/XML/1998/namespace">
+  <chapter xml:id="chapter_with_pi">
+    <label>1</label>
+    <title>Chapter</title>
+    <?dbhtml filename="chapter.html"?>
+    <para>Body text survives.</para>
+  </chapter>
+</book>
+"""
+
+    parsed = parse_docbook_xml(xml, part="PS3.3")
+
+    assert parsed.sections[0].plain_text == "Body text survives."

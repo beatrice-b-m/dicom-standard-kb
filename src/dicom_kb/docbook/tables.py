@@ -88,14 +88,15 @@ def parse_tables(root: etree._Element) -> list[ParsedTable]:
 
 def parse_table(table: etree._Element) -> ParsedTable:
     """Parse one DocBook table-like element."""
-    title = _first_text(table, "db:title")
+    title = _first_text(table, "db:title") or _first_text(table, "db:caption")
     warnings: list[str] = []
     rows: list[ParsedRow] = []
     occupancy = _Occupancy()
     row_index = 0
 
     for section_name in ("thead", "tbody", "tfoot"):
-        for row in table.xpath(f".//db:{section_name}/db:row", namespaces=NSMAP):
+        row_xpath = f".//db:{section_name}/db:row | .//db:{section_name}/db:tr"
+        for row in table.xpath(row_xpath, namespaces=NSMAP):
             if not isinstance(row, etree._Element):
                 continue
             parsed_cells = _parse_row(row, row_index, occupancy, warnings)
@@ -103,7 +104,7 @@ def parse_table(table: etree._Element) -> ParsedTable:
             row_index += 1
 
     if not rows:
-        for row in table.xpath(".//db:row", namespaces=NSMAP):
+        for row in table.xpath(".//db:row | .//db:tr", namespaces=NSMAP):
             if not isinstance(row, etree._Element):
                 continue
             parsed_cells = _parse_row(row, row_index, occupancy, warnings)
@@ -126,7 +127,7 @@ def _parse_row(
 ) -> tuple[ParsedCell, ...]:
     cells: list[ParsedCell] = []
     column = 0
-    for entry in row.xpath("./db:entry", namespaces=NSMAP):
+    for entry in row.xpath("./db:entry | ./db:td | ./db:th", namespaces=NSMAP):
         if not isinstance(entry, etree._Element):
             continue
         column = occupancy.next_column(row_index, column)
@@ -170,6 +171,9 @@ def _classify_row(
 
 
 def _colspan(entry: etree._Element) -> int:
+    numeric_colspan = _positive_int(entry.get("colspan"))
+    if numeric_colspan is not None:
+        return numeric_colspan
     namest = entry.get("namest")
     nameend = entry.get("nameend")
     if namest and nameend:
@@ -181,6 +185,9 @@ def _colspan(entry: etree._Element) -> int:
 
 
 def _rowspan(entry: etree._Element) -> int:
+    numeric_rowspan = _positive_int(entry.get("rowspan"))
+    if numeric_rowspan is not None:
+        return numeric_rowspan
     morerows = entry.get("morerows")
     if morerows is None:
         return 1
@@ -188,6 +195,16 @@ def _rowspan(entry: etree._Element) -> int:
         return int(morerows) + 1
     except ValueError:
         return 1
+
+
+def _positive_int(value: str | None) -> int | None:
+    if value is None:
+        return None
+    try:
+        parsed = int(value)
+    except ValueError:
+        return None
+    return parsed if parsed > 0 else None
 
 
 def _column_number(name: str) -> int | None:

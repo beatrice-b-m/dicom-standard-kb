@@ -122,6 +122,8 @@ def _first_child_text(element: etree._Element, local_name: str) -> str | None:
 def _section_body_text(section: etree._Element) -> str:
     parts: list[str] = []
     for child in section:
+        if not isinstance(child, etree._Element) or not isinstance(child.tag, str):
+            continue
         if etree.QName(child).localname in {"title", "label", "section"}:
             continue
         parts.append("".join(child.itertext()))
