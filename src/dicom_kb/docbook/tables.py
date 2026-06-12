@@ -14,6 +14,7 @@ INCLUDE_TABLE_RE = re.compile(
     r"^Include\s+Table\s+(?P<table_ref>[A-Za-z0-9_.-]+)\s*(?P<title>.*)$",
     re.IGNORECASE,
 )
+INCLUDE_XREF_RE = re.compile(r"^(?P<depth>>*)\s*Include\s*$", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -167,6 +168,17 @@ def _classify_row(
             include_table_ref=include_match.group("table_ref"),
             include_title=include_title or None,
         )
+    if cells:
+        first_cell = cells[0]
+        if INCLUDE_XREF_RE.match(first_cell.text) and first_cell.xrefs:
+            return ParsedRow(
+                cells=cells,
+                row_index=row_index,
+                section=section_name,
+                row_kind="include",
+                include_table_ref=first_cell.xrefs[0],
+                include_title=None,
+            )
     return ParsedRow(cells=cells, row_index=row_index, section=section_name)
 
 

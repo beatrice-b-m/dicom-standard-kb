@@ -16,6 +16,7 @@ from dicom_kb.query.citations import unique_refs
 from dicom_kb.query.conditions import (
     AttributeContextMatch,
     build_attribute_context_use_payload,
+    build_functional_group_context_use_payload,
 )
 
 
@@ -165,6 +166,64 @@ def attribute_context_uses(
                         standard_ref(iod.source_ref),
                         standard_ref(module_record.use.source_ref),
                         standard_ref(module_record.module.source_ref),
+                        standard_ref(attribute_use.source_ref),
+                    ]
+                )
+                if record.expanded_from_include is not None:
+                    refs.append(standard_ref(record.expanded_from_include.source_ref))
+                if record.included_macro is not None:
+                    refs.append(standard_ref(record.included_macro.source_ref))
+        functional_group_records = repository.list_functional_group_uses_for_iod(
+            iod.id, edition=edition
+        )
+        for functional_group_record in functional_group_records:
+            records = [
+                AttributeUseRecord(
+                    attribute_use=record.attribute_use,
+                    owner_type=record.owner_type,
+                    owner_name=record.owner_name,
+                    included_macro=record.included_macro,
+                    expanded_from_include=record.expanded_from_include,
+                    macro_path=(functional_group_record.macro.name,),
+                )
+                for record in repository.list_attribute_uses(
+                    owner_type="macro",
+                    owner_id=functional_group_record.macro.id,
+                    edition=edition,
+                )
+            ]
+            expanded_records, expansion_warnings = expand_macro_includes(
+                repository,
+                records,
+                edition=edition,
+            )
+            warnings.extend(expansion_warnings)
+            record_by_id = {
+                record.attribute_use.id: record.attribute_use
+                for record in expanded_records
+            }
+            for record in expanded_records:
+                attribute_use = record.attribute_use
+                if attribute_use.row_kind != "attribute":
+                    continue
+                if not attribute_use_matches(element, attribute_use):
+                    continue
+                uses.append(
+                    AttributeContextMatch(
+                        payload=build_functional_group_context_use_payload(
+                            iod,
+                            functional_group_record,
+                            record,
+                            record_by_id,
+                        ),
+                        type_designation=attribute_use.type_designation,
+                    )
+                )
+                refs.extend(
+                    [
+                        standard_ref(iod.source_ref),
+                        standard_ref(functional_group_record.use.source_ref),
+                        standard_ref(functional_group_record.macro.source_ref),
                         standard_ref(attribute_use.source_ref),
                     ]
                 )

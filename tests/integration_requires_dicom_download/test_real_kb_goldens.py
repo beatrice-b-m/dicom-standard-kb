@@ -239,13 +239,6 @@ def test_real_kb_sop_class_to_iod_goldens(
     _assert_ref(response.refs, part="PS3.3")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "R2 limitation: real PS3.3 include rows are currently imported as "
-        "plain attribute rows, so macro include provenance is not persisted."
-    ),
-)
 def test_real_kb_module_macro_include_expands_with_dual_provenance(
     connection: sqlite3.Connection, edition: str
 ) -> None:
@@ -278,14 +271,6 @@ def test_real_kb_module_macro_include_expands_with_dual_provenance(
     assert len({ref.anchor for ref in response.refs if ref.part == "PS3.3"}) >= 2
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "R2 limitation: Enhanced CT functional-group usage rows are not "
-        "persisted yet because the real build still reports unresolved "
-        "functional-group parser warnings."
-    ),
-)
 def test_real_kb_enhanced_ct_functional_group_context_traversal(
     connection: sqlite3.Connection, edition: str
 ) -> None:

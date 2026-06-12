@@ -50,12 +50,12 @@ Official `current` was fetched and resolved to concrete edition `2026b`, the
 local KB builds from real PS3.3/PS3.4/PS3.6 DocBook XML,
 `make test-integration` has a real-download integration tier that passes with
 local artifacts and skips cleanly without them, and the §15.2 golden entity
-set has real-KB integration assertions. Two R2 parser limitations remain
-captured as strict xfails: real PS3.3 include rows are not yet persisted as
-macro include provenance, and Enhanced CT functional-group usage rows are not
-yet persisted. These are the largest remaining gaps against v1 acceptance
-criteria 5 and 9 for real standard content (both are satisfied against
-synthetic fixtures). The repository has a working v1 foundation through:
+set has real-KB integration assertions. The former R2 parser limitations are
+now resolved for real 2026b content: official PS3.3 include rows persist as
+macro include provenance, and Enhanced-family functional-group usage rows
+persist without parser warnings. The rebuilt default-cache 2026b KB records
+1,161 include rows and 446 `iod_functional_group_use` rows. The repository
+has a working v1 foundation through:
 
 1. Work Order A: repository/build/legal scaffold.
 2. Work Order B: local source acquisition primitives.
@@ -296,43 +296,36 @@ synthetic fixtures). The repository has a working v1 foundation through:
 
 ## Verification at stop
 
-All checks below were re-run on 2026-06-12 against commit `8020648` after the
-default-cache KB rebuild:
+The full local test suite was re-run on 2026-06-12 after the real PS3.3
+include-row and functional-group parser slice and a default-cache KB rebuild:
 
 ```bash
-uv run --dev ruff check .
-uv run --dev mypy
-uv run --dev pytest
+uv run pytest
 ```
 
-- ruff: clean.
-- mypy: clean, 48 source files.
-- pytest (no external differential data, no pydicom installed): 157 passed,
-  3 skipped, 2 strict xfailed. The 3 skips are the optional external
-  differential comparisons; the 2 xfails are the documented R2 parser
-  limitations below.
+- pytest: 162 passed, 3 skipped. The skips are the optional external
+  differential comparisons when their local inputs are not configured.
 
 The default-cache 2026b KB was rebuilt from the locally cached official
-DocBook artifacts after the verification review found it stale (built at
-`0c927e1`, predating the `4abf56f` retired-marker fix; the differential tests
-failed against it with four stale retired-flag mismatches):
+DocBook artifacts:
 
 ```bash
 uv run dicom-kb build --edition 2026b --force
 ```
 
-The rebuilt KB records `repository_commit` `8020648`. The full integration
-tier was then run with both external differential sources configured:
+The earlier R7 full integration tier was run with both external differential
+sources configured:
 
 ```bash
 DICOM_KB_INNOLITICS_PATH=/Users/beatrice/TestingFiles/innolitics-dcm-standard \
   uv run --with pydicom --dev pytest tests/integration_requires_dicom_download
 ```
 
-Observed result: 41 passed, 2 strict xfailed, 0 skipped. The five accepted
-pydicom differences and five accepted Innolitics differences (four
-data-element edition skews plus one CT Image module-list edition skew) are
-recorded in
+Observed R7 result at that point included the two then-documented R2
+limitations. The current parser slice removes those xfail markers; the
+external differential sources were not re-run in this slice. The five accepted
+pydicom differences and five accepted Innolitics differences (four data-element
+edition skews plus one CT Image module-list edition skew) are recorded in
 `tests/integration_requires_dicom_download/differential_allowlist.json`;
 every entry names the external source, entity, field, classification, and
 reason.
@@ -363,24 +356,10 @@ The real 2026b build imports (re-verified against the rebuilt KB):
 
 - PS3.6: 5308 data elements, 489 UID registry entries.
 - PS3.3: 192 IODs, 403 modules, 3401 IOD module uses, 303 macros,
-  8955 attribute uses.
+  446 IOD functional-group uses, 8955 attribute uses, including 1161 include
+  rows.
 - PS3.4: 181 SOP Classes and 181 SOP Class to IOD edges.
-- 0 `iod_functional_group_use` rows (see accepted limitations below).
-
-Accepted R1 parser warning class: 446 `unresolved functional group` warnings
-from PS3.3 functional-group usage tables. The real build does not crash, and
-the R1 smoke assertions do not depend on functional-group traversal.
-
-Accepted R2 strict-xfail limitations (the remaining gaps against v1
-acceptance criteria 5 and 9 for real standard content; both criteria pass
-against synthetic fixtures):
-
-- Real PS3.3 module include rows are currently imported as plain attribute rows
-  in the real 2026b build, so `expand_macros=true` cannot yet demonstrate
-  dual include/macro provenance against official content.
-- Enhanced CT functional-group usage rows are not persisted in the real 2026b
-  build, so `resolve_attribute_context` cannot yet report a non-empty
-  `via_macro` path for an attribute reachable only through a functional group.
+- 0 PS3.3 parser warnings in the graph import slice.
 
 ## Progress review resolution status
 
@@ -390,8 +369,9 @@ resolved per their completion conditions:
 
 - R1 (real-edition validation): complete. Integration tier passes with
   artifacts and skips cleanly without them.
-- R2 (§15.2 golden coverage): complete, with the two strict xfails above as
-  the explicitly permitted documented limitations.
+- R2 (§15.2 golden coverage): complete, with the former real include-row and
+  Enhanced CT functional-group limitation markers now promoted to passing
+  integration assertions.
 - R3 (≥50 prompt cases): complete at 65 cases with enforced floors.
 - R4 (runner and transcripts): complete via the deterministic reference
   runner; real-KB transcripts remain uncommitted build outputs by design.
@@ -598,19 +578,16 @@ resolved per their completion conditions:
   real entity count floors, well-known resolver smoke assertions, §15.2
   golden coverage, the reference-runner scorecard, and the optional external
   differential comparisons.
+- Real PS3.3 include rows are classified from official `Include <xref ...>`
+  DocBook markup, persisted as `row_kind='include'` with resolved macro
+  provenance, and expanded at query time with dual include/macro citations.
+- Real PS3.3 functional-group tables resolve macros by section anchors and
+  short macro names, persist 446 functional-group usage rows for 2026b, and
+  `resolve_attribute_context` traverses those macro attributes for Enhanced CT
+  and related IODs.
 
 ## Not yet implemented
 
-- Full PS3.3 functional-group macro resolution for real standard tables. The
-  2026b build reports 446 `unresolved functional group` warnings and persists
-  zero `iod_functional_group_use` rows. This blocks the Enhanced CT
-  functional-group strict xfail and v1 acceptance criterion 9's
-  functional-group clause for real content.
-- Real PS3.3 include-row provenance. Include rows in the real 2026b build are
-  imported as plain attribute rows, so query-time macro expansion cannot
-  demonstrate dual include/macro provenance against official content (the
-  other strict xfail; v1 acceptance criterion 5's include clause for real
-  content).
 - Storage/import wiring for parsed DocBook variable lists (enumerated values
   and defined terms, §7.6) — parser exists in `docbook/variablelists.py`;
   persistence is intentionally deferred to a later value-constraint slice.
@@ -632,11 +609,7 @@ resolved per their completion conditions:
 
 ## Recommended next work order
 
-Real PS3.3 include-row and functional-group resolution: persist include rows
-from the official 2026b tables as `row_kind='include'` with resolved
-`included_macro_id`, and resolve the 446 unresolved functional-group
-references so `iod_functional_group_use` rows are persisted for the Enhanced
-family IODs. Completion flips both strict xfails in
-`tests/integration_requires_dicom_download/test_real_kb_goldens.py` to
-passes, closing v1 acceptance criteria 5 and 9 against real standard
-content.
+Value-constraint slice: persist parsed DocBook variable lists for enumerated
+values and defined terms, wire them into query responses where appropriate,
+and add focused parser/import/query tests using synthetic fixtures before
+selectively exercising real PS3.3/PS3.6 content.

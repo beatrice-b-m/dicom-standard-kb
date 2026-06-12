@@ -141,3 +141,20 @@ def test_parse_part03_functional_group_usage() -> None:
     assert use.usage == "C"
     assert use.usage_condition_text == "Required if anatomy is known"
     assert result.warnings == ()
+
+
+def test_parse_part03_resolves_functional_group_usage_by_section_anchor() -> None:
+    xml = PS33_CT_IMAGE_DOCBOOK.replace(
+        '<entry><xref linkend="table_10-7"/>General Anatomy Optional Macro</entry>',
+        '<entry>General Anatomy</entry>',
+    ).replace(
+        "<entry>10-7</entry><entry>C - Required if anatomy is known</entry>",
+        '<entry><xref linkend="sect_10.7"/></entry>'
+        "<entry>C - Required if anatomy is known</entry>",
+    )
+
+    result = parse_part03(parse_docbook_xml(xml, part="PS3.3"), edition="2026b")
+
+    assert len(result.iod_functional_group_uses) == 1
+    assert result.iod_functional_group_uses[0].macro_id == "2026b.macro.table_10_7"
+    assert result.warnings == ()

@@ -677,6 +677,38 @@ def test_resolve_attribute_context_reports_macro_path(tmp_path: Path) -> None:
     assert response.result["effective_type"] == "3"
 
 
+def test_resolve_attribute_context_traverses_functional_group_macros(
+    tmp_path: Path,
+) -> None:
+    response = resolve_attribute_context(
+        _context_connection(tmp_path),
+        attribute="AnatomicRegionSequence",
+        iod_name="Enhanced CT Image",
+        edition="2026b",
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert response.status == "ok"
+    assert response.result is not None
+    assert response.result["uses"] == [
+        {
+            "iod": "Enhanced CT Image",
+            "module": None,
+            "functional_group_macro": "General Anatomy Optional Macro",
+            "information_entity": None,
+            "module_usage": "C",
+            "module_usage_condition_text": "Required if anatomy is known",
+            "attribute_use_id": "2026b.macro.table_10_7.attribute_use.0",
+            "type_designation": "3",
+            "sequence_path": [],
+            "via_macro": ["General Anatomy Optional Macro"],
+            "condition": None,
+        }
+    ]
+    assert response.result["effective_type"] == "3"
+
+
 def test_resolve_attribute_context_computes_lowest_type_for_multiple_uses(
     tmp_path: Path,
 ) -> None:

@@ -100,6 +100,47 @@ def test_table_parser_preserves_spans_and_include_rows() -> None:
     assert following_row.cells[0].column == 1
 
 
+def test_table_parser_recognizes_xref_include_rows() -> None:
+    xml = """\
+<book xmlns="http://docbook.org/ns/docbook" xmlns:xml="http://www.w3.org/XML/1998/namespace">
+  <chapter xml:id="chapter_C">
+    <title>Modules</title>
+    <table xml:id="table_C.8-3">
+      <caption>CT Image Module Attributes</caption>
+      <thead>
+        <tr>
+          <th>Attribute Name</th><th>Tag</th><th>Type</th>
+          <th>Attribute Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td colspan="3">
+            <para>
+              <emphasis role="italic">
+                Include <xref linkend="table_10-7"/>
+              </emphasis>
+            </para>
+          </td>
+          <td>
+            <para>
+              <emphasis role="italic">Anatomic Region Sequence D.</emphasis>
+            </para>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </chapter>
+</book>
+"""
+
+    row = parse_docbook_xml(xml, part="PS3.3").tables[0].rows[1]
+
+    assert row.row_kind == "include"
+    assert row.include_table_ref == "table_10-7"
+    assert row.include_title is None
+
+
 def test_table_parser_accepts_html_table_vocabulary() -> None:
     xml = """\
 <book xmlns="http://docbook.org/ns/docbook" xmlns:xml="http://www.w3.org/XML/1998/namespace">

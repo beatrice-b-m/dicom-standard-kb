@@ -5,7 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from dicom_kb.db.repositories import AttributeUseRecord, IODModuleUseRecord
+from dicom_kb.db.repositories import (
+    AttributeUseRecord,
+    IODFunctionalGroupUseRecord,
+    IODModuleUseRecord,
+)
 from dicom_kb.ir.models import IOD, AttributeUse, Module
 
 
@@ -43,6 +47,40 @@ def build_attribute_context_use_payload(
         "information_entity": module_use.information_entity,
         "module_usage": module_use.usage,
         "module_usage_condition_text": module_use.usage_condition_text,
+        "attribute_use_id": attribute_use.id,
+        "type_designation": attribute_use.type_designation,
+        "sequence_path": sequence_path(attribute_use, record_by_id),
+        "via_macro": list(record.macro_path) if record.macro_path else None,
+        "condition": condition,
+    }
+
+
+def build_functional_group_context_use_payload(
+    iod: IOD,
+    functional_group_record: IODFunctionalGroupUseRecord,
+    record: AttributeUseRecord,
+    record_by_id: dict[str, AttributeUse],
+) -> dict[str, Any]:
+    """Assemble the public payload for a functional-group macro attribute use."""
+    attribute_use = record.attribute_use
+    functional_group_use = functional_group_record.use
+    condition = None
+    if (
+        attribute_use.type_designation is not None
+        and attribute_use.type_designation.endswith("C")
+        and attribute_use.description_text
+    ):
+        condition = {
+            "source_text": attribute_use.description_text,
+            "machine_status": "raw_text",
+        }
+    return {
+        "iod": iod.name,
+        "module": None,
+        "functional_group_macro": functional_group_record.macro.name,
+        "information_entity": None,
+        "module_usage": functional_group_use.usage,
+        "module_usage_condition_text": functional_group_use.usage_condition_text,
         "attribute_use_id": attribute_use.id,
         "type_designation": attribute_use.type_designation,
         "sequence_path": sequence_path(attribute_use, record_by_id),

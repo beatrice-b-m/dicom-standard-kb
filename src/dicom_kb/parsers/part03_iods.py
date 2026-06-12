@@ -29,6 +29,7 @@ FUNCTIONAL_GROUP_TITLE_RE = re.compile(
 MODULE_ATTR_TITLE_RE = re.compile(r"^(?P<name>.+?)\s+Module\s+Attributes?$", re.I)
 MACRO_TITLE_RE = re.compile(r"^(?P<name>.+?\bMacro)\s+Attributes?$", re.I)
 DEPTH_RE = re.compile(r"^(?P<marks>>+)\s*(?P<name>.*)$")
+INCLUDE_TEXT_RE = re.compile(r"^>*\s*Include$", re.I)
 
 
 @dataclass(frozen=True)
@@ -281,8 +282,9 @@ def _parse_attribute_table(
                     owner_id=owner_id,
                     row_kind="include",
                     included_macro_id=macro.id if macro else None,
-                    include_target_text=_row_text(row),
+                    include_target_text=_include_target_text(row),
                     row_order=order,
+                    sequence_depth=_include_depth(row),
                     source_ref=source_ref,
                 )
             )
@@ -369,10 +371,21 @@ def _macro_from_table(table: ParsedTable, edition: str) -> Macro:
 def _macro_ref_index(macros: Iterable[Macro]) -> dict[str, Macro]:
     index: dict[str, Macro] = {}
     for macro in macros:
-        for value in (macro.table_id, macro.name):
+        for value in _macro_ref_values(macro):
             if value:
                 index[_ref_key(value)] = macro
     return index
+
+
+def _macro_ref_values(macro: Macro) -> tuple[str | None, ...]:
+    short_name = re.sub(r"\s+Macro$", "", macro.name, flags=re.I)
+    return (
+        macro.table_id,
+        macro.name,
+        short_name if short_name != macro.name else None,
+        macro.source_ref.section,
+        macro.source_ref.xml_id,
+    )
 
 
 def _macro_for_row(
@@ -474,6 +487,23 @@ def _key(value: str) -> str:
 
 def _row_text(row: ParsedRow) -> str:
     return normalize_text(" ".join(cell.text for cell in row.cells))
+
+
+def _include_target_text(row: ParsedRow) -> str:
+    if row.include_table_ref and row.cells:
+        first_text = normalize_text(row.cells[0].text)
+        if INCLUDE_TEXT_RE.match(first_text):
+            suffix = normalize_text(" ".join(cell.text for cell in row.cells[1:]))
+            return normalize_text(f"{first_text} {row.include_table_ref} {suffix}")
+    return _row_text(row)
+
+
+def _include_depth(row: ParsedRow) -> int:
+    if not row.cells:
+        return 0
+    normalized = normalize_text(row.cells[0].text)
+    match = DEPTH_RE.match(normalized)
+    return len(match.group("marks")) if match else 0
 
 
 def _warning(table: ParsedTable, row: ParsedRow, message: str) -> ParserWarning:

@@ -11,6 +11,7 @@ from dicom_kb.ir.models import (
     AttributeUse,
     DataElement,
     DocNode,
+    IODFunctionalGroupUse,
     IODModuleUse,
     Macro,
     Module,
@@ -29,6 +30,14 @@ class IODModuleUseRecord:
 
     use: IODModuleUse
     module: Module
+
+
+@dataclass(frozen=True)
+class IODFunctionalGroupUseRecord:
+    """A functional-group-use edge joined to its macro definition."""
+
+    use: IODFunctionalGroupUse
+    macro: Macro
 
 
 @dataclass(frozen=True)
@@ -366,6 +375,57 @@ class Part03Repository:
             IODModuleUseRecord(
                 use=_iod_module_use_from_prefixed_row(row),
                 module=_module_from_prefixed_row(row, "module"),
+            )
+            for row in sorted(rows, key=lambda row: _id_order(str(row["use_id"])))
+        ]
+
+    def list_functional_group_uses_for_iod(
+        self, iod_id: str, *, edition: str
+    ) -> list[IODFunctionalGroupUseRecord]:
+        """Return functional-group macros listed by an IOD in table order."""
+        rows = self.connection.execute(
+            """
+            SELECT
+              fg.id AS use_id,
+              fg.edition_id AS use_edition_id,
+              fg.iod_id AS use_iod_id,
+              fg.macro_id AS use_macro_id,
+              fg.usage AS use_usage,
+              fg.usage_condition_text AS use_usage_condition_text,
+              fg.condition_id AS use_condition_id,
+              fg.source_ref_id AS use_source_ref_id,
+              use_sr.part AS use_source_part,
+              use_sr.section AS use_source_section,
+              use_sr.table_id AS use_source_table_id,
+              use_sr.xml_id AS use_source_xml_id,
+              use_sr.title AS use_source_title,
+              use_sr.canonical_url AS use_source_url,
+              m.id AS macro_id,
+              m.edition_id AS macro_edition_id,
+              m.name AS macro_name,
+              m.table_id AS macro_table_id,
+              m.section AS macro_section,
+              m.macro_kind AS macro_macro_kind,
+              m.source_ref_id AS macro_source_ref_id,
+              macro_sr.part AS macro_source_part,
+              macro_sr.section AS macro_source_section,
+              macro_sr.table_id AS macro_source_table_id,
+              macro_sr.xml_id AS macro_source_xml_id,
+              macro_sr.title AS macro_source_title,
+              macro_sr.canonical_url AS macro_source_url
+            FROM iod_functional_group_use fg
+            JOIN macro m ON m.id = fg.macro_id
+            JOIN source_ref use_sr ON use_sr.id = fg.source_ref_id
+            JOIN source_ref macro_sr ON macro_sr.id = m.source_ref_id
+            WHERE fg.edition_id = ? AND fg.iod_id = ?
+            ORDER BY fg.id
+            """,
+            (edition, iod_id),
+        ).fetchall()
+        return [
+            IODFunctionalGroupUseRecord(
+                use=_iod_functional_group_use_from_prefixed_row(row),
+                macro=_macro_from_prefixed_row(row, "macro"),
             )
             for row in sorted(rows, key=lambda row: _id_order(str(row["use_id"])))
         ]
@@ -772,6 +832,21 @@ def _iod_module_use_from_prefixed_row(row: sqlite3.Row) -> IODModuleUse:
         iod_id=str(row["use_iod_id"]),
         information_entity=row["use_information_entity"],
         module_id=str(row["use_module_id"]),
+        usage=str(row["use_usage"]),
+        usage_condition_text=row["use_usage_condition_text"],
+        condition_id=row["use_condition_id"],
+        source_ref=_source_ref_from_prefixed_row(row, "use"),
+    )
+
+
+def _iod_functional_group_use_from_prefixed_row(
+    row: sqlite3.Row,
+) -> IODFunctionalGroupUse:
+    return IODFunctionalGroupUse(
+        id=str(row["use_id"]),
+        edition_id=str(row["use_edition_id"]),
+        iod_id=str(row["use_iod_id"]),
+        macro_id=str(row["use_macro_id"]),
         usage=str(row["use_usage"]),
         usage_condition_text=row["use_usage_condition_text"],
         condition_id=row["use_condition_id"],
