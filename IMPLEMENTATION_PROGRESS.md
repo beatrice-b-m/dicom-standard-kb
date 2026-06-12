@@ -4,9 +4,9 @@ Last updated: 2026-06-12
 
 ## Current stopping point
 
-Stopped after adding official current-release DocBook XML fetch over the
-existing cache manifest/build workflow. The repository now has a working v1
-foundation through:
+Stopped after extending official current-release source acquisition beyond
+DocBook XML while preserving the existing cache manifest/build workflow. The
+repository now has a working v1 foundation through:
 
 1. Work Order A: repository/build/legal scaffold.
 2. Work Order B: local source acquisition primitives.
@@ -75,6 +75,10 @@ foundation through:
     including concrete edition discovery from DICOM release metadata,
     immutable manifest writing, CLI `dicom-kb fetch --edition current`, and
     offline unit coverage with mocked URL reads.
+25. Optional official current-release artifact fetch for per-part PDF, HTML,
+    CHTML entry page, and target database files via repeatable
+    `dicom-kb fetch --format`, with format-specific cache paths and mocked
+    offline CLI/downloader coverage.
 
 ## Completed commits
 
@@ -112,10 +116,13 @@ foundation through:
 - `8f3b719 feat(eval): add agent regression scoring`
 - `0d7d4f6 docs(progress): record agent scoring harness`
 - `1210ba8 feat(sources): fetch official DocBook artifacts`
+- `d3fd7b6 docs(progress): record official fetch slice`
+- `1dbba9b feat(sources): fetch additional official formats`
 
 ## Verification at stop
 
-The following offline checks passed after the official DocBook fetch work:
+The following offline checks passed after the additional official artifact
+format fetch work:
 
 ```bash
 uv run --dev ruff check .
@@ -123,7 +130,7 @@ uv run --dev mypy
 uv run --dev pytest
 ```
 
-Observed test count: 88 passing tests.
+Observed test count: 92 passing tests.
 
 ## Implemented behavior
 
@@ -138,6 +145,9 @@ Observed test count: 88 passing tests.
 - Official DocBook XML download into the external cache for the v1 parsed
   parts PS3.3, PS3.4, and PS3.6, with optional `--part` filtering and
   source URLs/checksums recorded in manifests.
+- Optional official PDF, single-page HTML, CHTML part-entry page, and target
+  database download into the external cache with repeatable `--format`
+  selection and source URLs/checksums recorded in manifests.
 - Namespace-aware DocBook section, table, span, xref, and include-row parsing.
 - DocBook section/table parent and ordinal metadata for persistent structure
   storage.
@@ -225,8 +235,7 @@ Observed test count: 88 passing tests.
   JSON envelope.
 - `dicom-kb fetch` command that registers local DocBook XML artifacts via
   repeatable `--docbook-xml PART=PATH` arguments or downloads official
-  current-release DocBook XML artifacts into the immutable external cache
-  manifest.
+  current-release artifacts into the immutable external cache manifest.
 - `dicom-kb build` command that reads cached manifest artifacts and builds a
   local SQLite KB under `~/.cache/dicom-standard-kb/db/<edition>.sqlite` by
   default, with optional `--db`, `--cache-dir`, `--backend sqlite`, and
@@ -266,11 +275,13 @@ Observed test count: 88 passing tests.
 
 ## Not yet implemented
 
-- Historical/non-current official edition archive discovery. Official fetch
-  currently downloads from the DICOM `current` release and rejects a concrete
-  edition if it does not match the discovered current edition.
-- Official fetch currently downloads v1 DocBook XML parts only; PDF, HTML,
-  CHTML, target database, and release archive acquisition are still pending.
+- Historical release archive acquisition is still pending. Official fetch
+  currently targets the mutable current-release directory and rejects a
+  concrete edition if it does not match the discovered current edition.
+- Full release archive acquisition and recursive CHTML tree mirroring are
+  still pending. Current explicit `--format` support caches per-part
+  DocBook XML, PDF, single-page HTML, CHTML part-entry page, and target
+  database files.
 - Full PS3.3 parser coverage beyond the first v1 CT-style synthetic fixture
   slice, including broader real-standard table variants.
 - Spec query-layer modules beyond `query/resolver.py`: `query/graph.py`,
