@@ -7,10 +7,12 @@ from typing import Any
 from typer.testing import CliRunner
 
 from dicom_kb.cli.main import app
-from dicom_kb.db.importers import import_part06
+from dicom_kb.db.importers import import_part03, import_part06
 from dicom_kb.db.models import apply_migrations, connect_sqlite
 from dicom_kb.docbook.parser import parse_docbook_xml
+from dicom_kb.parsers.part03_iods import parse_part03
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
+from tests.unit.test_part03_parser import PS33_FIXTURE
 from tests.unit.test_part06_parser import PS36_FIXTURE
 
 
@@ -27,6 +29,20 @@ def _fixture_db(tmp_path: Path) -> Path:
         edition="2026b",
         data_elements=parsed.data_elements,
         uid_registry_entries=parsed.uid_registry_entries,
+    )
+    parsed_part03 = parse_part03(
+        parse_docbook_xml(PS33_FIXTURE, part="PS3.3"),
+        edition="2026b",
+    )
+    import_part03(
+        connection,
+        edition="2026b",
+        iods=parsed_part03.iods,
+        modules=parsed_part03.modules,
+        macros=parsed_part03.macros,
+        iod_module_uses=parsed_part03.iod_module_uses,
+        iod_functional_group_uses=parsed_part03.iod_functional_group_uses,
+        attribute_uses=parsed_part03.attribute_uses,
     )
     connection.close()
     return db_path
@@ -129,3 +145,46 @@ def test_cli_lookup_tag_requires_existing_db(tmp_path: Path) -> None:
 
     assert result.exit_code != 0
     assert "SQLite KB does not exist" in result.output
+
+
+def test_cli_iod_modules_outputs_ps33_module_envelope(tmp_path: Path) -> None:
+    payload = _invoke_json(
+        tmp_path,
+        "iod",
+        "modules",
+        "CT Image",
+        "--edition",
+        "2026b",
+    )
+
+    assert payload["tool"] == "list_modules_for_iod"
+    assert payload["status"] == "ok"
+    assert payload["result"]["iod"]["name"] == "CT Image"
+    assert [row["module_name"] for row in payload["result"]["modules"]] == [
+        "Patient",
+        "Contrast/Bolus",
+        "CT Image",
+    ]
+    assert payload["refs"][0]["part"] == "PS3.3"
+
+
+def test_cli_module_attributes_expands_macros(tmp_path: Path) -> None:
+    payload = _invoke_json(
+        tmp_path,
+        "module",
+        "attributes",
+        "Patient",
+        "--edition",
+        "2026b",
+        "--expand-macros",
+    )
+
+    assert payload["tool"] == "list_attributes_for_module"
+    assert payload["status"] == "ok"
+    assert payload["result"]["module"]["name"] == "Patient"
+    assert payload["result"]["attributes"][-1]["attribute_name"] == (
+        "Anatomic Region Sequence"
+    )
+    assert payload["result"]["attributes"][-1]["expanded_from_include_id"] == (
+        "2026b.module.patient.attribute_use.3"
+    )

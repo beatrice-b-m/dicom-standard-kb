@@ -5,7 +5,12 @@ from __future__ import annotations
 import sqlite3
 from datetime import datetime
 
-from dicom_kb.db.repositories import DataElementRepository, UIDRepository
+from dicom_kb.db.repositories import (
+    AttributeUseRecord,
+    DataElementRepository,
+    Part03Repository,
+    UIDRepository,
+)
 from dicom_kb.ir.validators import (
     IdentifierValidationError,
     normalize_tag,
@@ -13,8 +18,11 @@ from dicom_kb.ir.validators import (
 )
 from dicom_kb.query.answer_contracts import (
     ResponseTrace,
+    StandardRef,
     ToolResponse,
     data_element_result,
+    iod_modules_result,
+    module_attributes_result,
     standard_ref,
     uid_result,
 )
@@ -130,6 +138,121 @@ def lookup_uid(
     )
 
 
+def list_modules_for_iod(
+    connection: sqlite3.Connection,
+    *,
+    iod_name: str,
+    edition: str,
+    query_id: str | None = None,
+    resolved_at: datetime | None = None,
+) -> ToolResponse:
+    """List PS3.3 modules attached to an IOD."""
+    trace = _trace(
+        connection,
+        edition=edition,
+        query_id=query_id,
+        resolved_at=resolved_at,
+    )
+    response_input = {"iod_name": iod_name}
+    repository = Part03Repository(connection)
+    iod = repository.find_iod_by_name_or_keyword(iod_name, edition=edition)
+    if iod is None:
+        return ToolResponse(
+            edition=edition,
+            tool="list_modules_for_iod",
+            input=response_input,
+            status="not_found",
+            result={"message": "No DICOM IOD matched the input."},
+            trace=trace,
+        )
+
+    records = repository.list_module_uses_for_iod(iod.id, edition=edition)
+    refs = _unique_refs(
+        [standard_ref(iod.source_ref)]
+        + [
+            ref
+            for record in records
+            for ref in (
+                standard_ref(record.use.source_ref),
+                standard_ref(record.module.source_ref),
+            )
+        ]
+    )
+    return ToolResponse(
+        edition=edition,
+        tool="list_modules_for_iod",
+        input=response_input,
+        status="ok",
+        result=iod_modules_result(iod, records),
+        refs=refs,
+        trace=trace,
+    )
+
+
+def list_attributes_for_module(
+    connection: sqlite3.Connection,
+    *,
+    module_name: str,
+    edition: str,
+    expand_macros: bool = False,
+    query_id: str | None = None,
+    resolved_at: datetime | None = None,
+) -> ToolResponse:
+    """List PS3.3 attributes attached to a module."""
+    trace = _trace(
+        connection,
+        edition=edition,
+        query_id=query_id,
+        resolved_at=resolved_at,
+    )
+    response_input = {
+        "module_name": module_name,
+        "expand_macros": str(expand_macros).lower(),
+    }
+    repository = Part03Repository(connection)
+    module = repository.find_module_by_name(module_name, edition=edition)
+    if module is None:
+        return ToolResponse(
+            edition=edition,
+            tool="list_attributes_for_module",
+            input=response_input,
+            status="not_found",
+            result={"message": "No DICOM module matched the input."},
+            trace=trace,
+        )
+
+    records = repository.list_attribute_uses(
+        owner_type="module",
+        owner_id=module.id,
+        edition=edition,
+    )
+    if expand_macros:
+        records = _expand_macro_includes(repository, records, edition=edition)
+    refs = _unique_refs(
+        [standard_ref(module.source_ref)]
+        + [standard_ref(record.attribute_use.source_ref) for record in records]
+        + [
+            standard_ref(record.included_macro.source_ref)
+            for record in records
+            if record.included_macro is not None
+        ]
+        + [
+            standard_ref(record.expanded_from_include.source_ref)
+            for record in records
+            if record.expanded_from_include is not None
+        ]
+    )
+    return ToolResponse(
+        edition=edition,
+        tool="list_attributes_for_module",
+        input=response_input,
+        status="ok",
+        result=module_attributes_result(module, records),
+        refs=refs,
+        trace=trace,
+    )
+
+
 def _looks_like_tag(value: str) -> bool:
     return any(marker in value for marker in ("(", ")", ","))
 
@@ -167,3 +290,40 @@ def _trace(
             source_manifest_sha256=manifest_sha256,
         )
     return ResponseTrace(source_manifest_sha256=manifest_sha256)
+
+
+def _expand_macro_includes(
+    repository: Part03Repository,
+    records: list[AttributeUseRecord],
+    *,
+    edition: str,
+) -> list[AttributeUseRecord]:
+    expanded: list[AttributeUseRecord] = []
+    for record in records:
+        expanded.append(record)
+        if record.attribute_use.row_kind != "include" or record.included_macro is None:
+            continue
+        macro_records = repository.list_attribute_uses(
+            owner_type="macro",
+            owner_id=record.included_macro.id,
+            edition=edition,
+        )
+        expanded.extend(
+            AttributeUseRecord(
+                attribute_use=macro_record.attribute_use,
+                owner_type="macro",
+                owner_name=record.included_macro.name,
+                included_macro=macro_record.included_macro,
+                expanded_from_include=record.attribute_use,
+            )
+            for macro_record in macro_records
+        )
+    return expanded
+
+
+def _unique_refs(refs: list[StandardRef]) -> list[StandardRef]:
+    unique: dict[tuple[tuple[str, object], ...], StandardRef] = {}
+    for ref in refs:
+        key = tuple(ref.model_dump(mode="json").items())
+        unique[key] = ref
+    return list(unique.values())

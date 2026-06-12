@@ -4,11 +4,18 @@ import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 
-from dicom_kb.db.importers import import_part06
+from dicom_kb.db.importers import import_part03, import_part06
 from dicom_kb.db.models import apply_migrations, connect_sqlite
 from dicom_kb.docbook.parser import parse_docbook_xml
+from dicom_kb.parsers.part03_iods import parse_part03
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
-from dicom_kb.query.resolver import lookup_data_element, lookup_uid
+from dicom_kb.query.resolver import (
+    list_attributes_for_module,
+    list_modules_for_iod,
+    lookup_data_element,
+    lookup_uid,
+)
+from tests.unit.test_part03_parser import PS33_FIXTURE
 from tests.unit.test_part06_parser import PS36_FIXTURE
 
 RESOLVED_AT = datetime(2026, 6, 11, tzinfo=UTC)
@@ -26,6 +33,26 @@ def _connection(tmp_path: Path) -> sqlite3.Connection:
         edition="2026b",
         data_elements=parsed.data_elements,
         uid_registry_entries=parsed.uid_registry_entries,
+    )
+    return connection
+
+
+def _part03_connection(tmp_path: Path) -> sqlite3.Connection:
+    connection = connect_sqlite(tmp_path / "kb.sqlite")
+    apply_migrations(connection)
+    parsed = parse_part03(
+        parse_docbook_xml(PS33_FIXTURE, part="PS3.3"),
+        edition="2026b",
+    )
+    import_part03(
+        connection,
+        edition="2026b",
+        iods=parsed.iods,
+        modules=parsed.modules,
+        macros=parsed.macros,
+        iod_module_uses=parsed.iod_module_uses,
+        iod_functional_group_uses=parsed.iod_functional_group_uses,
+        attribute_uses=parsed.attribute_uses,
     )
     return connection
 
@@ -147,3 +174,119 @@ def test_lookup_uid_reports_retired_entry(tmp_path: Path) -> None:
         "retired": True,
     }
     assert response.refs[0].part == "PS3.6"
+
+
+def test_list_modules_for_iod_returns_ordered_ps33_modules(tmp_path: Path) -> None:
+    response = list_modules_for_iod(
+        _part03_connection(tmp_path),
+        iod_name="CT Image",
+        edition="2026b",
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert response.status == "ok"
+    assert response.result is not None
+    assert response.result["iod"]["name"] == "CT Image"
+    assert response.result["modules"] == [
+        {
+            "module_id": "2026b.module.patient",
+            "module_name": "Patient",
+            "section": "table_C.7-1",
+            "information_entity": "Patient",
+            "usage": "M",
+            "usage_condition_text": None,
+        },
+        {
+            "module_id": "2026b.module.contrast_bolus",
+            "module_name": "Contrast/Bolus",
+            "section": "C.7.6.4",
+            "information_entity": "Image",
+            "usage": "C",
+            "usage_condition_text": "Required if contrast media was used",
+        },
+        {
+            "module_id": "2026b.module.ct_image",
+            "module_name": "CT Image",
+            "section": "C.8.2.1",
+            "information_entity": "Image",
+            "usage": "M",
+            "usage_condition_text": None,
+        },
+    ]
+    assert {ref.part for ref in response.refs} == {"PS3.3"}
+
+
+def test_list_modules_for_iod_returns_not_found(tmp_path: Path) -> None:
+    response = list_modules_for_iod(
+        _part03_connection(tmp_path),
+        iod_name="Missing IOD",
+        edition="2026b",
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert response.status == "not_found"
+    assert response.result == {"message": "No DICOM IOD matched the input."}
+    assert response.refs == []
+
+
+def test_list_attributes_for_module_preserves_include_rows(tmp_path: Path) -> None:
+    response = list_attributes_for_module(
+        _part03_connection(tmp_path),
+        module_name="Patient",
+        edition="2026b",
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert response.status == "ok"
+    assert response.result is not None
+    assert response.result["module"]["name"] == "Patient"
+    attributes = response.result["attributes"]
+    assert [row["row_kind"] for row in attributes] == [
+        "attribute",
+        "attribute",
+        "attribute",
+        "include",
+    ]
+    assert attributes[0]["attribute_tag"] == "(0010,0010)"
+    assert attributes[2]["parent_attribute_use_id"] == (
+        "2026b.module.patient.attribute_use.1"
+    )
+    assert attributes[3]["included_macro_name"] == "General Anatomy Optional Macro"
+
+
+def test_list_attributes_for_module_expands_macros_after_include(
+    tmp_path: Path,
+) -> None:
+    response = list_attributes_for_module(
+        _part03_connection(tmp_path),
+        module_name="Patient",
+        edition="2026b",
+        expand_macros=True,
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert response.status == "ok"
+    assert response.result is not None
+    attributes = response.result["attributes"]
+    assert [
+        row["attribute_name"] for row in attributes if row["row_kind"] == "attribute"
+    ] == [
+        "Patient's Name",
+        "Referenced Patient Sequence",
+        "Referenced SOP Class UID",
+        "Anatomic Region Sequence",
+    ]
+    expanded = attributes[-1]
+    assert expanded["owner_type"] == "macro"
+    assert expanded["owner_name"] == "General Anatomy Optional Macro"
+    assert expanded["expanded_from_include_id"] == (
+        "2026b.module.patient.attribute_use.3"
+    )
+    assert {ref.table for ref in response.refs} >= {
+        "Patient Module Attributes",
+        "General Anatomy Optional Macro Attributes",
+    }

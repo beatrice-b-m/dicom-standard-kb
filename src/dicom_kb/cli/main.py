@@ -11,11 +11,20 @@ import typer
 
 from dicom_kb.metadata import LEGAL_NOTICE, __version__
 from dicom_kb.query.answer_contracts import ToolResponse
-from dicom_kb.query.resolver import lookup_data_element, lookup_uid
+from dicom_kb.query.resolver import (
+    list_attributes_for_module,
+    list_modules_for_iod,
+    lookup_data_element,
+    lookup_uid,
+)
 
 app = typer.Typer(help="Build and query a local DICOM standard knowledge base.")
 lookup_app = typer.Typer(help="Run exact lookups against a local SQLite KB.")
+iod_app = typer.Typer(help="Query PS3.3 IOD graph records.")
+module_app = typer.Typer(help="Query PS3.3 module graph records.")
 app.add_typer(lookup_app, name="lookup")
+app.add_typer(iod_app, name="iod")
+app.add_typer(module_app, name="module")
 
 
 @app.callback()
@@ -89,6 +98,66 @@ def lookup_uid_command(
                 connection,
                 uid_or_keyword=uid_or_keyword,
                 edition=edition,
+            )
+        )
+
+
+@iod_app.command("modules")
+def iod_modules(
+    iod_name: Annotated[
+        str,
+        typer.Argument(help="DICOM IOD name or keyword, for example 'CT Image'."),
+    ],
+    db: Annotated[
+        Path,
+        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
+    ],
+    edition: Annotated[
+        str,
+        typer.Option("--edition", help="Concrete DICOM edition label."),
+    ],
+) -> None:
+    """List PS3.3 modules used by an IOD."""
+    with _connect_existing_db(db) as connection:
+        _echo_response(
+            list_modules_for_iod(
+                connection,
+                iod_name=iod_name,
+                edition=edition,
+            )
+        )
+
+
+@module_app.command("attributes")
+def module_attributes(
+    module_name: Annotated[
+        str,
+        typer.Argument(help="DICOM module name, for example 'Patient'."),
+    ],
+    db: Annotated[
+        Path,
+        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
+    ],
+    edition: Annotated[
+        str,
+        typer.Option("--edition", help="Concrete DICOM edition label."),
+    ],
+    expand_macros: Annotated[
+        bool,
+        typer.Option(
+            "--expand-macros/--no-expand-macros",
+            help="Inline attributes from included macros after each include row.",
+        ),
+    ] = False,
+) -> None:
+    """List PS3.3 attributes used by a module."""
+    with _connect_existing_db(db) as connection:
+        _echo_response(
+            list_attributes_for_module(
+                connection,
+                module_name=module_name,
+                edition=edition,
+                expand_macros=expand_macros,
             )
         )
 

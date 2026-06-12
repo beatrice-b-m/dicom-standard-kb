@@ -3,10 +3,39 @@
 from __future__ import annotations
 
 import sqlite3
+from dataclasses import dataclass
 from typing import cast
 
-from dicom_kb.ir.models import DataElement, SourceRef, UIDRegistryEntry
+from dicom_kb.ir.models import (
+    IOD,
+    AttributeUse,
+    DataElement,
+    IODModuleUse,
+    Macro,
+    Module,
+    SourceRef,
+    UIDRegistryEntry,
+)
 from dicom_kb.ir.validators import IdentifierValidationError, normalize_tag, tag_matches
+
+
+@dataclass(frozen=True)
+class IODModuleUseRecord:
+    """A module-use edge joined to its module definition."""
+
+    use: IODModuleUse
+    module: Module
+
+
+@dataclass(frozen=True)
+class AttributeUseRecord:
+    """An attribute-use row with query-time expansion context."""
+
+    attribute_use: AttributeUse
+    owner_type: str
+    owner_name: str
+    included_macro: Macro | None = None
+    expanded_from_include: AttributeUse | None = None
 
 
 class DataElementRepository:
@@ -100,6 +129,223 @@ class UIDRepository:
         return _uid_from_row(row) if row else None
 
 
+class Part03Repository:
+    """Lookup and traverse imported PS3.3 IOD/module/macro graph records."""
+
+    def __init__(self, connection: sqlite3.Connection) -> None:
+        self.connection = connection
+
+    def find_iod_by_name_or_keyword(
+        self, name_or_keyword: str, *, edition: str
+    ) -> IOD | None:
+        """Return an IOD by exact name or keyword."""
+        row = self.connection.execute(
+            """
+            SELECT i.*, sr.part AS source_part, sr.section AS source_section,
+                   sr.table_id AS source_table_id, sr.xml_id AS source_xml_id,
+                   sr.title AS source_title, sr.canonical_url AS source_url
+            FROM iod i
+            JOIN source_ref sr ON sr.id = i.source_ref_id
+            WHERE i.edition_id = ?
+              AND (lower(i.name) = lower(?) OR lower(i.keyword) = lower(?))
+            """,
+            (edition, name_or_keyword, name_or_keyword),
+        ).fetchone()
+        return _iod_from_row(row) if row else None
+
+    def find_module_by_name(self, name: str, *, edition: str) -> Module | None:
+        """Return a module by exact name."""
+        row = self.connection.execute(
+            """
+            SELECT m.*, sr.part AS source_part, sr.section AS source_section,
+                   sr.table_id AS source_table_id, sr.xml_id AS source_xml_id,
+                   sr.title AS source_title, sr.canonical_url AS source_url
+            FROM module m
+            JOIN source_ref sr ON sr.id = m.source_ref_id
+            WHERE m.edition_id = ? AND lower(m.name) = lower(?)
+            ORDER BY m.section IS NULL, m.section
+            LIMIT 1
+            """,
+            (edition, name),
+        ).fetchone()
+        return _module_from_row(row) if row else None
+
+    def find_macro_by_name_or_table(
+        self, name_or_table: str, *, edition: str
+    ) -> Macro | None:
+        """Return a macro by exact name or table/xml id."""
+        row = self.connection.execute(
+            """
+            SELECT m.*, sr.part AS source_part, sr.section AS source_section,
+                   sr.table_id AS source_table_id, sr.xml_id AS source_xml_id,
+                   sr.title AS source_title, sr.canonical_url AS source_url
+            FROM macro m
+            JOIN source_ref sr ON sr.id = m.source_ref_id
+            WHERE m.edition_id = ?
+              AND (lower(m.name) = lower(?) OR lower(m.table_id) = lower(?))
+            """,
+            (edition, name_or_table, name_or_table),
+        ).fetchone()
+        return _macro_from_row(row) if row else None
+
+    def list_module_uses_for_iod(
+        self, iod_id: str, *, edition: str
+    ) -> list[IODModuleUseRecord]:
+        """Return modules listed by an IOD in table order."""
+        rows = self.connection.execute(
+            """
+            SELECT
+              imu.id AS use_id,
+              imu.edition_id AS use_edition_id,
+              imu.iod_id AS use_iod_id,
+              imu.information_entity AS use_information_entity,
+              imu.module_id AS use_module_id,
+              imu.usage AS use_usage,
+              imu.usage_condition_text AS use_usage_condition_text,
+              imu.condition_id AS use_condition_id,
+              imu.source_ref_id AS use_source_ref_id,
+              use_sr.part AS use_source_part,
+              use_sr.section AS use_source_section,
+              use_sr.table_id AS use_source_table_id,
+              use_sr.xml_id AS use_source_xml_id,
+              use_sr.title AS use_source_title,
+              use_sr.canonical_url AS use_source_url,
+              m.id AS module_id,
+              m.edition_id AS module_edition_id,
+              m.name AS module_name,
+              m.section AS module_section,
+              m.description AS module_description,
+              m.source_ref_id AS module_source_ref_id,
+              module_sr.part AS module_source_part,
+              module_sr.section AS module_source_section,
+              module_sr.table_id AS module_source_table_id,
+              module_sr.xml_id AS module_source_xml_id,
+              module_sr.title AS module_source_title,
+              module_sr.canonical_url AS module_source_url
+            FROM iod_module_use imu
+            JOIN module m ON m.id = imu.module_id
+            JOIN source_ref use_sr ON use_sr.id = imu.source_ref_id
+            JOIN source_ref module_sr ON module_sr.id = m.source_ref_id
+            WHERE imu.edition_id = ? AND imu.iod_id = ?
+            ORDER BY imu.id
+            """,
+            (edition, iod_id),
+        ).fetchall()
+        return [
+            IODModuleUseRecord(
+                use=_iod_module_use_from_prefixed_row(row),
+                module=_module_from_prefixed_row(row, "module"),
+            )
+            for row in sorted(rows, key=lambda row: _id_order(str(row["use_id"])))
+        ]
+
+    def list_attribute_uses(
+        self, *, owner_type: str, owner_id: str, edition: str
+    ) -> list[AttributeUseRecord]:
+        """Return attribute rows for a module or macro in table order."""
+        rows = self.connection.execute(
+            """
+            SELECT
+              au.id AS attribute_id,
+              au.edition_id AS attribute_edition_id,
+              au.owner_type AS attribute_owner_type,
+              au.owner_id AS attribute_owner_id,
+              au.parent_attribute_use_id AS attribute_parent_attribute_use_id,
+              au.row_kind AS attribute_row_kind,
+              au.attribute_tag AS attribute_attribute_tag,
+              au.attribute_keyword AS attribute_attribute_keyword,
+              au.attribute_name AS attribute_attribute_name,
+              au.type_designation AS attribute_type_designation,
+              au.description_text AS attribute_description_text,
+              au.condition_id AS attribute_condition_id,
+              au.included_macro_id AS attribute_included_macro_id,
+              au.include_target_text AS attribute_include_target_text,
+              au.sequence_depth AS attribute_sequence_depth,
+              au.row_order AS attribute_row_order,
+              au.source_ref_id AS attribute_source_ref_id,
+              attr_sr.part AS attribute_source_part,
+              attr_sr.section AS attribute_source_section,
+              attr_sr.table_id AS attribute_source_table_id,
+              attr_sr.xml_id AS attribute_source_xml_id,
+              attr_sr.title AS attribute_source_title,
+              attr_sr.canonical_url AS attribute_source_url,
+              im.id AS macro_id,
+              im.edition_id AS macro_edition_id,
+              im.name AS macro_name,
+              im.table_id AS macro_table_id,
+              im.section AS macro_section,
+              im.macro_kind AS macro_macro_kind,
+              im.source_ref_id AS macro_source_ref_id,
+              macro_sr.part AS macro_source_part,
+              macro_sr.section AS macro_source_section,
+              macro_sr.table_id AS macro_source_table_id,
+              macro_sr.xml_id AS macro_source_xml_id,
+              macro_sr.title AS macro_source_title,
+              macro_sr.canonical_url AS macro_source_url
+            FROM attribute_use au
+            JOIN source_ref attr_sr ON attr_sr.id = au.source_ref_id
+            LEFT JOIN macro im ON im.id = au.included_macro_id
+            LEFT JOIN source_ref macro_sr ON macro_sr.id = im.source_ref_id
+            WHERE au.edition_id = ?
+              AND au.owner_type = ?
+              AND au.owner_id = ?
+            ORDER BY au.row_order
+            """,
+            (edition, owner_type, owner_id),
+        ).fetchall()
+        owner_name = self._owner_name(owner_type, owner_id, edition=edition)
+        return [
+            AttributeUseRecord(
+                attribute_use=_attribute_use_from_prefixed_row(row),
+                owner_type=owner_type,
+                owner_name=owner_name,
+                included_macro=(
+                    _macro_from_prefixed_row(row, "macro")
+                    if row["macro_id"] is not None
+                    else None
+                ),
+            )
+            for row in rows
+        ]
+
+    def _owner_name(self, owner_type: str, owner_id: str, *, edition: str) -> str:
+        if owner_type == "module":
+            module = self.find_module_by_id(owner_id, edition=edition)
+            return module.name if module else owner_id
+        if owner_type == "macro":
+            macro = self.find_macro_by_id(owner_id, edition=edition)
+            return macro.name if macro else owner_id
+        return owner_id
+
+    def find_module_by_id(self, module_id: str, *, edition: str) -> Module | None:
+        row = self.connection.execute(
+            """
+            SELECT m.*, sr.part AS source_part, sr.section AS source_section,
+                   sr.table_id AS source_table_id, sr.xml_id AS source_xml_id,
+                   sr.title AS source_title, sr.canonical_url AS source_url
+            FROM module m
+            JOIN source_ref sr ON sr.id = m.source_ref_id
+            WHERE m.edition_id = ? AND m.id = ?
+            """,
+            (edition, module_id),
+        ).fetchone()
+        return _module_from_row(row) if row else None
+
+    def find_macro_by_id(self, macro_id: str, *, edition: str) -> Macro | None:
+        row = self.connection.execute(
+            """
+            SELECT m.*, sr.part AS source_part, sr.section AS source_section,
+                   sr.table_id AS source_table_id, sr.xml_id AS source_xml_id,
+                   sr.title AS source_title, sr.canonical_url AS source_url
+            FROM macro m
+            JOIN source_ref sr ON sr.id = m.source_ref_id
+            WHERE m.edition_id = ? AND m.id = ?
+            """,
+            (edition, macro_id),
+        ).fetchone()
+        return _macro_from_row(row) if row else None
+
+
 def _source_ref_from_row(row: sqlite3.Row) -> SourceRef:
     return SourceRef(
         id=str(row["source_ref_id"]),
@@ -143,4 +389,117 @@ def _uid_from_row(row: sqlite3.Row) -> UIDRegistryEntry:
         retired=bool(row["retired"]),
         retired_in_or_last_seen=row["retired_in_or_last_seen"],
         source_ref=_source_ref_from_row(row),
+    )
+
+
+def _id_order(value: str) -> int:
+    suffix = value.rsplit(".", maxsplit=1)[-1]
+    return int(suffix) if suffix.isdigit() else 0
+
+
+def _iod_from_row(row: sqlite3.Row) -> IOD:
+    return IOD(
+        id=str(row["id"]),
+        edition_id=str(row["edition_id"]),
+        name=str(row["name"]),
+        keyword=row["keyword"],
+        iod_type=row["iod_type"],
+        part=str(row["part"]),
+        section=row["section"],
+        source_ref=_source_ref_from_row(row),
+    )
+
+
+def _module_from_row(row: sqlite3.Row) -> Module:
+    return Module(
+        id=str(row["id"]),
+        edition_id=str(row["edition_id"]),
+        name=str(row["name"]),
+        section=row["section"],
+        description=row["description"],
+        source_ref=_source_ref_from_row(row),
+    )
+
+
+def _macro_from_row(row: sqlite3.Row) -> Macro:
+    return Macro(
+        id=str(row["id"]),
+        edition_id=str(row["edition_id"]),
+        name=str(row["name"]),
+        table_id=row["table_id"],
+        section=row["section"],
+        macro_kind=row["macro_kind"],
+        source_ref=_source_ref_from_row(row),
+    )
+
+
+def _source_ref_from_prefixed_row(row: sqlite3.Row, prefix: str) -> SourceRef:
+    return SourceRef(
+        id=str(row[f"{prefix}_source_ref_id"]),
+        edition_id=str(row[f"{prefix}_edition_id"]),
+        part=str(row[f"{prefix}_source_part"]),
+        section=row[f"{prefix}_source_section"],
+        table_id=row[f"{prefix}_source_table_id"],
+        xml_id=row[f"{prefix}_source_xml_id"],
+        title=row[f"{prefix}_source_title"],
+        canonical_url=row[f"{prefix}_source_url"],
+    )
+
+
+def _module_from_prefixed_row(row: sqlite3.Row, prefix: str) -> Module:
+    return Module(
+        id=str(row[f"{prefix}_id"]),
+        edition_id=str(row[f"{prefix}_edition_id"]),
+        name=str(row[f"{prefix}_name"]),
+        section=row[f"{prefix}_section"],
+        description=row[f"{prefix}_description"],
+        source_ref=_source_ref_from_prefixed_row(row, prefix),
+    )
+
+
+def _macro_from_prefixed_row(row: sqlite3.Row, prefix: str) -> Macro:
+    return Macro(
+        id=str(row[f"{prefix}_id"]),
+        edition_id=str(row[f"{prefix}_edition_id"]),
+        name=str(row[f"{prefix}_name"]),
+        table_id=row[f"{prefix}_table_id"],
+        section=row[f"{prefix}_section"],
+        macro_kind=row[f"{prefix}_macro_kind"],
+        source_ref=_source_ref_from_prefixed_row(row, prefix),
+    )
+
+
+def _iod_module_use_from_prefixed_row(row: sqlite3.Row) -> IODModuleUse:
+    return IODModuleUse(
+        id=str(row["use_id"]),
+        edition_id=str(row["use_edition_id"]),
+        iod_id=str(row["use_iod_id"]),
+        information_entity=row["use_information_entity"],
+        module_id=str(row["use_module_id"]),
+        usage=str(row["use_usage"]),
+        usage_condition_text=row["use_usage_condition_text"],
+        condition_id=row["use_condition_id"],
+        source_ref=_source_ref_from_prefixed_row(row, "use"),
+    )
+
+
+def _attribute_use_from_prefixed_row(row: sqlite3.Row) -> AttributeUse:
+    return AttributeUse(
+        id=str(row["attribute_id"]),
+        edition_id=str(row["attribute_edition_id"]),
+        owner_type=str(row["attribute_owner_type"]),
+        owner_id=str(row["attribute_owner_id"]),
+        parent_attribute_use_id=row["attribute_parent_attribute_use_id"],
+        row_kind=str(row["attribute_row_kind"]),
+        attribute_tag=row["attribute_attribute_tag"],
+        attribute_keyword=row["attribute_attribute_keyword"],
+        attribute_name=row["attribute_attribute_name"],
+        type_designation=row["attribute_type_designation"],
+        description_text=row["attribute_description_text"],
+        condition_id=row["attribute_condition_id"],
+        included_macro_id=row["attribute_included_macro_id"],
+        include_target_text=row["attribute_include_target_text"],
+        sequence_depth=int(row["attribute_sequence_depth"]),
+        row_order=int(row["attribute_row_order"]),
+        source_ref=_source_ref_from_prefixed_row(row, "attribute"),
     )

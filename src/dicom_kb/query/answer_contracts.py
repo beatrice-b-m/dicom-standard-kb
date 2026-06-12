@@ -8,7 +8,15 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from dicom_kb.ir.models import DataElement, SourceRef, UIDRegistryEntry
+from dicom_kb.db.repositories import AttributeUseRecord, IODModuleUseRecord
+from dicom_kb.ir.models import (
+    IOD,
+    AttributeUse,
+    DataElement,
+    Module,
+    SourceRef,
+    UIDRegistryEntry,
+)
 
 NOTICE = "Consult the official DICOM Standard for authoritative text."
 
@@ -78,6 +86,44 @@ def uid_result(uid: UIDRegistryEntry) -> dict[str, Any]:
     }
 
 
+def iod_modules_result(iod: IOD, records: list[IODModuleUseRecord]) -> dict[str, Any]:
+    """Return the public result payload for an IOD module traversal."""
+    return {
+        "iod": {
+            "id": iod.id,
+            "name": iod.name,
+            "keyword": iod.keyword,
+            "iod_type": iod.iod_type,
+            "section": iod.section,
+        },
+        "modules": [
+            {
+                "module_id": record.module.id,
+                "module_name": record.module.name,
+                "section": record.module.section,
+                "information_entity": record.use.information_entity,
+                "usage": record.use.usage,
+                "usage_condition_text": record.use.usage_condition_text,
+            }
+            for record in records
+        ],
+    }
+
+
+def module_attributes_result(
+    module: Module, records: list[AttributeUseRecord]
+) -> dict[str, Any]:
+    """Return the public result payload for a module attribute traversal."""
+    return {
+        "module": {
+            "id": module.id,
+            "name": module.name,
+            "section": module.section,
+        },
+        "attributes": [_attribute_use_result(record) for record in records],
+    }
+
+
 def standard_ref(source_ref: SourceRef) -> StandardRef:
     """Convert an internal source ref to the public citation shape."""
     return StandardRef(
@@ -89,3 +135,40 @@ def standard_ref(source_ref: SourceRef) -> StandardRef:
         edition=source_ref.edition_id,
     )
 
+
+def _attribute_use_result(record: AttributeUseRecord) -> dict[str, Any]:
+    attribute = record.attribute_use
+    payload: dict[str, Any] = {
+        "id": attribute.id,
+        "row_kind": attribute.row_kind,
+        "owner_type": record.owner_type,
+        "owner_name": record.owner_name,
+        "sequence_depth": attribute.sequence_depth,
+        "row_order": attribute.row_order,
+    }
+    if attribute.row_kind == "include":
+        payload.update(
+            {
+                "include_target_text": attribute.include_target_text,
+                "included_macro_id": attribute.included_macro_id,
+                "included_macro_name": (
+                    record.included_macro.name if record.included_macro else None
+                ),
+            }
+        )
+    else:
+        payload.update(_attribute_fact_payload(attribute))
+    if record.expanded_from_include is not None:
+        payload["expanded_from_include_id"] = record.expanded_from_include.id
+    return payload
+
+
+def _attribute_fact_payload(attribute: AttributeUse) -> dict[str, Any]:
+    return {
+        "attribute_tag": attribute.attribute_tag,
+        "attribute_keyword": attribute.attribute_keyword,
+        "attribute_name": attribute.attribute_name,
+        "type_designation": attribute.type_designation,
+        "description_text": attribute.description_text,
+        "parent_attribute_use_id": attribute.parent_attribute_use_id,
+    }
