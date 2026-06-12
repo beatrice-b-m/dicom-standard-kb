@@ -4,8 +4,8 @@ Last updated: 2026-06-12
 
 ## Current stopping point
 
-Stopped after completing the first PS3.3 graph query slice. The repository now
-has a working offline foundation through:
+Stopped after completing the public JSON Schema contract slice. The repository
+now has a working offline foundation through:
 
 1. Work Order A: repository/build/legal scaffold.
 2. Work Order B: local source acquisition primitives.
@@ -25,6 +25,9 @@ has a working offline foundation through:
 9. Work Order G, fourth v1 slice: SQLite-backed PS3.3 graph traversals,
    public response envelopes, and CLI commands for IOD module lists and module
    attribute lists with optional macro expansion.
+10. Spec-mandated JSON Schema files for public tool responses, standard
+    references, source manifests, and condition facts, plus offline drift tests
+    against the implemented Python contracts.
 
 ## Completed commits
 
@@ -41,6 +44,7 @@ has a working offline foundation through:
 - `c0b5bd0 fix(parsers): prefer PS3.3 definition table identities`
 - `9d3f372 feat(db): import PS3.3 graph records`
 - `152f5e9 feat(query): add PS3.3 graph traversal`
+- `b380b4f feat(schemas): add public JSON Schema contracts`
 
 ## Verification at stop
 
@@ -52,7 +56,7 @@ uv run mypy
 uv run pytest
 ```
 
-Observed test count: 38 passing tests.
+Observed test count: 43 passing tests.
 
 ## Implemented behavior
 
@@ -102,6 +106,10 @@ Observed test count: 38 passing tests.
   attribute payloads, and not-found responses.
 - CLI commands `dicom-kb iod modules` and `dicom-kb module attributes` that
   read an explicit local SQLite database path and emit JSON envelopes.
+- JSON Schema contract files for tool response envelopes, standard references,
+  source manifests, and condition facts.
+- Offline schema drift tests that keep schema field names and response status
+  enums aligned with the implemented Pydantic contracts.
 
 ## Not yet implemented
 
@@ -119,9 +127,7 @@ Observed test count: 38 passing tests.
   `data_element`/`uid_registry_entry` rows. No `doc_node`, `xref`, or JSON
   table-snapshot storage exists yet, so parser bugs cannot be investigated
   without reparsing the source.
-- Spec-mandated repository directories and files: `schemas/` (the four JSON
-  Schema files; Python response-envelope contracts exist, but JSON Schema
-  files have not been generated/committed yet),
+- Spec-mandated repository directories and files:
   `tests/fixtures_synthetic/`, `tests/fixtures_minimal_attributed/`,
   `tests/agent_regression/`, `examples/`, and `docbook/variablelists.py`.
 
@@ -139,7 +145,7 @@ if run:
 
 ## Recommended next work order
 
-Before MCP work, add the spec-mandated JSON Schema files for the current
-response envelope contracts, then broaden PS3.3 parser fixtures toward minimal
-attributed CT Image material once local artifact handling for attributed
-fixtures is in place.
+Before MCP work, broaden PS3.3 parser fixtures toward minimal attributed CT
+Image material once local artifact handling for attributed fixtures is in
+place. The next parser slice should focus on real-standard table variants that
+can be represented without redistributing bulk official artifacts.
