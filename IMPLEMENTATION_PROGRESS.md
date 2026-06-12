@@ -4,7 +4,7 @@ Last updated: 2026-06-12
 
 ## Current stopping point
 
-Stopped after completing the R4 reference-agent runner from
+Stopped after completing the R5 MCP protocol smoke test from
 `PROGRESS_REVIEW.md`: official `current` was fetched and resolved to concrete
 edition `2026b`, the local KB builds from real PS3.3/PS3.4/PS3.6 DocBook XML,
 `make test-integration` has a real-download integration tier that passes with
@@ -14,8 +14,11 @@ now has real-KB integration assertions. The agent regression prompt set now has
 offline guard for the ≥50-case, unique-ID, edition-pin, all-tool, and
 error-case floors. `dicom-kb eval run` now records deterministic reference-agent
 transcripts in the existing compact scorecard schema, and both synthetic-fixture
-and real-KB tests score those transcripts without committing bulk real-KB
-outputs. Two R2 parser limitations remain captured as strict xfails: real PS3.3
+and real-KB tests score those transcripts without committing bulk real-KB outputs.
+The MCP server now has an offline protocol-level smoke test using the official
+Python MCP stdio client against the synthetic fixture KB, and `dicom-kb mcp
+serve` fails early with fetch/build guidance when the configured SQLite KB is
+missing. Two R2 parser limitations remain captured as strict xfails: real PS3.3
 include rows are not yet persisted as macro include provenance, and Enhanced CT
 functional-group usage rows are not yet persisted. The repository now has a
 working v1 foundation through:
@@ -129,6 +132,11 @@ working v1 foundation through:
     public resolver routes, writes compact transcript JSON consumable by
     `dicom-kb eval score`, and has offline synthetic-fixture coverage plus a
     real-KB integration scorecard over all 65 prompt cases.
+34. R5 MCP protocol smoke coverage. An offline test launches `dicom-kb mcp
+    serve` as a subprocess, connects with the official MCP Python stdio client,
+    exercises initialize, `tools/list`, and two `tools/call` requests against
+    the synthetic fixture KB, and verifies all nine v1 tools expose input
+    schemas.
 
 ## Completed commits
 
@@ -180,10 +188,12 @@ working v1 foundation through:
 - `9c8a3ec feat(eval): expand agent prompt cases`
 - `f473605 docs(progress): record R3 prompt expansion`
 - `4322f97 feat(eval): add reference agent runner`
+- `336544f docs(progress): record R4 reference runner`
+- `e7569ca test(mcp): add stdio protocol smoke coverage`
 
 ## Verification at stop
 
-The following checks passed after the R4 reference-agent runner:
+The following checks passed after the R5 MCP protocol smoke test:
 
 ```bash
 uv run --dev ruff check .
@@ -191,7 +201,7 @@ uv run --dev mypy
 uv run --dev pytest
 ```
 
-Observed local test result with the built real KB present: 150 passed and 2
+Observed local test result with the built real KB present: 152 passed and 2
 strict xfailed tests.
 
 Observed R3 prompt-case metrics:
@@ -203,6 +213,8 @@ Observed R3 prompt-case metrics:
   real 2026b KB through `tests/integration_requires_dicom_download/`.
 - The synthetic fixture runner subset and `dicom-kb eval run` / `eval score`
   CLI path are covered by `tests/agent_regression/`.
+- The official MCP Python stdio client smoke test passes against the synthetic
+  fixture KB and verifies initialize, tool listing, schemas, and tool calls.
 
 The following integration checks were also run against locally fetched and
 built official DICOM edition `2026b`:
@@ -385,6 +397,12 @@ Accepted R2 strict-xfail limitations:
 - Offline FastMCP registration tests that verify the adapter exposes the v1
   tool set, preserves tool descriptions, maps registered tool arguments
   through the public query envelopes, and invokes stdio transport.
+- Offline MCP protocol smoke coverage using the official Python MCP stdio
+  client against the synthetic fixture KB, verifying initialize,
+  `tools/list`, all nine v1 input schemas, and tool-call response envelopes.
+- `dicom-kb mcp serve` now checks the configured SQLite KB path before starting
+  stdio and reports actionable fetch/build or fixture-build commands when it is
+  missing.
 - `dicom_kb.eval` package with committed agent prompt cases, expected
   tool-call traces, transcript models, and deterministic scorecards.
 - Agent regression scoring checks for required tools, expected trace order,
@@ -425,9 +443,6 @@ Accepted R2 strict-xfail limitations:
   Order H). Graph traversal and FTS5-backed text search currently live in
   resolvers/repositories.
 - General citation builder beyond direct source-ref conversion.
-- MCP server is present for the implemented v1 query resolvers with offline
-  registration coverage. External MCP protocol/client smoke testing is still
-  pending.
 - Optional real-LLM external-agent runner configuration remains pending. The
   committed R4 runner is the deterministic reference agent; real-KB transcripts
   remain uncommitted build outputs by design.
@@ -446,6 +461,6 @@ if run:
 
 ## Recommended next work order
 
-Continue with the independent medium-priority remediation items. R5 is the
-next best target: add a real MCP protocol smoke test with the official Python
-MCP client and improve `dicom-kb mcp serve` missing-KB ergonomics.
+Continue with R6 repository layout reconciliation: split existing query and MCP
+internals into the spec layout modules, then add `docbook/variablelists.py`,
+`examples/`, and `tests/fixtures_minimal_attributed/`.
