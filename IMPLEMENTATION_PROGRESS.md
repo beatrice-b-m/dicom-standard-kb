@@ -4,8 +4,8 @@ Last updated: 2026-06-12
 
 ## Current stopping point
 
-Stopped after adding opt-in recursive CHTML mirroring for official per-part
-HTML trees while preserving the existing cache manifest/build workflow. The
+Stopped after adding offline agent transcript scorecard reporting and a
+`dicom-kb eval score` CLI command for committed regression cases. The
 repository now has a working v1 foundation through:
 
 1. Work Order A: repository/build/legal scaffold.
@@ -86,6 +86,10 @@ repository now has a working v1 foundation through:
     `dicom-kb fetch --format chtml --mirror-chtml-tree`, with same-release URL
     containment checks, safe cache-relative path handling, per-file manifest
     entries, and mocked offline downloader/CLI coverage.
+28. Work Order J scorecard reporting for recorded agent transcripts, including
+    JSON transcript loading, aggregate pass/fail reports, unknown-case
+    diagnostics, and a `dicom-kb eval score` CLI command suitable for offline
+    CI gating.
 
 ## Completed commits
 
@@ -127,10 +131,11 @@ repository now has a working v1 foundation through:
 - `1dbba9b feat(sources): fetch additional official formats`
 - `f0844fa feat(sources): fetch concrete editions from archive`
 - `0e4d72f feat(sources): mirror CHTML part trees`
+- `7f5481a feat(eval): add agent scorecard reporting`
 
 ## Verification at stop
 
-The following offline checks passed after the recursive CHTML mirroring work:
+The following offline checks passed after the agent scorecard reporting work:
 
 ```bash
 uv run --dev ruff check .
@@ -138,7 +143,7 @@ uv run --dev mypy
 uv run --dev pytest
 ```
 
-Observed test count: 98 passing tests.
+Observed test count: 101 passing tests.
 
 ## Implemented behavior
 
@@ -287,6 +292,12 @@ Observed test count: 98 passing tests.
   edition-aware answers, and unsupported normative claims.
 - `tests/agent_regression/` test coverage for passing transcripts, missing
   tools/citations, unsupported claims, and argument mismatch diagnostics.
+- Agent transcript report loading for single-run JSON objects, JSON arrays, or
+  objects with top-level `runs`, with aggregate pass/fail scorecards and
+  unknown-case diagnostics.
+- `dicom-kb eval score` command for scoring recorded agent transcripts,
+  emitting stable JSON reports and exiting nonzero by default when any run
+  fails.
 
 ## Not yet implemented
 
@@ -300,9 +311,9 @@ Observed test count: 98 passing tests.
 - MCP server is present for the implemented v1 query resolvers with offline
   registration coverage. External MCP protocol/client smoke testing is still
   pending.
-- Agent regression harness has a first offline scoring slice. A configured
-  external-agent runner, recorded answer transcripts, scorecard CLI/reporting,
-  and the spec target of at least 50 v1 prompt cases are still pending.
+- Agent regression harness has offline scoring and scorecard CLI/reporting. A
+  configured external-agent runner, committed recorded answer transcripts, and
+  the spec target of at least 50 v1 prompt cases are still pending.
 - Golden fixture coverage (SYSTEM_SPECS.md section 15.2) beyond the single
   synthetic CT-style PS3.3 fixture and PS3.6 registry fixture: MR Image,
   Enhanced CT Image (functional-group resolution exercised end-to-end through
@@ -326,6 +337,6 @@ if run:
 
 ## Recommended next work order
 
-Continue the v1 critical path by adding an external-agent runner and expanding
-the agent regression case set, adding external MCP protocol/client smoke tests,
-or extending source acquisition to recursive CHTML mirroring.
+Continue the v1 critical path by adding a configured external-agent runner and
+expanding the agent regression case set, committing recorded answer transcripts,
+or adding external MCP protocol/client smoke tests.
