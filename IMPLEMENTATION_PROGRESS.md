@@ -4,9 +4,9 @@ Last updated: 2026-06-12
 
 ## Current stopping point
 
-Stopped after adding PS3.4 SOP Class parsing/import and public SOP Class/IOD
-lookup traversal. The repository
-now has a working offline foundation through:
+Stopped after adding `resolve_attribute_context` with IOD/SOP Class traversal,
+macro expansion, and effective type computation. The repository now has a
+working offline foundation through:
 
 1. Work Order A: repository/build/legal scaffold.
 2. Work Order B: local source acquisition primitives.
@@ -40,6 +40,11 @@ now has a working offline foundation through:
     Class to linked IODs, and a shared synthetic PS3.4 fixture.
 14. Public `lookup_iod` and `lookup_sop_class` response envelopes plus CLI
     commands `dicom-kb lookup iod` and `dicom-kb lookup sop-class`.
+15. Public `resolve_attribute_context` response envelope plus CLI command
+    `dicom-kb resolve attribute-context`, with PS3.6-backed attribute
+    identity, IOD or SOP Class context resolution, recursive macro expansion,
+    sequence-path reporting, and lowest effective type computation across
+    multiple uses.
 
 ## Completed commits
 
@@ -64,10 +69,12 @@ now has a working offline foundation through:
 - `46c3087 docs(progress): record recursive macro expansion`
 - `7a2814d feat(parsers): add PS3.4 SOP class import`
 - `e63e678 feat(query): expose SOP Class and IOD lookups`
+- `7cde527 docs(progress): record SOP Class lookup slice`
+- `0f6296b feat(query): resolve attribute context`
 
 ## Verification at stop
 
-The following offline checks passed after SOP Class and IOD lookup work:
+The following offline checks passed after attribute context resolution work:
 
 ```bash
 make lint
@@ -75,7 +82,7 @@ uv run mypy
 uv run pytest
 ```
 
-Observed test count: 53 passing tests.
+Observed test count: 59 passing tests.
 
 ## Implemented behavior
 
@@ -95,7 +102,8 @@ Observed test count: 53 passing tests.
   registry entries.
 - Transactional PS3.6 import with rollback on uniqueness failures.
 - Repository lookup by tag, keyword, UID value, UID keyword, and concrete tags
-  matching range rows.
+  matching range rows; data-element lookup also accepts exact element names for
+  context resolution.
 - Shared query response envelope contracts with refs, warnings, legal notice,
   and trace metadata.
 - `lookup_data_element` resolver with tag/keyword parity, malformed tag
@@ -138,6 +146,17 @@ Observed test count: 53 passing tests.
   not-found responses.
 - CLI commands `dicom-kb lookup iod` and `dicom-kb lookup sop-class` that read
   an explicit local SQLite database path and emit JSON envelopes.
+- `resolve_attribute_context` resolver with exact attribute lookup through
+  PS3.6 tag/keyword/name identity, validation errors for malformed tag or SOP
+  Class UID inputs, exact IOD context lookup, SOP Class → linked IOD traversal,
+  recursive module macro expansion, sequence-path reporting for nested
+  attributes, macro-path provenance for expanded attributes, and not-found
+  responses for missing attributes or contexts.
+- Effective attribute type computation across matching uses, selecting the
+  lowest recognized DICOM type designation (`1`, `1C`, `2`, `2C`, `3`) and
+  warning when multiple-use resolution assumes no description-text override.
+- CLI command `dicom-kb resolve attribute-context` that reads an explicit local
+  SQLite database path and emits the public context-resolution JSON envelope.
 - JSON Schema contract files for tool response envelopes, standard references,
   source manifests, and condition facts.
 - Offline schema drift tests that keep schema field names and response status
@@ -153,8 +172,6 @@ Observed test count: 53 passing tests.
 - CLI default cache/database discovery; lookup currently requires `--db`.
 - Full PS3.3 parser coverage beyond the first v1 CT-style synthetic fixture
   slice, including broader real-standard table variants.
-- `resolve_attribute_context` with effective-type computation (the most
-  important v1 tool per SYSTEM_SPECS.md section 8.5).
 - Spec query-layer modules beyond `query/resolver.py`: `query/graph.py`,
   `query/conditions.py`, `query/citations.py`, and `query/search.py` (Work
   Order H). Graph traversal currently lives in resolvers/repositories;
@@ -193,6 +210,6 @@ if run:
 
 ## Recommended next work order
 
-Continue the v1 critical path with `resolve_attribute_context`, which can now
-use SOP Class → IOD → modules → attributes traversal plus recursive macro
-expansion to compute effective attribute type in context.
+Continue the v1 critical path by adding persisted `doc_node`/raw table IR
+storage so `retrieve_standard_text` can be implemented with citation-preserving
+short excerpts instead of reparsing source XML on every query.
