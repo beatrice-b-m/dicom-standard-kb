@@ -4,16 +4,20 @@ Last updated: 2026-06-12
 
 ## Current stopping point
 
-Stopped after the first R7 differential-testing slice from
-`PROGRESS_REVIEW.md`: the integration tier now has a skip-clean Innolitics
-differential harness that reads optional JSON from `DICOM_KB_INNOLITICS_PATH`,
-compares parseable PS3.6 data element fields and CT Image module lists against
-the local KB, and uses an explicit empty allowlist for future triaged edition
-skew or interpretation differences. A real Innolitics JSON run has not yet been
-performed in this environment, so R7 remains open until a configured external
-dataset produces zero unexplained mismatches or documented allowlisted
-differences. R6 repository-layout reconciliation is complete: the public query
-API now retains `resolver.py` as a thin entry-point layer while citation
+Stopped after the second R7 differential-testing slice from
+`PROGRESS_REVIEW.md`: the integration tier now has skip-clean external
+differential checks for optional Innolitics JSON and optional pydicom. The
+Innolitics harness reads `DICOM_KB_INNOLITICS_PATH`, compares parseable PS3.6
+data element fields and CT Image module lists against the local KB, and the
+pydicom harness compares local PS3.6 data element fields against pydicom's
+packaged data dictionary when that optional dependency is installed. Accepted
+differences must now be recorded through an explicit allowlist entry with
+external source, classification, and reason metadata. Neither a real Innolitics
+JSON run nor a pydicom-installed run has been performed in this environment, so
+R7 remains open until configured external data produces zero unexplained
+mismatches or documented allowlisted differences. R6 repository-layout
+reconciliation is complete: the public query API now retains `resolver.py` as a
+thin entry-point layer while citation
 assembly, condition payload shaping, PS3.3 graph traversal, recursive macro
 expansion, and SQLite FTS query construction live in the spec-aligned
 `query/citations.py`, `query/conditions.py`, `query/graph.py`, and
@@ -172,6 +176,15 @@ yet persisted. The repository now has a working v1 foundation through:
     `DICOM_KB_INNOLITICS_PATH`, compares overlapping PS3.6 element fields and
     CT Image module names when a JSON file/directory is supplied, and records
     accepted differences only through an explicit allowlist file.
+40. R5 MCP startup regression hardening. Missing-KB CLI assertions now
+    normalize Typer/Rich styling before matching actionable fetch/build advice,
+    and the missing optional MCP dependency path uses an explicit fixture DB so
+    it remains isolated from whatever default cache exists on a developer
+    machine.
+41. R7 differential testing, second slice. The integration tier now has an
+    optional pydicom data dictionary comparison for PS3.6 element fields, and
+    differential allowlist entries must include the external source,
+    classification, and reason before they can suppress a mismatch.
 
 ## Completed commits
 
@@ -234,10 +247,13 @@ yet persisted. The repository now has a working v1 foundation through:
 - `cbd7dc8 feat(examples): add fixture-oriented sample workflows`
 - `9c73bb4 docs(progress): record R6 layout completion`
 - `5c33713 test(integration): add Innolitics differential harness`
+- `78033dd docs(progress): record R7 differential harness`
+- `97a00f0 test(mcp): isolate server startup failure cases`
+- `96820fd test(integration): add pydicom differential check`
 
 ## Verification at stop
 
-The following checks passed after the R7 differential harness slice:
+The following checks passed after the R7 pydicom differential slice:
 
 ```bash
 uv run --dev ruff check .
@@ -245,8 +261,8 @@ uv run --dev mypy
 uv run --dev pytest
 ```
 
-Observed local test result with the built real KB present and no
-`DICOM_KB_INNOLITICS_PATH`: 157 passed, 2 skipped, and 2 strict xfailed tests.
+Observed local test result without external differential data or pydicom
+installed: 157 passed, 3 skipped, and 2 strict xfailed tests.
 
 Observed R3 prompt-case metrics:
 
@@ -267,10 +283,10 @@ built official DICOM edition `2026b`:
 uv run --dev pytest tests/integration_requires_dicom_download
 ```
 
-Observed integration result with artifacts before the R7 harness: 37 passing
-tests and 2 strict xfailed tests. The new R7 differential test file was run
-directly without `DICOM_KB_INNOLITICS_PATH` and skipped both comparisons
-cleanly.
+Observed integration result with artifacts before the first R7 harness: 37
+passing tests and 2 strict xfailed tests. The R7 differential test file was run
+directly without `DICOM_KB_INNOLITICS_PATH` and without pydicom installed; all
+three external comparisons skipped cleanly.
 
 The no-artifact path was verified with an empty cache:
 
@@ -337,7 +353,11 @@ Accepted R2 strict-xfail limitations:
   excerpts and defines attribution/minimization rules for future parser cases.
 - Optional Innolitics differential harness for PS3.6 data element fields and CT
   Image module lists, with clean skips when external comparison data is not
-  configured and an explicit allowlist for future accepted differences.
+  configured.
+- Optional pydicom differential harness for PS3.6 data element fields, with a
+  clean skip when pydicom is not installed.
+- Explicit differential allowlist validation requiring accepted mismatches to
+  name the external source, entity, field, classification, and reason.
 - DocBook section/table parent and ordinal metadata for persistent structure
   storage.
 - Zero-width character removal and normalized text helpers.
