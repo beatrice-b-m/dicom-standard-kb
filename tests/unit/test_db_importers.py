@@ -9,8 +9,7 @@ from dicom_kb.db.repositories import DataElementRepository, UIDRepository
 from dicom_kb.docbook.parser import parse_docbook_xml
 from dicom_kb.parsers.part03_iods import parse_part03
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
-from tests.unit.test_part03_parser import PS33_FIXTURE
-from tests.unit.test_part06_parser import PS36_FIXTURE
+from tests.fixtures_synthetic import PS33_CT_IMAGE_DOCBOOK, PS36_REGISTRY_DOCBOOK
 
 
 def _connection(tmp_path: Path) -> sqlite3.Connection:
@@ -22,7 +21,7 @@ def _connection(tmp_path: Path) -> sqlite3.Connection:
 def test_import_part06_and_lookup_tag_uid(tmp_path: Path) -> None:
     connection = _connection(tmp_path)
     parsed = parse_part06(
-        parse_docbook_xml(PS36_FIXTURE, part="PS3.6"), edition="2026b"
+        parse_docbook_xml(PS36_REGISTRY_DOCBOOK, part="PS3.6"), edition="2026b"
     )
 
     summary = import_part06(
@@ -51,7 +50,7 @@ def test_import_part06_and_lookup_tag_uid(tmp_path: Path) -> None:
 def test_range_tag_lookup_returns_match_warning(tmp_path: Path) -> None:
     connection = _connection(tmp_path)
     parsed = parse_part06(
-        parse_docbook_xml(PS36_FIXTURE, part="PS3.6"), edition="2026b"
+        parse_docbook_xml(PS36_REGISTRY_DOCBOOK, part="PS3.6"), edition="2026b"
     )
     import_part06(
         connection,
@@ -72,7 +71,7 @@ def test_range_tag_lookup_returns_match_warning(tmp_path: Path) -> None:
 def test_import_rolls_back_on_duplicate_tags(tmp_path: Path) -> None:
     connection = _connection(tmp_path)
     parsed = parse_part06(
-        parse_docbook_xml(PS36_FIXTURE, part="PS3.6"), edition="2026b"
+        parse_docbook_xml(PS36_REGISTRY_DOCBOOK, part="PS3.6"), edition="2026b"
     )
     duplicate = parsed.data_elements[0].model_copy(update={"id": "duplicate"})
 
@@ -91,10 +90,10 @@ def test_import_rolls_back_on_duplicate_tags(tmp_path: Path) -> None:
 def test_imports_keep_editions_isolated(tmp_path: Path) -> None:
     connection = _connection(tmp_path)
     parsed_2026b = parse_part06(
-        parse_docbook_xml(PS36_FIXTURE, part="PS3.6"), edition="2026b"
+        parse_docbook_xml(PS36_REGISTRY_DOCBOOK, part="PS3.6"), edition="2026b"
     )
     parsed_2026c = parse_part06(
-        parse_docbook_xml(PS36_FIXTURE, part="PS3.6"), edition="2026c"
+        parse_docbook_xml(PS36_REGISTRY_DOCBOOK, part="PS3.6"), edition="2026c"
     )
     import_part06(
         connection,
@@ -116,7 +115,7 @@ def test_imports_keep_editions_isolated(tmp_path: Path) -> None:
 def test_import_part03_graph_records(tmp_path: Path) -> None:
     connection = _connection(tmp_path)
     parsed = parse_part03(
-        parse_docbook_xml(PS33_FIXTURE, part="PS3.3"), edition="2026b"
+        parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3"), edition="2026b"
     )
 
     summary = import_part03(
@@ -180,7 +179,7 @@ def test_import_part03_graph_records(tmp_path: Path) -> None:
 def test_import_part03_rolls_back_on_duplicate_iods(tmp_path: Path) -> None:
     connection = _connection(tmp_path)
     parsed = parse_part03(
-        parse_docbook_xml(PS33_FIXTURE, part="PS3.3"), edition="2026b"
+        parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3"), edition="2026b"
     )
     duplicate = parsed.iods[0].model_copy(update={"id": "duplicate"})
 

@@ -1,119 +1,11 @@
 from dicom_kb.docbook.parser import parse_docbook_xml
 from dicom_kb.parsers.part03_iods import parse_part03
-
-PS33_FIXTURE = """\
-<book xmlns="http://docbook.org/ns/docbook" xmlns:xml="http://www.w3.org/XML/1998/namespace">
-  <chapter xml:id="chapter_A">
-    <section xml:id="sect_A.3">
-      <title>CT Image IOD</title>
-      <table xml:id="table_A.3-1">
-        <title>CT Image IOD Modules</title>
-        <tgroup cols="4">
-          <thead>
-            <row>
-              <entry>Information Entity</entry><entry>Module</entry>
-              <entry>Reference</entry><entry>Usage</entry>
-            </row>
-          </thead>
-          <tbody>
-            <row>
-              <entry>Patient</entry><entry>Patient</entry>
-              <entry><xref linkend="sect_C.7.1.1"/></entry><entry>M</entry>
-            </row>
-            <row>
-              <entry>Image</entry><entry>Contrast/Bolus</entry>
-              <entry>C.7.6.4</entry>
-              <entry>C - Required if contrast media was used</entry>
-            </row>
-            <row>
-              <entry>Image</entry><entry>CT Image</entry>
-              <entry>C.8.2.1</entry><entry>M</entry>
-            </row>
-          </tbody>
-        </tgroup>
-      </table>
-    </section>
-    <section xml:id="sect_C.7.1.1">
-      <title>Patient Module</title>
-      <table xml:id="table_C.7-1">
-        <title>Patient Module Attributes</title>
-        <tgroup cols="4">
-          <thead>
-            <row>
-              <entry>Attribute Name</entry><entry>Tag</entry>
-              <entry>Type</entry><entry>Attribute Description</entry>
-            </row>
-          </thead>
-          <tbody>
-            <row>
-              <entry>Patient's Name</entry><entry>(0010,0010)</entry>
-              <entry>2</entry><entry>Patient name.</entry>
-            </row>
-            <row>
-              <entry>Referenced Patient Sequence</entry><entry>(0008,1120)</entry>
-              <entry>3</entry><entry>Reference container.</entry>
-            </row>
-            <row>
-              <entry>&gt;Referenced SOP Class UID</entry><entry>(0008,1150)</entry>
-              <entry>1</entry><entry>Nested sequence attribute.</entry>
-            </row>
-            <row>
-              <entry namest="col1" nameend="col4">
-                Include Table 10-7 "General Anatomy Optional Macro"
-              </entry>
-            </row>
-          </tbody>
-        </tgroup>
-      </table>
-    </section>
-    <section xml:id="sect_10.7">
-      <title>General Anatomy Optional Macro</title>
-      <table xml:id="table_10-7">
-        <title>General Anatomy Optional Macro Attributes</title>
-        <tgroup cols="4">
-          <thead>
-            <row>
-              <entry>Attribute Name</entry><entry>Tag</entry>
-              <entry>Type</entry><entry>Attribute Description</entry>
-            </row>
-          </thead>
-          <tbody>
-            <row>
-              <entry>Anatomic Region Sequence</entry><entry>(0008,2218)</entry>
-              <entry>3</entry><entry>Region.</entry>
-            </row>
-          </tbody>
-        </tgroup>
-      </table>
-    </section>
-    <section xml:id="sect_A.38">
-      <title>Enhanced CT Image IOD</title>
-      <table xml:id="table_A.38-2">
-        <title>Enhanced CT Image Functional Group Macros</title>
-        <tgroup cols="3">
-          <thead>
-            <row>
-              <entry>Functional Group Macro</entry><entry>Reference</entry>
-              <entry>Usage</entry>
-            </row>
-          </thead>
-          <tbody>
-            <row>
-              <entry><xref linkend="table_10-7"/>General Anatomy Optional Macro</entry>
-              <entry>10-7</entry><entry>C - Required if anatomy is known</entry>
-            </row>
-          </tbody>
-        </tgroup>
-      </table>
-    </section>
-  </chapter>
-</book>
-"""
+from tests.fixtures_synthetic import PS33_CT_IMAGE_DOCBOOK
 
 
 def test_parse_part03_ct_iod_modules_and_usage() -> None:
     result = parse_part03(
-        parse_docbook_xml(PS33_FIXTURE, part="PS3.3"), edition="2026b"
+        parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3"), edition="2026b"
     )
 
     assert [iod.name for iod in result.iods] == [
@@ -139,7 +31,7 @@ def test_parse_part03_ct_iod_modules_and_usage() -> None:
 
 def test_parse_part03_module_macro_attributes_and_include_rows() -> None:
     result = parse_part03(
-        parse_docbook_xml(PS33_FIXTURE, part="PS3.3"), edition="2026b"
+        parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3"), edition="2026b"
     )
 
     patient_attrs = [
@@ -174,7 +66,7 @@ def test_parse_part03_module_macro_attributes_and_include_rows() -> None:
 
 def test_parse_part03_functional_group_usage() -> None:
     result = parse_part03(
-        parse_docbook_xml(PS33_FIXTURE, part="PS3.3"), edition="2026b"
+        parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3"), edition="2026b"
     )
 
     assert len(result.iod_functional_group_uses) == 1

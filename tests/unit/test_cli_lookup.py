@@ -12,8 +12,7 @@ from dicom_kb.db.models import apply_migrations, connect_sqlite
 from dicom_kb.docbook.parser import parse_docbook_xml
 from dicom_kb.parsers.part03_iods import parse_part03
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
-from tests.unit.test_part03_parser import PS33_FIXTURE
-from tests.unit.test_part06_parser import PS36_FIXTURE
+from tests.fixtures_synthetic import PS33_CT_IMAGE_DOCBOOK, PS36_REGISTRY_DOCBOOK
 
 
 def _fixture_db(tmp_path: Path) -> Path:
@@ -21,7 +20,7 @@ def _fixture_db(tmp_path: Path) -> Path:
     connection = connect_sqlite(db_path)
     apply_migrations(connection)
     parsed = parse_part06(
-        parse_docbook_xml(PS36_FIXTURE, part="PS3.6"),
+        parse_docbook_xml(PS36_REGISTRY_DOCBOOK, part="PS3.6"),
         edition="2026b",
     )
     import_part06(
@@ -31,7 +30,7 @@ def _fixture_db(tmp_path: Path) -> Path:
         uid_registry_entries=parsed.uid_registry_entries,
     )
     parsed_part03 = parse_part03(
-        parse_docbook_xml(PS33_FIXTURE, part="PS3.3"),
+        parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3"),
         edition="2026b",
     )
     import_part03(

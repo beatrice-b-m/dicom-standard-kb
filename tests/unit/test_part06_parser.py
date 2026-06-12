@@ -1,78 +1,12 @@
 from dicom_kb.docbook.parser import parse_docbook_xml
 from dicom_kb.ir.validators import IdentifierValidationError, normalize_tag, tag_matches
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
-
-PS36_FIXTURE = """\
-<book xmlns="http://docbook.org/ns/docbook" xmlns:xml="http://www.w3.org/XML/1998/namespace">
-  <chapter>
-    <table xml:id="table_6-1">
-      <title>Registry of DICOM Data Elements</title>
-      <tgroup cols="6">
-        <thead>
-          <row>
-            <entry>Tag</entry><entry>Name</entry><entry>Keyword</entry>
-            <entry>VR</entry><entry>VM</entry><entry>Retired</entry>
-          </row>
-        </thead>
-        <tbody>
-          <row>
-            <entry>(0008,0060)</entry><entry>Modality</entry>
-            <entry>Modality</entry><entry>CS</entry><entry>1</entry><entry></entry>
-          </row>
-          <row>
-            <entry>(60xx,3000)</entry><entry>Overlay Data</entry>
-            <entry>OverlayData</entry><entry>OW</entry><entry>1</entry><entry></entry>
-          </row>
-          <row>
-            <entry>(50xx,xxxx)</entry><entry>Curve Data (Retired)</entry>
-            <entry>CurveData</entry><entry>OB</entry><entry>1</entry><entry>RET</entry>
-          </row>
-          <row>
-            <entry>not-a-tag</entry><entry>Bad</entry>
-            <entry>Bad</entry><entry>CS</entry><entry>1</entry><entry></entry>
-          </row>
-        </tbody>
-      </tgroup>
-    </table>
-    <table xml:id="table_A-1">
-      <title>UID Registry</title>
-      <tgroup cols="6">
-        <thead>
-          <row>
-            <entry>UID Value</entry><entry>UID Name</entry>
-            <entry>UID Keyword</entry><entry>UID Type</entry>
-            <entry>Part</entry><entry>Retired</entry>
-          </row>
-        </thead>
-        <tbody>
-          <row>
-            <entry>1.2.840.10008.1.2.1</entry>
-            <entry>Explicit VR Little Endian</entry>
-            <entry>Explicit\u200bVRLittleEndian</entry>
-            <entry>Transfer Syntax</entry><entry>PS3.5</entry><entry></entry>
-          </row>
-          <row>
-            <entry>1.2.840.10008.1.2.2</entry>
-            <entry>Explicit VR Big Endian (Retired)</entry>
-            <entry>ExplicitVRBigEndian</entry>
-            <entry>Transfer Syntax</entry><entry>PS3.5</entry><entry>RET</entry>
-          </row>
-          <row>
-            <entry>1.2.840.bad</entry><entry>Bad UID</entry>
-            <entry>BadUID</entry><entry>SOP Class</entry>
-            <entry>PS3.4</entry><entry></entry>
-          </row>
-        </tbody>
-      </tgroup>
-    </table>
-  </chapter>
-</book>
-"""
+from tests.fixtures_synthetic import PS36_REGISTRY_DOCBOOK
 
 
 def test_parse_part06_data_elements_and_range_tags() -> None:
     result = parse_part06(
-        parse_docbook_xml(PS36_FIXTURE, part="PS3.6"), edition="2026b"
+        parse_docbook_xml(PS36_REGISTRY_DOCBOOK, part="PS3.6"), edition="2026b"
     )
 
     modality = result.data_elements[0]
@@ -96,7 +30,7 @@ def test_parse_part06_data_elements_and_range_tags() -> None:
 
 def test_parse_part06_uid_registry_and_zero_width_keywords() -> None:
     result = parse_part06(
-        parse_docbook_xml(PS36_FIXTURE, part="PS3.6"), edition="2026b"
+        parse_docbook_xml(PS36_REGISTRY_DOCBOOK, part="PS3.6"), edition="2026b"
     )
 
     uid = result.uid_registry_entries[0]

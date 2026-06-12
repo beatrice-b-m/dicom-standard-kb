@@ -15,8 +15,7 @@ from dicom_kb.query.resolver import (
     lookup_data_element,
     lookup_uid,
 )
-from tests.unit.test_part03_parser import PS33_FIXTURE
-from tests.unit.test_part06_parser import PS36_FIXTURE
+from tests.fixtures_synthetic import PS33_CT_IMAGE_DOCBOOK, PS36_REGISTRY_DOCBOOK
 
 RESOLVED_AT = datetime(2026, 6, 11, tzinfo=UTC)
 
@@ -25,7 +24,7 @@ def _connection(tmp_path: Path) -> sqlite3.Connection:
     connection = connect_sqlite(tmp_path / "kb.sqlite")
     apply_migrations(connection)
     parsed = parse_part06(
-        parse_docbook_xml(PS36_FIXTURE, part="PS3.6"),
+        parse_docbook_xml(PS36_REGISTRY_DOCBOOK, part="PS3.6"),
         edition="2026b",
     )
     import_part06(
@@ -41,7 +40,7 @@ def _part03_connection(tmp_path: Path) -> sqlite3.Connection:
     connection = connect_sqlite(tmp_path / "kb.sqlite")
     apply_migrations(connection)
     parsed = parse_part03(
-        parse_docbook_xml(PS33_FIXTURE, part="PS3.3"),
+        parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3"),
         edition="2026b",
     )
     import_part03(
