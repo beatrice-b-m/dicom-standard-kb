@@ -4,9 +4,12 @@ Last updated: 2026-06-12
 
 ## Current stopping point
 
-Stopped after adding offline agent transcript scorecard reporting and a
-`dicom-kb eval score` CLI command for committed regression cases. The
-repository now has a working v1 foundation through:
+Stopped after completing the R1 real-edition validation slice from
+`PROGRESS_REVIEW.md`: official `current` was fetched and resolved to concrete
+edition `2026b`, the local KB builds from real PS3.3/PS3.4/PS3.6 DocBook XML,
+and `make test-integration` now has a real-download integration tier that
+passes with local artifacts and skips cleanly without them. The repository now
+has a working v1 foundation through:
 
 1. Work Order A: repository/build/legal scaffold.
 2. Work Order B: local source acquisition primitives.
@@ -90,6 +93,16 @@ repository now has a working v1 foundation through:
     JSON transcript loading, aggregate pass/fail reports, unknown-case
     diagnostics, and a `dicom-kb eval score` CLI command suitable for offline
     CI gating.
+29. R1 real-edition parser hardening: official 2026b DocBook section/table
+    parsing now handles processing instructions, DocBook HTML-style
+    `caption`/`tr`/`th`/`td` tables, numeric spans, real PS3.3 `IE` headers,
+    no-usage IOD module tables, and PS3.4 SOP Class `olink` references to
+    PS3.3 IOD section anchors.
+30. R1 integration tier under `tests/integration_requires_dicom_download/`
+    that discovers a local cache/edition, skips when no built KB exists,
+    checks manifest shape, asserts real-KB entity count floors, and exercises
+    public resolvers for Modality, transfer syntaxes, CT Image modules,
+    CT Image Storage SOP Class traversal, and range-tag lookup.
 
 ## Completed commits
 
@@ -132,10 +145,13 @@ repository now has a working v1 foundation through:
 - `f0844fa feat(sources): fetch concrete editions from archive`
 - `0e4d72f feat(sources): mirror CHTML part trees`
 - `7f5481a feat(eval): add agent scorecard reporting`
+- `0c927e1 fix(docbook): parse real DocBook table vocabulary`
+- `81983d8 fix(parsers): resolve real SOP class IOD links`
+- `80f190f test(integration): add real KB smoke coverage`
 
 ## Verification at stop
 
-The following offline checks passed after the agent scorecard reporting work:
+The following offline checks passed after the R1 integration work:
 
 ```bash
 uv run --dev ruff check .
@@ -143,7 +159,38 @@ uv run --dev mypy
 uv run --dev pytest
 ```
 
-Observed test count: 101 passing tests.
+Observed offline test count: 112 passing tests.
+
+The following integration checks were also run against locally fetched and
+built official DICOM edition `2026b`:
+
+```bash
+make test-integration
+```
+
+Observed integration result with artifacts: 5 passing tests.
+
+The no-artifact path was verified with an empty cache:
+
+```bash
+DICOM_KB_CACHE_DIR=/private/tmp/dicom-kb-empty-cache \
+  uv run --dev pytest tests/integration_requires_dicom_download
+```
+
+Observed no-artifact result: 5 skipped tests, exit code 0.
+
+The real 2026b build imports:
+
+- PS3.6: 5308 data elements, 489 UID registry entries.
+- PS3.3: 192 IODs, 403 modules, 3401 IOD module uses, 303 macros,
+  8955 attribute uses.
+- PS3.4: 181 SOP Classes and 181 SOP Class to IOD edges.
+
+Accepted R1 parser warning class: 446 `unresolved functional group` warnings
+from PS3.3 functional-group usage tables. The real build no longer crashes,
+and the R1 smoke assertions do not depend on functional-group traversal. This
+remains a documented parser limitation for R2 Enhanced CT/functional-group
+golden coverage.
 
 ## Implemented behavior
 
@@ -298,11 +345,22 @@ Observed test count: 101 passing tests.
 - `dicom-kb eval score` command for scoring recorded agent transcripts,
   emitting stable JSON reports and exiting nonzero by default when any run
   fails.
+- Real DocBook table IR accepts official HTML-style table vocabulary in
+  addition to the existing CALS fixture vocabulary.
+- Real PS3.3 IOD module parsing handles `IE` header aliases and IOD module
+  tables that omit Usage/Information Entity columns while still registering
+  the IOD and module edge.
+- Real PS3.4 SOP Class parsing can resolve empty rendered IOD cells through
+  preserved `olink targetptr` anchors mapped to imported PS3.3 IODs during
+  `dicom-kb build`.
+- `tests/integration_requires_dicom_download/` covers local real-KB discovery,
+  skip-clean behavior without artifacts, source-manifest shape validation,
+  real entity count floors, and well-known resolver smoke assertions.
 
 ## Not yet implemented
 
-- Full PS3.3 parser coverage beyond the first v1 CT-style synthetic fixture
-  slice, including broader real-standard table variants.
+- Full PS3.3 functional-group macro resolution for real standard tables. The
+  2026b build currently reports 446 `unresolved functional group` warnings.
 - Spec query-layer modules beyond `query/resolver.py`: `query/graph.py`,
   `query/conditions.py`, `query/citations.py`, and `query/search.py` (Work
   Order H). Graph traversal and FTS5-backed text search currently live in
@@ -314,12 +372,11 @@ Observed test count: 101 passing tests.
 - Agent regression harness has offline scoring and scorecard CLI/reporting. A
   configured external-agent runner, committed recorded answer transcripts, and
   the spec target of at least 50 v1 prompt cases are still pending.
-- Golden fixture coverage (SYSTEM_SPECS.md section 15.2) beyond the single
-  synthetic CT-style PS3.3 fixture and PS3.6 registry fixture: MR Image,
-  Enhanced CT Image (functional-group resolution exercised end-to-end through
-  the query layer), Segmentation, Comprehensive SR, and Encapsulated PDF
-  goldens are pending. These approach real-standard content, so they likely
-  belong with the integration-test work rather than synthetic fixtures.
+- Golden fixture coverage (SYSTEM_SPECS.md section 15.2) beyond the R1 smoke
+  assertions: MR Image, Enhanced CT Image functional-group traversal,
+  Segmentation, Comprehensive SR, and Encapsulated PDF goldens are pending.
+  These should build on `tests/integration_requires_dicom_download/` and use
+  strict xfails where parser limitations remain.
 - Spec-mandated repository directories and files:
   `tests/fixtures_minimal_attributed/`, `examples/`, and
   `docbook/variablelists.py`.
@@ -329,14 +386,13 @@ Observed test count: 101 passing tests.
 These Makefile targets are forward declarations that currently fail or no-op
 if run:
 
-- `make test-integration` points at `tests/integration_requires_dicom_download/`,
-  which does not exist yet (pytest exits with a collection error).
 - `make run-mcp` now invokes the MCP stdio server with the optional `mcp`
   extra, but it still requires a local `2026b` database to exist in the
   conventional cache path.
 
 ## Recommended next work order
 
-Continue the v1 critical path by adding a configured external-agent runner and
-expanding the agent regression case set, committing recorded answer transcripts,
-or adding external MCP protocol/client smoke tests.
+Continue the v1 critical path with R2 golden integration coverage over the
+real 2026b KB, starting with CT Image, MR Image, Encapsulated PDF, the §15.2
+data element/UID set, and strict-xfail documentation for any still-blocked
+Enhanced CT functional-group traversal.
