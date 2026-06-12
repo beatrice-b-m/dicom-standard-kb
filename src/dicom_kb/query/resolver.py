@@ -10,6 +10,7 @@ from typing import Any
 from dicom_kb.db.repositories import (
     AttributeUseRecord,
     DataElementRepository,
+    DocumentRepository,
     IODModuleUseRecord,
     Part03Repository,
     Part04Repository,
@@ -32,6 +33,7 @@ from dicom_kb.query.answer_contracts import (
     module_attributes_result,
     sop_class_result,
     standard_ref,
+    standard_text_result,
     uid_result,
 )
 
@@ -491,6 +493,91 @@ def resolve_attribute_context(
             [use.payload for use in uses],
             effective_type=effective_type,
             effective_type_explanation=explanation,
+        ),
+        refs=refs,
+        warnings=warnings,
+        trace=trace,
+    )
+
+
+def retrieve_standard_text(
+    connection: sqlite3.Connection,
+    *,
+    part: str,
+    section_or_anchor: str,
+    edition: str,
+    max_chars: int = 800,
+    query_id: str | None = None,
+    resolved_at: datetime | None = None,
+) -> ToolResponse:
+    """Retrieve a capped excerpt from persisted DocBook structure."""
+    trace = _trace(
+        connection,
+        edition=edition,
+        query_id=query_id,
+        resolved_at=resolved_at,
+    )
+    response_input = {
+        "part": part,
+        "section_or_anchor": section_or_anchor,
+        "max_chars": str(max_chars),
+    }
+    if not part.startswith("PS3."):
+        return ToolResponse(
+            edition=edition,
+            tool="retrieve_standard_text",
+            input=response_input,
+            status="validation_error",
+            result={"message": "part must be a DICOM part label such as PS3.3."},
+            trace=trace,
+        )
+    if max_chars < 1 or max_chars > 4000:
+        return ToolResponse(
+            edition=edition,
+            tool="retrieve_standard_text",
+            input=response_input,
+            status="validation_error",
+            result={"message": "max_chars must be between 1 and 4000."},
+            trace=trace,
+        )
+
+    repository = DocumentRepository(connection)
+    node = repository.find_node(
+        part=part,
+        section_or_anchor=section_or_anchor,
+        edition=edition,
+    )
+    if node is None:
+        return ToolResponse(
+            edition=edition,
+            tool="retrieve_standard_text",
+            input=response_input,
+            status="not_found",
+            result={"message": "No standard text node matched the input."},
+            trace=trace,
+        )
+
+    tables = repository.list_tables_under_node(node, edition=edition)
+    plain_text = node.plain_text or ""
+    text_excerpt = plain_text[:max_chars]
+    warnings = (
+        [f"text excerpt truncated to {max_chars} characters"]
+        if len(plain_text) > max_chars
+        else []
+    )
+    refs = _unique_refs(
+        [standard_ref(node.source_ref)]
+        + [standard_ref(table.source_ref) for table in tables]
+    )
+    return ToolResponse(
+        edition=edition,
+        tool="retrieve_standard_text",
+        input=response_input,
+        status="ok",
+        result=standard_text_result(
+            node,
+            tables,
+            text_excerpt=text_excerpt,
         ),
         refs=refs,
         warnings=warnings,

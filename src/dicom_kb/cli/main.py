@@ -19,6 +19,7 @@ from dicom_kb.query.resolver import (
     lookup_sop_class,
     lookup_uid,
     resolve_attribute_context,
+    retrieve_standard_text,
 )
 
 app = typer.Typer(help="Build and query a local DICOM standard knowledge base.")
@@ -53,6 +54,42 @@ def doctor() -> None:
 def build_fixture() -> None:
     """Placeholder command for synthetic fixture ingestion."""
     typer.echo("Synthetic fixture ingestion is not implemented yet.")
+
+
+@app.command("retrieve-text")
+def retrieve_text_command(
+    part: Annotated[
+        str,
+        typer.Argument(help="DICOM part label, for example PS3.3."),
+    ],
+    section_or_anchor: Annotated[
+        str,
+        typer.Argument(help="DocBook xml:id, HTML anchor, or section number."),
+    ],
+    db: Annotated[
+        Path,
+        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
+    ],
+    edition: Annotated[
+        str,
+        typer.Option("--edition", help="Concrete DICOM edition label."),
+    ],
+    max_chars: Annotated[
+        int,
+        typer.Option("--max-chars", help="Maximum excerpt characters to return."),
+    ] = 800,
+) -> None:
+    """Retrieve a capped excerpt from persisted standard text."""
+    with _connect_existing_db(db) as connection:
+        _echo_response(
+            retrieve_standard_text(
+                connection,
+                part=part,
+                section_or_anchor=section_or_anchor,
+                edition=edition,
+                max_chars=max_chars,
+            )
+        )
 
 
 @lookup_app.command("tag")

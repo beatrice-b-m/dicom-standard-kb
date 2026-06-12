@@ -7,7 +7,12 @@ from typing import Any
 from typer.testing import CliRunner
 
 from dicom_kb.cli.main import app
-from dicom_kb.db.importers import import_part03, import_part04, import_part06
+from dicom_kb.db.importers import (
+    import_docbook_structure,
+    import_part03,
+    import_part04,
+    import_part06,
+)
 from dicom_kb.db.models import apply_migrations, connect_sqlite
 from dicom_kb.docbook.parser import parse_docbook_xml
 from dicom_kb.parsers.part03_iods import parse_part03
@@ -34,10 +39,13 @@ def _fixture_db(tmp_path: Path) -> Path:
         data_elements=parsed.data_elements,
         uid_registry_entries=parsed.uid_registry_entries,
     )
-    parsed_part03 = parse_part03(
-        parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3"),
+    part03_document = parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3")
+    import_docbook_structure(
+        connection,
         edition="2026b",
+        document=part03_document,
     )
+    parsed_part03 = parse_part03(part03_document, edition="2026b")
     import_part03(
         connection,
         edition="2026b",
@@ -142,6 +150,28 @@ def test_cli_lookup_uid_outputs_retired_entry(tmp_path: Path) -> None:
     assert payload["result"]["uid_value"] == "1.2.840.10008.1.2.2"
     assert payload["result"]["retired"] is True
     assert payload["refs"][0]["part"] == "PS3.6"
+
+
+def test_cli_retrieve_text_outputs_capped_excerpt(tmp_path: Path) -> None:
+    payload = _invoke_json(
+        tmp_path,
+        "retrieve-text",
+        "PS3.3",
+        "sect_A.3",
+        "--edition",
+        "2026b",
+        "--max-chars",
+        "60",
+    )
+
+    assert payload["tool"] == "retrieve_standard_text"
+    assert payload["status"] == "ok"
+    assert payload["result"]["title"] == "CT Image IOD"
+    assert len(payload["result"]["text_excerpt"]) == 60
+    assert payload["result"]["tables"] == [
+        {"table_id": "table_A.3-1", "title": "CT Image IOD Modules"}
+    ]
+    assert payload["warnings"] == ["text excerpt truncated to 60 characters"]
 
 
 def test_cli_lookup_iod_outputs_ps33_iod(tmp_path: Path) -> None:

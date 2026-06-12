@@ -17,6 +17,7 @@ from dicom_kb.ir.models import (
     IOD,
     AttributeUse,
     DataElement,
+    DocNode,
     Module,
     ServiceClass,
     SOPClass,
@@ -189,6 +190,28 @@ def attribute_context_result(
         "uses": uses,
         "effective_type": effective_type,
         "effective_type_explanation": effective_type_explanation,
+    }
+
+
+def standard_text_result(
+    node: DocNode,
+    tables: list[DocNode],
+    *,
+    text_excerpt: str,
+) -> dict[str, Any]:
+    """Return the public result payload for a short standard text excerpt."""
+    return {
+        "part": node.part,
+        "section": node.number or node.xml_id,
+        "title": node.title,
+        "text_excerpt": text_excerpt,
+        "tables": [
+            {
+                "table_id": table.xml_id,
+                "title": table.title,
+            }
+            for table in tables
+        ],
     }
 
 

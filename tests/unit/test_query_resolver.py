@@ -4,7 +4,12 @@ import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 
-from dicom_kb.db.importers import import_part03, import_part04, import_part06
+from dicom_kb.db.importers import (
+    import_docbook_structure,
+    import_part03,
+    import_part04,
+    import_part06,
+)
 from dicom_kb.db.models import apply_migrations, connect_sqlite
 from dicom_kb.docbook.parser import parse_docbook_xml
 from dicom_kb.ir.models import AttributeUse, Macro, SourceRef
@@ -19,6 +24,7 @@ from dicom_kb.query.resolver import (
     lookup_sop_class,
     lookup_uid,
     resolve_attribute_context,
+    retrieve_standard_text,
 )
 from tests.fixtures_synthetic import (
     PS33_CT_IMAGE_DOCBOOK,
@@ -61,6 +67,18 @@ def _part03_connection(tmp_path: Path) -> sqlite3.Connection:
         iod_module_uses=parsed.iod_module_uses,
         iod_functional_group_uses=parsed.iod_functional_group_uses,
         attribute_uses=parsed.attribute_uses,
+    )
+    return connection
+
+
+def _doc_connection(tmp_path: Path) -> sqlite3.Connection:
+    connection = connect_sqlite(tmp_path / "kb.sqlite")
+    apply_migrations(connection)
+    document = parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3")
+    import_docbook_structure(
+        connection,
+        edition="2026b",
+        document=document,
     )
     return connection
 
@@ -357,6 +375,75 @@ def test_lookup_uid_reports_retired_entry(tmp_path: Path) -> None:
         "retired": True,
     }
     assert response.refs[0].part == "PS3.6"
+
+
+def test_retrieve_standard_text_returns_capped_excerpt_and_tables(
+    tmp_path: Path,
+) -> None:
+    response = retrieve_standard_text(
+        _doc_connection(tmp_path),
+        part="PS3.3",
+        section_or_anchor="sect_A.3",
+        edition="2026b",
+        max_chars=80,
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert response.status == "ok"
+    assert response.result is not None
+    assert response.result["part"] == "PS3.3"
+    assert response.result["section"] == "sect_A.3"
+    assert response.result["title"] == "CT Image IOD"
+    assert len(str(response.result["text_excerpt"])) == 80
+    assert response.result["tables"] == [
+        {"table_id": "table_A.3-1", "title": "CT Image IOD Modules"}
+    ]
+    assert response.warnings == ["text excerpt truncated to 80 characters"]
+    assert [ref.part for ref in response.refs] == ["PS3.3", "PS3.3"]
+    assert response.refs[1].table == "CT Image IOD Modules"
+    assert response.trace.query_id == "query-1"
+
+
+def test_retrieve_standard_text_validates_inputs(tmp_path: Path) -> None:
+    connection = _doc_connection(tmp_path)
+    response = retrieve_standard_text(
+        connection,
+        part="3.3",
+        section_or_anchor="sect_A.3",
+        edition="2026b",
+        max_chars=80,
+    )
+
+    assert response.status == "validation_error"
+    assert response.result is not None
+    assert "part must be" in str(response.result["message"])
+
+    response = retrieve_standard_text(
+        connection,
+        part="PS3.3",
+        section_or_anchor="sect_A.3",
+        edition="2026b",
+        max_chars=0,
+    )
+
+    assert response.status == "validation_error"
+    assert response.result is not None
+    assert "max_chars" in str(response.result["message"])
+
+
+def test_retrieve_standard_text_reports_not_found(tmp_path: Path) -> None:
+    response = retrieve_standard_text(
+        _doc_connection(tmp_path),
+        part="PS3.3",
+        section_or_anchor="missing",
+        edition="2026b",
+        max_chars=80,
+    )
+
+    assert response.status == "not_found"
+    assert response.result == {"message": "No standard text node matched the input."}
+    assert response.refs == []
 
 
 def test_lookup_iod_returns_ps33_iod(tmp_path: Path) -> None:
