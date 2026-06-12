@@ -4,15 +4,18 @@ Last updated: 2026-06-12
 
 ## Current stopping point
 
-Stopped after adding the R2 real-KB golden coverage slice from
+Stopped after completing the R3 agent prompt-case expansion from
 `PROGRESS_REVIEW.md`: official `current` was fetched and resolved to concrete
 edition `2026b`, the local KB builds from real PS3.3/PS3.4/PS3.6 DocBook XML,
 `make test-integration` has a real-download integration tier that passes with
 local artifacts and skips cleanly without them, and the §15.2 golden entity set
-now has real-KB integration assertions. Two R2 parser limitations remain
-captured as strict xfails: real PS3.3 include rows are not yet persisted as
-macro include provenance, and Enhanced CT functional-group usage rows are not
-yet persisted. The repository now has a working v1 foundation through:
+now has real-KB integration assertions. The agent regression prompt set now has
+65 edition-pinned cases, covers all nine v1 query tools, and includes an
+offline guard for the ≥50-case, unique-ID, edition-pin, all-tool, and
+error-case floors. Two R2 parser limitations remain captured as strict xfails:
+real PS3.3 include rows are not yet persisted as macro include provenance, and
+Enhanced CT functional-group usage rows are not yet persisted. The repository
+now has a working v1 foundation through:
 
 1. Work Order A: repository/build/legal scaffold.
 2. Work Order B: local source acquisition primitives.
@@ -112,6 +115,12 @@ yet persisted. The repository now has a working v1 foundation through:
     element and UID sets; and CT/Segmentation SOP Class to IOD traversals.
     Golden expectations are checked through public resolvers with PS3.3/PS3.6
     source-ref anchors where the public response envelope exposes them.
+32. R3 Work Order J prompt-case expansion from three cases to 65 committed
+    agent regression cases. The cases are pinned to concrete edition `2026b`,
+    systematically cover golden IODs, modules, data elements, UIDs, SOP Class
+    traversals, attribute context queries, text retrieval, text search,
+    multi-tool workflows, and 10 error/ambiguity paths, with an offline test
+    enforcing the coverage floors.
 
 ## Completed commits
 
@@ -159,10 +168,12 @@ yet persisted. The repository now has a working v1 foundation through:
 - `80f190f test(integration): add real KB smoke coverage`
 - `7e53994 docs(progress): record R1 real KB validation`
 - `f770617 test(integration): add real KB golden coverage`
+- `ecaad27 docs(progress): record R2 golden coverage`
+- `9c8a3ec feat(eval): expand agent prompt cases`
 
 ## Verification at stop
 
-The following offline checks passed after the R2 golden coverage work:
+The following offline checks passed after the R3 prompt-case expansion:
 
 ```bash
 uv run --dev ruff check .
@@ -170,8 +181,14 @@ uv run --dev mypy
 uv run --dev pytest
 ```
 
-Observed local test result with the built real KB present: 144 passed and 2
+Observed local test result with the built real KB present: 147 passed and 2
 strict xfailed tests.
+
+Observed R3 prompt-case metrics:
+
+- 65 committed cases.
+- 10 error/ambiguity cases.
+- All nine v1 query tools appear in at least one case's `expected_tools`.
 
 The following integration checks were also run against locally fetched and
 built official DICOM edition `2026b`:
