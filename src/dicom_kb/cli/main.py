@@ -2,11 +2,20 @@
 
 from __future__ import annotations
 
+import json
+import sqlite3
+from pathlib import Path
+from typing import Annotated
+
 import typer
 
 from dicom_kb.metadata import LEGAL_NOTICE, __version__
+from dicom_kb.query.answer_contracts import ToolResponse
+from dicom_kb.query.resolver import lookup_data_element, lookup_uid
 
 app = typer.Typer(help="Build and query a local DICOM standard knowledge base.")
+lookup_app = typer.Typer(help="Run exact lookups against a local SQLite KB.")
+app.add_typer(lookup_app, name="lookup")
 
 
 @app.callback()
@@ -30,3 +39,69 @@ def doctor() -> None:
 def build_fixture() -> None:
     """Placeholder command for synthetic fixture ingestion."""
     typer.echo("Synthetic fixture ingestion is not implemented yet.")
+
+
+@lookup_app.command("tag")
+def lookup_tag(
+    tag_or_keyword: Annotated[
+        str,
+        typer.Argument(help="DICOM tag like (0008,0060), range tag, or keyword."),
+    ],
+    db: Annotated[
+        Path,
+        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
+    ],
+    edition: Annotated[
+        str,
+        typer.Option("--edition", help="Concrete DICOM edition label."),
+    ],
+) -> None:
+    """Look up a PS3.6 data element by tag or keyword."""
+    with _connect_existing_db(db) as connection:
+        _echo_response(
+            lookup_data_element(
+                connection,
+                tag_or_keyword=tag_or_keyword,
+                edition=edition,
+            )
+        )
+
+
+@lookup_app.command("uid")
+def lookup_uid_command(
+    uid_or_keyword: Annotated[
+        str,
+        typer.Argument(help="DICOM UID value or UID keyword."),
+    ],
+    db: Annotated[
+        Path,
+        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
+    ],
+    edition: Annotated[
+        str,
+        typer.Option("--edition", help="Concrete DICOM edition label."),
+    ],
+) -> None:
+    """Look up a PS3.6 UID registry entry by UID value or keyword."""
+    with _connect_existing_db(db) as connection:
+        _echo_response(
+            lookup_uid(
+                connection,
+                uid_or_keyword=uid_or_keyword,
+                edition=edition,
+            )
+        )
+
+
+def _connect_existing_db(path: Path) -> sqlite3.Connection:
+    if not path.exists():
+        raise typer.BadParameter(f"SQLite KB does not exist: {path}")
+    connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA foreign_keys = ON")
+    return connection
+
+
+def _echo_response(response: ToolResponse) -> None:
+    payload = response.model_dump(mode="json", exclude_none=True)
+    typer.echo(json.dumps(payload, indent=2, sort_keys=True))
