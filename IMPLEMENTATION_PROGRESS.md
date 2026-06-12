@@ -4,7 +4,7 @@ Last updated: 2026-06-12
 
 ## Current stopping point
 
-Stopped after the third R6 repository-layout reconciliation split from
+Stopped after completing R6 repository-layout reconciliation from
 `PROGRESS_REVIEW.md`: the public query API now retains `resolver.py` as a thin
 entry-point layer while citation assembly, condition payload shaping, PS3.3
 graph traversal, recursive macro expansion, and SQLite FTS query construction
@@ -12,11 +12,13 @@ live in the spec-aligned `query/citations.py`, `query/conditions.py`,
 `query/graph.py`, and `query/search.py` modules; the MCP adapter now keeps
 `mcp/server.py` focused on configuration, dependency loading, and stdio
 transport while tool metadata and resolver dispatch live in `mcp/schemas.py`
-and `mcp/tools.py`; and DocBook `<variablelist>` parsing now lives in
+and `mcp/tools.py`; DocBook `<variablelist>` parsing now lives in
 `docbook/variablelists.py` with synthetic fixture coverage for term,
-definition, reference, and source-context preservation. Storage/import wiring
-for parsed variable lists remains intentionally pending for a later
-value-constraint slice. Official `current` was fetched and resolved to concrete
+definition, reference, and source-context preservation; and the spec-listed
+`examples/` and `tests/fixtures_minimal_attributed/` paths now exist. Storage
+and import wiring for parsed variable lists remains intentionally pending for a
+later value-constraint slice, and post-v1 `api/` plus v2 parser paths remain
+absent by design. Official `current` was fetched and resolved to concrete
 edition `2026b`, the local KB builds from real PS3.3/PS3.4/PS3.6 DocBook XML,
 `make test-integration` has a real-download integration tier that passes with
 local artifacts and skips cleanly without them, and the §15.2 golden entity set
@@ -32,7 +34,8 @@ KB, and `dicom-kb mcp serve` fails early with fetch/build guidance when the
 configured SQLite KB is missing. Two R2 parser limitations remain captured as
 strict xfails: real PS3.3 include rows are not yet persisted as macro include
 provenance, and Enhanced CT functional-group usage rows are not yet persisted.
-The repository now has a working v1 foundation through:
+R7 differential testing remains the next unresolved item. The repository now
+has a working v1 foundation through:
 
 1. Work Order A: repository/build/legal scaffold.
 2. Work Order B: local source acquisition primitives.
@@ -162,6 +165,12 @@ The repository now has a working v1 foundation through:
     context, stable XML ids, row order, and embedded references; `ParsedDocument`
     exposes the parsed lists for future enumerated-value and defined-term
     storage.
+38. R6 examples and minimal-attributed fixture policy, fourth slice. The
+    spec-listed `examples/python/`, `examples/cli/`, `examples/mcp/`,
+    `examples/coding_agent_harness/`, `examples/validators/`, and
+    `tests/fixtures_minimal_attributed/` paths exist; examples target the
+    synthetic fixture KB, executable examples have offline smoke coverage, and
+    the attributed fixture directory starts with policy only.
 
 ## Completed commits
 
@@ -220,10 +229,12 @@ The repository now has a working v1 foundation through:
 - `5ea3d2c refactor(mcp): split server transport from tool mapping`
 - `1cb59ec docs(progress): record R6 MCP layout split`
 - `6190d63 feat(docbook): parse variable lists`
+- `096fb61 docs(progress): record R6 variable-list parser`
+- `cbd7dc8 feat(examples): add fixture-oriented sample workflows`
 
 ## Verification at stop
 
-The following checks passed after the R6 DocBook variable-list parser:
+The following checks passed after the R6 examples and fixture-policy slice:
 
 ```bash
 uv run --dev ruff check .
@@ -231,7 +242,7 @@ uv run --dev mypy
 uv run --dev pytest
 ```
 
-Observed local test result with the built real KB present: 153 passed and 2
+Observed local test result with the built real KB present: 157 passed and 2
 strict xfailed tests.
 
 Observed R3 prompt-case metrics:
@@ -314,6 +325,11 @@ Accepted R2 strict-xfail limitations:
 - DocBook variable-list parsing into term/definition IR with parent section,
   XML id, entry order, and embedded reference preservation; persistence remains
   pending for the later value-constraint slice.
+- Fixture-oriented examples for direct Python resolver usage, CLI lookup, MCP
+  server launch, deterministic coding-agent harness runs, and local identifier
+  validators.
+- Minimal-attributed fixture policy directory that starts empty of official
+  excerpts and defines attribution/minimization rules for future parser cases.
 - DocBook section/table parent and ordinal metadata for persistent structure
   storage.
 - Zero-width character removal and normalized text helpers.
