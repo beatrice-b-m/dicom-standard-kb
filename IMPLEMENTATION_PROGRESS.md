@@ -4,13 +4,16 @@ Last updated: 2026-06-12
 
 ## Current stopping point
 
-Stopped after starting R6 repository-layout reconciliation from
+Stopped after the first two R6 repository-layout reconciliation splits from
 `PROGRESS_REVIEW.md`: the public query API now retains `resolver.py` as a thin
 entry-point layer while citation assembly, condition payload shaping, PS3.3
 graph traversal, recursive macro expansion, and SQLite FTS query construction
 live in the spec-aligned `query/citations.py`, `query/conditions.py`,
-`query/graph.py`, and `query/search.py` modules. Official `current` was fetched
-and resolved to concrete edition `2026b`, the local KB builds from real
+`query/graph.py`, and `query/search.py` modules, and the MCP adapter now keeps
+`mcp/server.py` focused on configuration, dependency loading, and stdio
+transport while tool metadata and resolver dispatch live in
+`mcp/schemas.py` and `mcp/tools.py`. Official `current` was fetched and
+resolved to concrete edition `2026b`, the local KB builds from real
 PS3.3/PS3.4/PS3.6 DocBook XML, `make test-integration` has a real-download
 integration tier that passes with local artifacts and skips cleanly without
 them, and the §15.2 golden entity set now has real-KB integration assertions.
@@ -146,6 +149,10 @@ not yet persisted. The repository now has a working v1 foundation through:
     shaping, PS3.3 graph traversal, recursive macro expansion, and FTS query
     construction live in `query/citations.py`, `query/conditions.py`,
     `query/graph.py`, and `query/search.py` with no public API change.
+36. R6 MCP layout reconciliation, second slice. `mcp/server.py` now keeps the
+    runtime configuration and stdio transport helpers while tool-name metadata
+    lives in `mcp/schemas.py` and resolver dispatch plus FastMCP registration
+    live in `mcp/tools.py`, preserving the public CLI and MCP behavior.
 
 ## Completed commits
 
@@ -200,6 +207,7 @@ not yet persisted. The repository now has a working v1 foundation through:
 - `336544f docs(progress): record R4 reference runner`
 - `e7569ca test(mcp): add stdio protocol smoke coverage`
 - `4910279 refactor(query): split resolver internals by concern`
+- `5ea3d2c refactor(mcp): split server transport from tool mapping`
 
 ## Verification at stop
 
