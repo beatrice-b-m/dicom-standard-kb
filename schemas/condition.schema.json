@@ -1,0 +1,114 @@
+{
+  "$id": "https://dicom-standard-kb.local/schemas/condition.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "dependency": {
+      "additionalProperties": false,
+      "properties": {
+        "keyword": {
+          "type": ["string", "null"]
+        },
+        "tag": {
+          "pattern": "^\\([0-9A-Fa-fx]{4},[0-9A-Fa-fx]{4}\\)$",
+          "type": ["string", "null"]
+        }
+      },
+      "required": ["tag", "keyword"],
+      "type": "object"
+    },
+    "evaluator": {
+      "additionalProperties": true,
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+        "expression": {
+          "type": ["object", "null"]
+        },
+        "logic": {
+          "type": ["string", "null"]
+        }
+      },
+      "required": ["available"],
+      "type": "object"
+    },
+    "standardRef": {
+      "additionalProperties": false,
+      "properties": {
+        "anchor": {
+          "type": ["string", "null"]
+        },
+        "edition": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "official_url": {
+          "format": "uri",
+          "type": ["string", "null"]
+        },
+        "part": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "section": {
+          "type": ["string", "null"]
+        },
+        "table": {
+          "type": ["string", "null"]
+        }
+      },
+      "required": ["part", "edition"],
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Condition fact preserved from normative DICOM text, with optional machine-readable interpretation.",
+  "properties": {
+    "condition_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "condition_kind": {
+      "type": ["string", "null"]
+    },
+    "dependencies": {
+      "items": {
+        "$ref": "#/$defs/dependency"
+      },
+      "type": "array"
+    },
+    "evaluator": {
+      "$ref": "#/$defs/evaluator"
+    },
+    "machine_status": {
+      "enum": [
+        "parsed",
+        "partially_parsed",
+        "raw_text",
+        "not_machine_decidable"
+      ],
+      "type": "string"
+    },
+    "refs": {
+      "items": {
+        "$ref": "#/$defs/standardRef"
+      },
+      "type": "array"
+    },
+    "source_text": {
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "condition_id",
+    "source_text",
+    "condition_kind",
+    "machine_status",
+    "dependencies",
+    "evaluator",
+    "refs"
+  ],
+  "title": "Condition",
+  "type": "object"
+}

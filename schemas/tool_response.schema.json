@@ -1,0 +1,110 @@
+{
+  "$id": "https://dicom-standard-kb.local/schemas/tool_response.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "responseTrace": {
+      "additionalProperties": false,
+      "properties": {
+        "query_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "resolved_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "source_manifest_sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": ["string", "null"]
+        }
+      },
+      "required": ["query_id", "resolved_at", "source_manifest_sha256"],
+      "type": "object"
+    },
+    "standardRef": {
+      "additionalProperties": false,
+      "properties": {
+        "anchor": {
+          "type": ["string", "null"]
+        },
+        "edition": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "official_url": {
+          "format": "uri",
+          "type": ["string", "null"]
+        },
+        "part": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "section": {
+          "type": ["string", "null"]
+        },
+        "table": {
+          "type": ["string", "null"]
+        }
+      },
+      "required": ["part", "edition"],
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Common public envelope returned by CLI and future agent tools.",
+  "properties": {
+    "edition": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "input": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "notice": {
+      "const": "Consult the official DICOM Standard for authoritative text.",
+      "type": "string"
+    },
+    "refs": {
+      "items": {
+        "$ref": "#/$defs/standardRef"
+      },
+      "type": "array"
+    },
+    "result": {
+      "type": ["object", "null"]
+    },
+    "status": {
+      "enum": ["ok", "not_found", "validation_error"],
+      "type": "string"
+    },
+    "tool": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "trace": {
+      "$ref": "#/$defs/responseTrace"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "edition",
+    "tool",
+    "input",
+    "status",
+    "result",
+    "refs",
+    "warnings",
+    "notice",
+    "trace"
+  ],
+  "title": "ToolResponse",
+  "type": "object"
+}

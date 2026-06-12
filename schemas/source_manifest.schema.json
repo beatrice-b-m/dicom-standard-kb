@@ -1,0 +1,90 @@
+{
+  "$id": "https://dicom-standard-kb.local/schemas/source_manifest.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "sourceArtifact": {
+      "additionalProperties": false,
+      "properties": {
+        "byte_size": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "format": {
+          "enum": ["docbook_xml", "pdf", "html", "chtml", "targetdb"],
+          "type": "string"
+        },
+        "local_path": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "part": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        "source_url": {
+          "format": "uri",
+          "type": ["string", "null"]
+        }
+      },
+      "required": [
+        "part",
+        "format",
+        "local_path",
+        "source_url",
+        "sha256",
+        "byte_size"
+      ],
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Immutable manifest for one concrete DICOM standard source acquisition.",
+  "properties": {
+    "acquired_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "artifacts": {
+      "items": {
+        "$ref": "#/$defs/sourceArtifact"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "edition": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "notice": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "parser_version": {
+      "pattern": "^dicom-kb-parser/.+",
+      "type": "string"
+    },
+    "resolved_from": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "source_manifest_sha256": {
+      "pattern": "^[a-f0-9]{64}$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "edition",
+    "resolved_from",
+    "acquired_at",
+    "artifacts",
+    "parser_version",
+    "source_manifest_sha256",
+    "notice"
+  ],
+  "title": "SourceManifest",
+  "type": "object"
+}

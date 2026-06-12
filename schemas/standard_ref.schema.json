@@ -1,0 +1,32 @@
+{
+  "$id": "https://dicom-standard-kb.local/schemas/standard_ref.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Citation pointer for a fact parsed from an official DICOM standard artifact.",
+  "properties": {
+    "anchor": {
+      "type": ["string", "null"]
+    },
+    "edition": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "official_url": {
+      "format": "uri",
+      "type": ["string", "null"]
+    },
+    "part": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "section": {
+      "type": ["string", "null"]
+    },
+    "table": {
+      "type": ["string", "null"]
+    }
+  },
+  "required": ["part", "edition"],
+  "title": "StandardRef",
+  "type": "object"
+}
