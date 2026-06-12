@@ -4,12 +4,15 @@ Last updated: 2026-06-12
 
 ## Current stopping point
 
-Stopped after completing the R1 real-edition validation slice from
+Stopped after adding the R2 real-KB golden coverage slice from
 `PROGRESS_REVIEW.md`: official `current` was fetched and resolved to concrete
 edition `2026b`, the local KB builds from real PS3.3/PS3.4/PS3.6 DocBook XML,
-and `make test-integration` now has a real-download integration tier that
-passes with local artifacts and skips cleanly without them. The repository now
-has a working v1 foundation through:
+`make test-integration` has a real-download integration tier that passes with
+local artifacts and skips cleanly without them, and the §15.2 golden entity set
+now has real-KB integration assertions. Two R2 parser limitations remain
+captured as strict xfails: real PS3.3 include rows are not yet persisted as
+macro include provenance, and Enhanced CT functional-group usage rows are not
+yet persisted. The repository now has a working v1 foundation through:
 
 1. Work Order A: repository/build/legal scaffold.
 2. Work Order B: local source acquisition primitives.
@@ -103,6 +106,12 @@ has a working v1 foundation through:
     checks manifest shape, asserts real-KB entity count floors, and exercises
     public resolvers for Modality, transfer syntaxes, CT Image modules,
     CT Image Storage SOP Class traversal, and range-tag lookup.
+31. R2 real-KB golden integration coverage for CT Image, MR Image, Enhanced CT
+    Image, Segmentation, Comprehensive SR, and Encapsulated PDF IODs; anchor
+    modules; core modules and General Series Modality type; the §15.2 data
+    element and UID sets; and CT/Segmentation SOP Class to IOD traversals.
+    Golden expectations are checked through public resolvers with PS3.3/PS3.6
+    source-ref anchors where the public response envelope exposes them.
 
 ## Completed commits
 
@@ -148,10 +157,12 @@ has a working v1 foundation through:
 - `0c927e1 fix(docbook): parse real DocBook table vocabulary`
 - `81983d8 fix(parsers): resolve real SOP class IOD links`
 - `80f190f test(integration): add real KB smoke coverage`
+- `7e53994 docs(progress): record R1 real KB validation`
+- `f770617 test(integration): add real KB golden coverage`
 
 ## Verification at stop
 
-The following offline checks passed after the R1 integration work:
+The following offline checks passed after the R2 golden coverage work:
 
 ```bash
 uv run --dev ruff check .
@@ -159,16 +170,18 @@ uv run --dev mypy
 uv run --dev pytest
 ```
 
-Observed offline test count: 112 passing tests.
+Observed local test result with the built real KB present: 144 passed and 2
+strict xfailed tests.
 
 The following integration checks were also run against locally fetched and
 built official DICOM edition `2026b`:
 
 ```bash
-make test-integration
+uv run --dev pytest tests/integration_requires_dicom_download
 ```
 
-Observed integration result with artifacts: 5 passing tests.
+Observed integration result with artifacts: 37 passing tests and 2 strict
+xfailed tests.
 
 The no-artifact path was verified with an empty cache:
 
@@ -177,7 +190,7 @@ DICOM_KB_CACHE_DIR=/private/tmp/dicom-kb-empty-cache \
   uv run --dev pytest tests/integration_requires_dicom_download
 ```
 
-Observed no-artifact result: 5 skipped tests, exit code 0.
+Observed no-artifact result: 39 skipped tests, exit code 0.
 
 The real 2026b build imports:
 
@@ -191,6 +204,15 @@ from PS3.3 functional-group usage tables. The real build no longer crashes,
 and the R1 smoke assertions do not depend on functional-group traversal. This
 remains a documented parser limitation for R2 Enhanced CT/functional-group
 golden coverage.
+
+Accepted R2 strict-xfail limitations:
+
+- Real PS3.3 module include rows are currently imported as plain attribute rows
+  in the real 2026b build, so `expand_macros=true` cannot yet demonstrate
+  dual include/macro provenance against official content.
+- Enhanced CT functional-group usage rows are not persisted in the real 2026b
+  build, so `resolve_attribute_context` cannot yet report a non-empty
+  `via_macro` path for an attribute reachable only through a functional group.
 
 ## Implemented behavior
 
