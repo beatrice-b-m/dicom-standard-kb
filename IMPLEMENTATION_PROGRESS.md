@@ -4,23 +4,23 @@ Last updated: 2026-06-12
 
 ## Current stopping point
 
-Stopped after the third R7 differential-testing slice from
+Stopped after completing R7 differential-testing remediation from
 `PROGRESS_REVIEW.md`: the integration tier now has skip-clean external
 differential checks for optional Innolitics JSON and optional pydicom. The
 Innolitics harness reads `DICOM_KB_INNOLITICS_PATH`, compares parseable PS3.6
-data element fields and CT Image module lists against the local KB, and the
-pydicom harness compares local PS3.6 data element fields against pydicom's
-packaged data dictionary when that optional dependency is installed. A
-pydicom-installed run against a freshly rebuilt temporary 2026b KB now passes
-with five explicit accepted differences: two pydicom VM simplifications, two
-pydicom keyword edition skews, and one pydicom retired-flag edition skew. The
-pydicom run also exposed and fixed a real PS3.6 parser bug: the official data
-element table's retired marker column can have an empty header and use `RET`
-without spelling out "Retired". A real Innolitics JSON run has not yet been
-performed in this environment, so R7 remains open until configured Innolitics
-data produces zero unexplained mismatches or documented allowlisted
-differences. R6 repository-layout reconciliation is complete: the public query
-API now retains `resolver.py` as a thin entry-point layer while citation
+data element fields and CT Image module lists against the local KB, including
+the finalized split-file shape (`attributes.json`, `ciods.json`,
+`ciod_to_modules.json`, and `modules.json`). The pydicom harness compares local
+PS3.6 data element fields against pydicom's packaged data dictionary when that
+optional dependency is installed. Runs against freshly rebuilt temporary 2026b
+KBs now pass for both external sources: pydicom with five explicit accepted
+differences, and Innolitics with four data-element edition skews plus one CT
+Image module-list edition skew. The pydicom run also exposed and fixed a real
+PS3.6 parser bug: the official data element table's retired marker column can
+have an empty header and use `RET` without spelling out "Retired". R7's
+completion conditions are now satisfied for the configured external datasets.
+R6 repository-layout reconciliation is complete: the public query API now
+retains `resolver.py` as a thin entry-point layer while citation
 assembly, condition payload shaping, PS3.3 graph traversal, recursive macro
 expansion, and SQLite FTS query construction live in the spec-aligned
 `query/citations.py`, `query/conditions.py`, `query/graph.py`, and
@@ -196,6 +196,11 @@ yet persisted. The repository now has a working v1 foundation through:
     pydicom-specific dictionary conventions, and the focused pydicom run
     against a rebuilt 2026b KB passes with five explicit accepted differences
     recorded as interpretation or edition skew.
+44. R7 Innolitics differential completion. The Innolitics adapter now supports
+    the finalized split JSON files from `standard/`, normalizes generated
+    attribute conventions, and the configured run against a rebuilt 2026b KB
+    passes with four data-element edition skews and one CT Image module-list
+    edition skew recorded in the allowlist.
 
 ## Completed commits
 
@@ -264,10 +269,12 @@ yet persisted. The repository now has a working v1 foundation through:
 - `7b96148 docs(progress): record pydicom differential slice`
 - `4abf56f fix(parsers): detect PS3.6 RET retired markers`
 - `e75c528 test(integration): triage pydicom dictionary skew`
+- `f0172d6 docs(progress): record pydicom triage results`
+- `3a321e0 test(integration): support Innolitics finalized JSON`
 
 ## Verification at stop
 
-The following checks passed after the R7 pydicom differential triage slice:
+The following checks passed after the R7 Innolitics differential completion:
 
 ```bash
 uv run --dev ruff check .
@@ -291,6 +298,21 @@ DICOM_KB_CACHE_DIR=/private/tmp/dicom-kb-pydicom-cache \
 
 Observed focused pydicom result: 1 passed. The five accepted pydicom
 differences are recorded in
+`tests/integration_requires_dicom_download/differential_allowlist.json`.
+
+The focused Innolitics differential was run against the downloaded finalized
+JSON files in `/Users/beatrice/TestingFiles/innolitics-dcm-standard` and the
+same fresh temporary 2026b build:
+
+```bash
+DICOM_KB_CACHE_DIR=/private/tmp/dicom-kb-pydicom-cache \
+  DICOM_KB_INNOLITICS_PATH=/Users/beatrice/TestingFiles/innolitics-dcm-standard \
+  uv run --dev pytest tests/integration_requires_dicom_download/test_differential.py
+```
+
+Observed focused Innolitics result: 2 passed, 1 skipped (the skip is the
+optional pydicom check in an environment without pydicom installed). The five
+accepted Innolitics differences are recorded in
 `tests/integration_requires_dicom_download/differential_allowlist.json`.
 
 Observed R3 prompt-case metrics:
@@ -382,7 +404,8 @@ Accepted R2 strict-xfail limitations:
   excerpts and defines attribution/minimization rules for future parser cases.
 - Optional Innolitics differential harness for PS3.6 data element fields and CT
   Image module lists, with clean skips when external comparison data is not
-  configured.
+  configured, support for finalized split JSON files, and a passing focused run
+  against a fresh 2026b temporary build.
 - Optional pydicom differential harness for PS3.6 data element fields, with a
   clean skip when pydicom is not installed and a passing focused run against a
   fresh 2026b temporary build when pydicom is installed.
