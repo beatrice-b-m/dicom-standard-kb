@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 import pytest
+from click.utils import strip_ansi
 from typer.main import get_command
 from typer.testing import CliRunner
 
@@ -182,11 +183,13 @@ def test_mcp_cli_missing_db_names_fetch_and_build_commands(tmp_path: Path) -> No
         ],
     )
 
+    output = " ".join(strip_ansi(result.output).split())
+
     assert result.exit_code != 0
-    assert "SQLite KB does not exist" in result.output
-    assert "dicom-kb fetch --edition current" in result.output
-    assert "dicom-kb build --edition <resolved-edition>" in result.output
-    assert "dicom-kb build-fixture --edition 2026b" in result.output
+    assert "SQLite KB does not exist" in output
+    assert "dicom-kb fetch --edition current" in output
+    assert "dicom-kb build --edition <resolved-edition>" in output
+    assert "dicom-kb build-fixture --edition 2026b" in output
 
 
 def test_mcp_cli_exposes_serve_command_without_optional_dependency() -> None:
@@ -206,6 +209,7 @@ def test_mcp_cli_exposes_serve_command_without_optional_dependency() -> None:
 
 
 def test_serve_mcp_stdio_reports_missing_optional_dependency(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from dicom_kb.mcp import server
@@ -216,4 +220,4 @@ def test_serve_mcp_stdio_reports_missing_optional_dependency(
     monkeypatch.setattr(server, "_load_fastmcp", fail_load_fastmcp)
 
     with pytest.raises(MissingMCPDependencyError, match="missing mcp"):
-        serve_mcp_stdio(MCPServerConfig(edition="2026b"))
+        serve_mcp_stdio(MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)))
