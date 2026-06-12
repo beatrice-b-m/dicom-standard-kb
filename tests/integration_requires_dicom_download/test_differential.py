@@ -165,14 +165,18 @@ def _load_innolitics_data_elements(path: Path) -> dict[str, dict[str, object]]:
         except IdentifierValidationError:
             continue
         candidate = {
-            "name": _first_text(item, "name", "Name", "title"),
+            "name": _strip_retired_parenthetical(
+                _first_text(item, "name", "Name", "title")
+            ),
             "keyword": _first_text(item, "keyword", "keywordName", "keyword_name"),
-            "vr": _first_text(
-                item,
-                "vr",
-                "VR",
-                "valueRepresentation",
-                "value_representations",
+            "vr": _normalize_innolitics_vr(
+                _first_text(
+                    item,
+                    "vr",
+                    "VR",
+                    "valueRepresentation",
+                    "value_representations",
+                )
             ),
             "vm": _first_text(item, "vm", "VM", "valueMultiplicity"),
             "retired": _retired_value(item),
@@ -204,6 +208,10 @@ def _load_pydicom_data_elements() -> dict[str, dict[str, object]]:
 
 
 def _load_innolitics_ct_modules(path: Path) -> set[str]:
+    finalized_modules = _load_finalized_innolitics_ct_modules(path)
+    if finalized_modules:
+        return finalized_modules
+
     for item in _walk_json_files(path):
         name = _first_text(item, "name", "Name", "title", "id")
         if name is None or _normalize_module_name(name) != "CT Image":
@@ -219,6 +227,40 @@ def _load_innolitics_ct_modules(path: Path) -> set[str]:
         if parsed:
             return parsed
     return set()
+
+
+def _load_finalized_innolitics_ct_modules(path: Path) -> set[str]:
+    if not path.is_dir():
+        return set()
+    ciods = _load_json_list(path / "ciods.json")
+    relationships = _load_json_list(path / "ciod_to_modules.json")
+    modules = _load_json_list(path / "modules.json")
+    if not ciods or not relationships or not modules:
+        return set()
+
+    ct_iod = next(
+        (
+            item
+            for item in ciods
+            if _normalize_module_name(str(item.get("name", ""))) == "CT Image"
+        ),
+        None,
+    )
+    if ct_iod is None:
+        return set()
+    ct_iod_id = ct_iod.get("id")
+    modules_by_id = {
+        item.get("id"): _normalize_module_name(str(item.get("name", "")))
+        for item in modules
+        if item.get("id") is not None and item.get("name") is not None
+    }
+    return {
+        module_name
+        for relationship in relationships
+        if relationship.get("ciodId") == ct_iod_id
+        for module_name in [modules_by_id.get(relationship.get("moduleId"))]
+        if module_name
+    }
 
 
 def _local_data_elements(
@@ -253,6 +295,15 @@ def _walk_json_files(path: Path) -> Iterator[dict[str, Any]]:
         except json.JSONDecodeError as exc:
             pytest.fail(f"invalid JSON in {json_path}: {exc}")
         yield from _walk_json(payload)
+
+
+def _load_json_list(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, list):
+        return []
+    return [item for item in payload if isinstance(item, dict)]
 
 
 def _walk_json(value: object) -> Iterator[dict[str, Any]]:
@@ -333,7 +384,7 @@ def _retired_value(item: dict[str, Any]) -> bool | None:
         if isinstance(value, int):
             return bool(value)
         if isinstance(value, str):
-            return value.strip().lower() in {"1", "true", "retired", "yes"}
+            return value.strip().lower() in {"1", "true", "retired", "ret", "yes", "y"}
     return None
 
 
@@ -366,9 +417,19 @@ def _normalize_pydicom_name(value: object) -> str | None:
 
 
 def _strip_pydicom_retired_marker(value: str | None) -> str | None:
+    return _strip_retired_parenthetical(value)
+
+
+def _strip_retired_parenthetical(value: str | None) -> str | None:
     if value is None:
         return None
     return _normalize_value(value.replace(" (Retired)", ""))
+
+
+def _normalize_innolitics_vr(value: str | None) -> str | None:
+    if value == "See Note 2":
+        return "See Note"
+    return value
 
 
 def _normalize_pydicom_vr(value: object) -> str | None:
