@@ -14,6 +14,9 @@ from dicom_kb.ir.models import (
     IODModuleUse,
     Macro,
     Module,
+    ServiceClass,
+    SOPClass,
+    SOPClassIOD,
     SourceRef,
     UIDRegistryEntry,
 )
@@ -34,6 +37,9 @@ class ImportSummary:
     iod_module_uses: int = 0
     iod_functional_group_uses: int = 0
     attribute_uses: int = 0
+    service_classes: int = 0
+    sop_classes: int = 0
+    sop_class_iods: int = 0
 
 
 def import_manifest(connection: sqlite3.Connection, manifest: SourceManifest) -> None:
@@ -169,6 +175,46 @@ def import_part03(
         iod_module_uses=len(module_use_records),
         iod_functional_group_uses=len(functional_group_use_records),
         attribute_uses=len(attribute_use_records),
+    )
+
+
+def import_part04(
+    connection: sqlite3.Connection,
+    *,
+    edition: str,
+    service_classes: Iterable[ServiceClass],
+    sop_classes: Iterable[SOPClass],
+    sop_class_iods: Iterable[SOPClassIOD],
+) -> ImportSummary:
+    """Import parsed PS3.4 SOP Class records transactionally."""
+    service_class_records = tuple(service_classes)
+    sop_class_records = tuple(sop_classes)
+    sop_class_iod_records = tuple(sop_class_iods)
+    source_refs = _unique_source_refs(
+        [record.source_ref for record in service_class_records]
+        + [record.source_ref for record in sop_class_records]
+        + [record.source_ref for record in sop_class_iod_records]
+    )
+
+    try:
+        with connection:
+            for source_ref in source_refs:
+                _insert_source_ref(connection, source_ref)
+            for service_class in service_class_records:
+                _insert_service_class(connection, service_class)
+            for sop_class in sop_class_records:
+                _insert_sop_class(connection, sop_class)
+            for sop_class_iod in sop_class_iod_records:
+                _insert_sop_class_iod(connection, sop_class_iod)
+    except sqlite3.IntegrityError as exc:
+        raise ImportError(f"failed to import PS3.4 records for {edition}") from exc
+
+    return ImportSummary(
+        edition=edition,
+        source_refs=len(source_refs),
+        service_classes=len(service_class_records),
+        sop_classes=len(sop_class_records),
+        sop_class_iods=len(sop_class_iod_records),
     )
 
 
@@ -384,5 +430,64 @@ def _insert_attribute_use(
             attribute_use.sequence_depth,
             attribute_use.row_order,
             attribute_use.source_ref.id,
+        ),
+    )
+
+
+def _insert_service_class(
+    connection: sqlite3.Connection, service_class: ServiceClass
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO service_class (
+          id, edition_id, name, section, source_ref_id
+        ) VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            service_class.id,
+            service_class.edition_id,
+            service_class.name,
+            service_class.section,
+            service_class.source_ref.id,
+        ),
+    )
+
+
+def _insert_sop_class(connection: sqlite3.Connection, sop_class: SOPClass) -> None:
+    connection.execute(
+        """
+        INSERT INTO sop_class (
+          id, edition_id, name, uid_value, service_class_id, source_ref_id
+        ) VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            sop_class.id,
+            sop_class.edition_id,
+            sop_class.name,
+            sop_class.uid_value,
+            sop_class.service_class_id,
+            sop_class.source_ref.id,
+        ),
+    )
+
+
+def _insert_sop_class_iod(
+    connection: sqlite3.Connection, sop_class_iod: SOPClassIOD
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO sop_class_iod (
+          id, edition_id, sop_class_id, iod_id, resolution, resolution_warning,
+          source_ref_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            sop_class_iod.id,
+            sop_class_iod.edition_id,
+            sop_class_iod.sop_class_id,
+            sop_class_iod.iod_id,
+            sop_class_iod.resolution,
+            sop_class_iod.resolution_warning,
+            sop_class_iod.source_ref.id,
         ),
     )

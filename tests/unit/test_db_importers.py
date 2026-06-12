@@ -3,13 +3,22 @@ from pathlib import Path
 
 import pytest
 
-from dicom_kb.db.importers import import_part03, import_part06
+from dicom_kb.db.importers import import_part03, import_part04, import_part06
 from dicom_kb.db.models import apply_migrations, connect_sqlite
-from dicom_kb.db.repositories import DataElementRepository, UIDRepository
+from dicom_kb.db.repositories import (
+    DataElementRepository,
+    Part04Repository,
+    UIDRepository,
+)
 from dicom_kb.docbook.parser import parse_docbook_xml
 from dicom_kb.parsers.part03_iods import parse_part03
+from dicom_kb.parsers.part04_sop_classes import parse_part04
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
-from tests.fixtures_synthetic import PS33_CT_IMAGE_DOCBOOK, PS36_REGISTRY_DOCBOOK
+from tests.fixtures_synthetic import (
+    PS33_CT_IMAGE_DOCBOOK,
+    PS34_SOP_CLASSES_DOCBOOK,
+    PS36_REGISTRY_DOCBOOK,
+)
 
 
 def _connection(tmp_path: Path) -> sqlite3.Connection:
@@ -196,4 +205,69 @@ def test_import_part03_rolls_back_on_duplicate_iods(tmp_path: Path) -> None:
         )
 
     count = connection.execute("SELECT count(*) FROM iod").fetchone()[0]
+    assert count == 0
+
+
+def test_import_part04_sop_class_records(tmp_path: Path) -> None:
+    connection = _connection(tmp_path)
+    parsed_part03 = parse_part03(
+        parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3"), edition="2026b"
+    )
+    import_part03(
+        connection,
+        edition="2026b",
+        iods=parsed_part03.iods,
+        modules=parsed_part03.modules,
+        macros=parsed_part03.macros,
+        iod_module_uses=parsed_part03.iod_module_uses,
+        iod_functional_group_uses=parsed_part03.iod_functional_group_uses,
+        attribute_uses=parsed_part03.attribute_uses,
+    )
+    parsed_part04 = parse_part04(
+        parse_docbook_xml(PS34_SOP_CLASSES_DOCBOOK, part="PS3.4"), edition="2026b"
+    )
+
+    summary = import_part04(
+        connection,
+        edition="2026b",
+        service_classes=parsed_part04.service_classes,
+        sop_classes=parsed_part04.sop_classes,
+        sop_class_iods=parsed_part04.sop_class_iods,
+    )
+
+    assert summary.service_classes == 1
+    assert summary.sop_classes == 2
+    assert summary.sop_class_iods == 2
+
+    repository = Part04Repository(connection)
+    found = repository.find_sop_class_by_uid_or_name(
+        "CT Image Storage", edition="2026b"
+    )
+    assert found is not None
+    sop_class, service_class = found
+    assert sop_class.uid_value == "1.2.840.10008.5.1.4.1.1.2"
+    assert service_class is not None
+    assert service_class.name == "Storage Service Class"
+
+    iods = repository.list_iods_for_sop_class(sop_class.id, edition="2026b")
+    assert [record.iod.name for record in iods] == ["CT Image"]
+    assert iods[0].edge.resolution == "parsed"
+
+
+def test_import_part04_rolls_back_without_referenced_iods(tmp_path: Path) -> None:
+    connection = _connection(tmp_path)
+    parsed_part04 = parse_part04(
+        parse_docbook_xml(PS34_SOP_CLASSES_DOCBOOK, part="PS3.4"), edition="2026b"
+    )
+
+    with pytest.raises(ImportError):
+        import_part04(
+            connection,
+            edition="2026b",
+            service_classes=parsed_part04.service_classes,
+            sop_classes=parsed_part04.sop_classes,
+            sop_class_iods=parsed_part04.sop_class_iods,
+        )
+
+    count = connection.execute("SELECT count(*) FROM sop_class").fetchone()[0]
     assert count == 0

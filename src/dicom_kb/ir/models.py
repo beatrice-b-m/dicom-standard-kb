@@ -154,6 +154,45 @@ class AttributeUse(BaseModel):
     source_ref: SourceRef
 
 
+class ServiceClass(BaseModel):
+    """PS3.4 service class definition."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    edition_id: str
+    name: str
+    section: str | None = None
+    source_ref: SourceRef
+
+
+class SOPClass(BaseModel):
+    """PS3.4 SOP Class definition."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    edition_id: str
+    name: str
+    uid_value: str
+    service_class_id: str | None = None
+    source_ref: SourceRef
+
+
+class SOPClassIOD(BaseModel):
+    """PS3.4 SOP Class to PS3.3 IOD relationship."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    edition_id: str
+    sop_class_id: str
+    iod_id: str
+    resolution: str
+    resolution_warning: str | None = None
+    source_ref: SourceRef
+
+
 class ParserWarning(BaseModel):
     """Structured parser warning."""
 

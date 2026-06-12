@@ -1,0 +1,34 @@
+<book xmlns="http://docbook.org/ns/docbook" xmlns:xml="http://www.w3.org/XML/1998/namespace">
+  <chapter xml:id="chapter_B">
+    <section xml:id="sect_B.5">
+      <title>Standard SOP Classes</title>
+      <table xml:id="table_B.5-1">
+        <title>Storage Service Class IODs and SOP Classes</title>
+        <tgroup cols="3">
+          <thead>
+            <row>
+              <entry>IOD</entry><entry>SOP Class Name</entry><entry>SOP Class UID</entry>
+            </row>
+          </thead>
+          <tbody>
+            <row>
+              <entry>CT Image IOD</entry>
+              <entry>CT Image Storage</entry>
+              <entry>1.2.840.10008.5.1.4.1.1.2</entry>
+            </row>
+            <row>
+              <entry>Enhanced CT Image IOD</entry>
+              <entry>Enhanced CT Image Storage</entry>
+              <entry>1.2.840.10008.5.1.4.1.1.2.1</entry>
+            </row>
+            <row>
+              <entry>Broken IOD</entry>
+              <entry>Broken Storage</entry>
+              <entry>not-a-uid</entry>
+            </row>
+          </tbody>
+        </tgroup>
+      </table>
+    </section>
+  </chapter>
+</book>

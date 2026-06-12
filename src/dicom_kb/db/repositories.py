@@ -13,6 +13,9 @@ from dicom_kb.ir.models import (
     IODModuleUse,
     Macro,
     Module,
+    ServiceClass,
+    SOPClass,
+    SOPClassIOD,
     SourceRef,
     UIDRegistryEntry,
 )
@@ -36,6 +39,14 @@ class AttributeUseRecord:
     owner_name: str
     included_macro: Macro | None = None
     expanded_from_include: AttributeUse | None = None
+
+
+@dataclass(frozen=True)
+class SOPClassIODRecord:
+    """A SOP Class to IOD edge joined to the target IOD."""
+
+    edge: SOPClassIOD
+    iod: IOD
 
 
 class DataElementRepository:
@@ -346,6 +357,114 @@ class Part03Repository:
         return _macro_from_row(row) if row else None
 
 
+class Part04Repository:
+    """Lookup and traverse imported PS3.4 service/SOP Class records."""
+
+    def __init__(self, connection: sqlite3.Connection) -> None:
+        self.connection = connection
+
+    def find_sop_class_by_uid_or_name(
+        self, uid_or_name: str, *, edition: str
+    ) -> tuple[SOPClass, ServiceClass | None] | None:
+        """Return a SOP Class by exact UID value or case-insensitive name."""
+        row = self.connection.execute(
+            """
+            SELECT
+              sc.id AS sop_id,
+              sc.edition_id AS sop_edition_id,
+              sc.name AS sop_name,
+              sc.uid_value AS sop_uid_value,
+              sc.service_class_id AS sop_service_class_id,
+              sc.source_ref_id AS sop_source_ref_id,
+              sop_sr.part AS sop_source_part,
+              sop_sr.section AS sop_source_section,
+              sop_sr.table_id AS sop_source_table_id,
+              sop_sr.xml_id AS sop_source_xml_id,
+              sop_sr.title AS sop_source_title,
+              sop_sr.canonical_url AS sop_source_url,
+              svc.id AS service_id,
+              svc.edition_id AS service_edition_id,
+              svc.name AS service_name,
+              svc.section AS service_section,
+              svc.source_ref_id AS service_source_ref_id,
+              service_sr.part AS service_source_part,
+              service_sr.section AS service_source_section,
+              service_sr.table_id AS service_source_table_id,
+              service_sr.xml_id AS service_source_xml_id,
+              service_sr.title AS service_source_title,
+              service_sr.canonical_url AS service_source_url
+            FROM sop_class sc
+            JOIN source_ref sop_sr ON sop_sr.id = sc.source_ref_id
+            LEFT JOIN service_class svc ON svc.id = sc.service_class_id
+            LEFT JOIN source_ref service_sr ON service_sr.id = svc.source_ref_id
+            WHERE sc.edition_id = ?
+              AND (sc.uid_value = ? OR lower(sc.name) = lower(?))
+            """,
+            (edition, uid_or_name, uid_or_name),
+        ).fetchone()
+        if row is None:
+            return None
+        return (
+            _sop_class_from_prefixed_row(row, "sop"),
+            (
+                _service_class_from_prefixed_row(row, "service")
+                if row["service_id"] is not None
+                else None
+            ),
+        )
+
+    def list_iods_for_sop_class(
+        self, sop_class_id: str, *, edition: str
+    ) -> list[SOPClassIODRecord]:
+        """Return IODs linked to a SOP Class in parsed table order."""
+        rows = self.connection.execute(
+            """
+            SELECT
+              sci.id AS edge_id,
+              sci.edition_id AS edge_edition_id,
+              sci.sop_class_id AS edge_sop_class_id,
+              sci.iod_id AS edge_iod_id,
+              sci.resolution AS edge_resolution,
+              sci.resolution_warning AS edge_resolution_warning,
+              sci.source_ref_id AS edge_source_ref_id,
+              edge_sr.part AS edge_source_part,
+              edge_sr.section AS edge_source_section,
+              edge_sr.table_id AS edge_source_table_id,
+              edge_sr.xml_id AS edge_source_xml_id,
+              edge_sr.title AS edge_source_title,
+              edge_sr.canonical_url AS edge_source_url,
+              i.id AS iod_id,
+              i.edition_id AS iod_edition_id,
+              i.name AS iod_name,
+              i.keyword AS iod_keyword,
+              i.iod_type AS iod_iod_type,
+              i.part AS iod_part,
+              i.section AS iod_section,
+              i.source_ref_id AS iod_source_ref_id,
+              iod_sr.part AS iod_source_part,
+              iod_sr.section AS iod_source_section,
+              iod_sr.table_id AS iod_source_table_id,
+              iod_sr.xml_id AS iod_source_xml_id,
+              iod_sr.title AS iod_source_title,
+              iod_sr.canonical_url AS iod_source_url
+            FROM sop_class_iod sci
+            JOIN source_ref edge_sr ON edge_sr.id = sci.source_ref_id
+            JOIN iod i ON i.id = sci.iod_id
+            JOIN source_ref iod_sr ON iod_sr.id = i.source_ref_id
+            WHERE sci.edition_id = ? AND sci.sop_class_id = ?
+            ORDER BY sci.id
+            """,
+            (edition, sop_class_id),
+        ).fetchall()
+        return [
+            SOPClassIODRecord(
+                edge=_sop_class_iod_from_prefixed_row(row, "edge"),
+                iod=_iod_from_prefixed_row(row, "iod"),
+            )
+            for row in sorted(rows, key=lambda row: _id_order(str(row["edge_id"])))
+        ]
+
+
 def _source_ref_from_row(row: sqlite3.Row) -> SourceRef:
     return SourceRef(
         id=str(row["source_ref_id"]),
@@ -469,6 +588,40 @@ def _macro_from_prefixed_row(row: sqlite3.Row, prefix: str) -> Macro:
     )
 
 
+def _service_class_from_prefixed_row(row: sqlite3.Row, prefix: str) -> ServiceClass:
+    return ServiceClass(
+        id=str(row[f"{prefix}_id"]),
+        edition_id=str(row[f"{prefix}_edition_id"]),
+        name=str(row[f"{prefix}_name"]),
+        section=row[f"{prefix}_section"],
+        source_ref=_source_ref_from_prefixed_row(row, prefix),
+    )
+
+
+def _sop_class_from_prefixed_row(row: sqlite3.Row, prefix: str) -> SOPClass:
+    return SOPClass(
+        id=str(row[f"{prefix}_id"]),
+        edition_id=str(row[f"{prefix}_edition_id"]),
+        name=str(row[f"{prefix}_name"]),
+        uid_value=str(row[f"{prefix}_uid_value"]),
+        service_class_id=row[f"{prefix}_service_class_id"],
+        source_ref=_source_ref_from_prefixed_row(row, prefix),
+    )
+
+
+def _iod_from_prefixed_row(row: sqlite3.Row, prefix: str) -> IOD:
+    return IOD(
+        id=str(row[f"{prefix}_id"]),
+        edition_id=str(row[f"{prefix}_edition_id"]),
+        name=str(row[f"{prefix}_name"]),
+        keyword=row[f"{prefix}_keyword"],
+        iod_type=row[f"{prefix}_iod_type"],
+        part=str(row[f"{prefix}_part"]),
+        section=row[f"{prefix}_section"],
+        source_ref=_source_ref_from_prefixed_row(row, prefix),
+    )
+
+
 def _iod_module_use_from_prefixed_row(row: sqlite3.Row) -> IODModuleUse:
     return IODModuleUse(
         id=str(row["use_id"]),
@@ -480,6 +633,18 @@ def _iod_module_use_from_prefixed_row(row: sqlite3.Row) -> IODModuleUse:
         usage_condition_text=row["use_usage_condition_text"],
         condition_id=row["use_condition_id"],
         source_ref=_source_ref_from_prefixed_row(row, "use"),
+    )
+
+
+def _sop_class_iod_from_prefixed_row(row: sqlite3.Row, prefix: str) -> SOPClassIOD:
+    return SOPClassIOD(
+        id=str(row[f"{prefix}_id"]),
+        edition_id=str(row[f"{prefix}_edition_id"]),
+        sop_class_id=str(row[f"{prefix}_sop_class_id"]),
+        iod_id=str(row[f"{prefix}_iod_id"]),
+        resolution=str(row[f"{prefix}_resolution"]),
+        resolution_warning=row[f"{prefix}_resolution_warning"],
+        source_ref=_source_ref_from_prefixed_row(row, prefix),
     )
 
 
