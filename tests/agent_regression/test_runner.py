@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -76,6 +77,111 @@ def test_cli_eval_run_writes_scoreable_reference_transcripts(tmp_path: Path) -> 
     score_payload = json.loads(score_result.output)
     assert score_payload["total_runs"] == 1
     assert score_payload["passed_runs"] == 1
+
+
+def test_cli_eval_run_invokes_external_agent_command(tmp_path: Path) -> None:
+    cache_dir = _build_fixture_cache(tmp_path)
+    transcript = tmp_path / "external-runs.json"
+    harness = tmp_path / "external_agent.py"
+    harness.write_text(
+        """\
+import json
+import sys
+
+payload = json.load(sys.stdin)
+case = payload["cases"][0]
+json.dump(
+    {
+        "runs": [
+            {
+                "case_id": case["id"],
+                "edition": payload["edition"],
+                "answer": (
+                    "For edition 2026b, external model used source references "
+                    "for Explicit VR Big Endian and confirmed retired status."
+                ),
+                "tool_calls": [
+                    {
+                        "tool": "lookup_uid",
+                        "arguments": {"uid_or_keyword": "ExplicitVRBigEndian"},
+                        "response_status": "ok",
+                        "response_edition": payload["edition"],
+                        "response_ref_count": 1,
+                    }
+                ],
+                "unsupported_normative_claims": [],
+            }
+        ]
+    },
+    sys.stdout,
+)
+""",
+        encoding="utf-8",
+    )
+    runner = CliRunner()
+
+    run_result = runner.invoke(
+        app,
+        [
+            "eval",
+            "run",
+            "--edition",
+            "2026b",
+            "--cache-dir",
+            str(cache_dir),
+            "--out",
+            str(transcript),
+            "--cases",
+            "agent.ps36.transfer_syntax",
+            "--agent",
+            "external",
+            "--external-command",
+            f"{sys.executable} {harness}",
+            "--external-provider",
+            "test-provider",
+            "--external-model",
+            "test-model",
+        ],
+    )
+
+    assert run_result.exit_code == 0, run_result.output
+    assert json.loads(run_result.output) == {
+        "agent": "external",
+        "edition": "2026b",
+        "external_model": "test-model",
+        "external_provider": "test-provider",
+        "output": str(transcript),
+        "runs": 1,
+    }
+
+    score_result = runner.invoke(app, ["eval", "score", str(transcript)])
+    assert score_result.exit_code == 0, score_result.output
+
+
+def test_cli_eval_run_requires_external_command(tmp_path: Path) -> None:
+    cache_dir = _build_fixture_cache(tmp_path)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "eval",
+            "run",
+            "--edition",
+            "2026b",
+            "--cache-dir",
+            str(cache_dir),
+            "--out",
+            str(tmp_path / "external-runs.json"),
+            "--cases",
+            "agent.ps36.transfer_syntax",
+            "--agent",
+            "external",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "external agent runs require --external-command" in result.output
 
 
 def _build_fixture_cache(tmp_path: Path) -> Path:

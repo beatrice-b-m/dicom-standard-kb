@@ -13,6 +13,9 @@ from pydantic import BaseModel
 from dicom_kb.build import build_sqlite_database, default_db_path
 from dicom_kb.eval.reporting import report_as_jsonable, score_agent_run_file
 from dicom_kb.eval.runner import (
+    ExternalAgentError,
+    external_agent_config,
+    run_external_agent_cases,
     run_reference_agent_cases,
     select_agent_regression_cases,
     write_agent_runs,
@@ -219,17 +222,12 @@ def fetch_command(
         )
         try:
             formats = (
-                tuple(artifact_format)
-                if artifact_format
-                else (DOCBOOK_XML_FORMAT,)
+                tuple(artifact_format) if artifact_format else (DOCBOOK_XML_FORMAT,)
             )
             if mirror_chtml_tree and not any(
-                value.strip().lower().replace("-", "_") == "chtml"
-                for value in formats
+                value.strip().lower().replace("-", "_") == "chtml" for value in formats
             ):
-                raise typer.BadParameter(
-                    "--mirror-chtml-tree requires --format chtml"
-                )
+                raise typer.BadParameter("--mirror-chtml-tree requires --format chtml")
             manifest = fetch_official_artifacts(
                 edition=edition,
                 parts=parts,
@@ -375,24 +373,93 @@ def eval_run_command(
             ),
         ),
     ] = None,
+    agent: Annotated[
+        str,
+        typer.Option(
+            "--agent",
+            help="Agent runner to use: reference or external.",
+        ),
+    ] = "reference",
+    external_command: Annotated[
+        str | None,
+        typer.Option(
+            "--external-command",
+            help=(
+                "Command for --agent external. Receives JSON on stdin and must "
+                "emit AgentRun JSON on stdout."
+            ),
+        ),
+    ] = None,
+    external_provider: Annotated[
+        str | None,
+        typer.Option(
+            "--external-provider",
+            help="Optional provider label passed to the external agent payload.",
+        ),
+    ] = None,
+    external_model: Annotated[
+        str | None,
+        typer.Option(
+            "--external-model",
+            help="Optional model label passed to the external agent payload.",
+        ),
+    ] = None,
+    external_timeout: Annotated[
+        float,
+        typer.Option(
+            "--external-timeout",
+            help="Maximum seconds to wait for the external agent command.",
+        ),
+    ] = 300.0,
 ) -> None:
-    """Run deterministic reference agent transcripts for prompt cases."""
+    """Run reference or opt-in external agent transcripts for prompt cases."""
     selected_cases = select_agent_regression_cases(tuple(cases or ()))
-    with _connect_query_db(db, cache_dir=cache_dir, edition=edition) as connection:
-        runs = run_reference_agent_cases(
-            connection,
-            edition=edition,
-            cases=selected_cases,
-        )
+    if agent == "reference":
+        with _connect_query_db(db, cache_dir=cache_dir, edition=edition) as connection:
+            runs = run_reference_agent_cases(
+                connection,
+                edition=edition,
+                cases=selected_cases,
+            )
+    elif agent == "external":
+        db_path = db if db is not None else default_db_path(cache_dir, edition)
+        if not db_path.exists():
+            raise typer.BadParameter(f"SQLite KB does not exist: {db_path}")
+        try:
+            config = external_agent_config(
+                command=external_command,
+                provider=external_provider,
+                model=external_model,
+                timeout_seconds=external_timeout,
+            )
+            runs = run_external_agent_cases(
+                config=config,
+                edition=edition,
+                cases=selected_cases,
+                db_path=db_path,
+                cache_dir=cache_dir,
+            )
+        except ExternalAgentError as exc:
+            raise typer.BadParameter(str(exc)) from exc
+    else:
+        raise typer.BadParameter("agent must be 'reference' or 'external'")
     write_agent_runs(out, runs)
+    payload = {
+        "agent": agent,
+        "edition": edition,
+        "runs": len(runs),
+        "output": str(out),
+    }
+    if agent == "external":
+        payload.update(
+            {
+                "external_provider": external_provider,
+                "external_model": external_model,
+            }
+        )
     typer.echo(
         json.dumps(
-            {
-                "agent": "reference",
-                "edition": edition,
-                "runs": len(runs),
-                "output": str(out),
-            },
+            payload,
             indent=2,
             sort_keys=True,
         )

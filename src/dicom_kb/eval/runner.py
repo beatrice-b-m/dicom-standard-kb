@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import json
+import os
+import shlex
 import sqlite3
+import subprocess
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 from dicom_kb.eval.prompt_cases import (
@@ -47,6 +51,47 @@ ATTRIBUTE_CONTEXTS = {
 }
 
 
+@dataclass(frozen=True)
+class ExternalAgentConfig:
+    """Configuration for an opt-in external agent harness."""
+
+    command: tuple[str, ...]
+    provider: str | None = None
+    model: str | None = None
+    timeout_seconds: float = 300.0
+
+
+class ExternalAgentError(RuntimeError):
+    """Raised when an external agent run cannot be completed."""
+
+
+def external_agent_config(
+    *,
+    command: str | None,
+    provider: str | None = None,
+    model: str | None = None,
+    timeout_seconds: float = 300.0,
+) -> ExternalAgentConfig:
+    """Build external-agent config from CLI input or environment."""
+    command_text = command or os.environ.get("DICOM_KB_EVAL_EXTERNAL_COMMAND")
+    if not command_text:
+        raise ExternalAgentError(
+            "external agent runs require --external-command or "
+            "DICOM_KB_EVAL_EXTERNAL_COMMAND"
+        )
+    argv = tuple(shlex.split(command_text))
+    if not argv:
+        raise ExternalAgentError("external agent command must not be empty")
+    if timeout_seconds <= 0:
+        raise ExternalAgentError("external agent timeout must be positive")
+    return ExternalAgentConfig(
+        command=argv,
+        provider=provider,
+        model=model,
+        timeout_seconds=timeout_seconds,
+    )
+
+
 def run_reference_agent_cases(
     connection: sqlite3.Connection,
     *,
@@ -58,6 +103,49 @@ def run_reference_agent_cases(
         run_reference_agent_case(connection, case=case, edition=edition)
         for case in cases
     )
+
+
+def run_external_agent_cases(
+    *,
+    config: ExternalAgentConfig,
+    edition: str,
+    cases: tuple[AgentRegressionCase, ...],
+    db_path: Path,
+    cache_dir: Path,
+) -> tuple[AgentRun, ...]:
+    """Run committed prompt cases through an opt-in external agent harness."""
+    payload = {
+        "edition": edition,
+        "provider": config.provider,
+        "model": config.model,
+        "db_path": str(db_path),
+        "cache_dir": str(cache_dir),
+        "cases": [case.model_dump(mode="json") for case in cases],
+    }
+    try:
+        completed = subprocess.run(
+            config.command,
+            input=json.dumps(payload, sort_keys=True),
+            text=True,
+            capture_output=True,
+            timeout=config.timeout_seconds,
+            check=False,
+        )
+    except OSError as exc:
+        raise ExternalAgentError(f"failed to start external agent: {exc}") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise ExternalAgentError(
+            f"external agent timed out after {config.timeout_seconds:g} seconds"
+        ) from exc
+    if completed.returncode != 0:
+        stderr = completed.stderr.strip()
+        detail = f": {stderr}" if stderr else ""
+        raise ExternalAgentError(
+            f"external agent exited with code {completed.returncode}{detail}"
+        )
+    runs = _parse_external_agent_runs(completed.stdout)
+    _validate_external_agent_runs(runs, cases=cases, edition=edition)
+    return runs
 
 
 def run_reference_agent_case(
@@ -106,6 +194,54 @@ def write_agent_runs(path: Path, runs: tuple[AgentRun, ...]) -> None:
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+
+
+def _parse_external_agent_runs(stdout: str) -> tuple[AgentRun, ...]:
+    try:
+        payload = json.loads(stdout)
+    except json.JSONDecodeError as exc:
+        raise ExternalAgentError("external agent stdout was not valid JSON") from exc
+    if isinstance(payload, dict) and "runs" in payload:
+        runs_payload = payload["runs"]
+    elif isinstance(payload, list):
+        runs_payload = payload
+    elif isinstance(payload, dict):
+        runs_payload = [payload]
+    else:
+        raise ExternalAgentError(
+            "external agent JSON must be an AgentRun object, list, or runs object"
+        )
+    if not isinstance(runs_payload, list):
+        raise ExternalAgentError("external agent 'runs' field must be a list")
+    try:
+        return tuple(AgentRun.model_validate(run) for run in runs_payload)
+    except ValueError as exc:
+        raise ExternalAgentError(
+            "external agent returned invalid AgentRun JSON"
+        ) from exc
+
+
+def _validate_external_agent_runs(
+    runs: tuple[AgentRun, ...],
+    *,
+    cases: tuple[AgentRegressionCase, ...],
+    edition: str,
+) -> None:
+    expected_case_ids = {case.id for case in cases}
+    observed_case_ids = {run.case_id for run in runs}
+    if observed_case_ids != expected_case_ids:
+        raise ExternalAgentError(
+            "external agent returned case ids "
+            f"{sorted(observed_case_ids)!r}; expected {sorted(expected_case_ids)!r}"
+        )
+    mismatched_editions = sorted(
+        {run.edition for run in runs if run.edition != edition}
+    )
+    if mismatched_editions:
+        raise ExternalAgentError(
+            "external agent returned unexpected editions: "
+            f"{', '.join(mismatched_editions)}"
+        )
 
 
 def _run_case_route(case: AgentRegressionCase, invoke: ToolInvoker) -> None:
