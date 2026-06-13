@@ -54,6 +54,7 @@ from dicom_kb.sources.downloader import (
     register_local_artifacts,
 )
 from dicom_kb.sources.edition_resolver import EditionResolver
+from dicom_kb.sources.verify import verify_edition_cache
 
 app = typer.Typer(help="Build and query a local DICOM standard knowledge base.")
 lookup_app = typer.Typer(help="Run exact lookups against a local SQLite KB.")
@@ -276,6 +277,29 @@ def build_command(
         force=force,
     )
     typer.echo(json.dumps(summary.as_jsonable(), indent=2, sort_keys=True))
+
+
+@app.command("verify")
+def verify_command(
+    edition: Annotated[
+        str,
+        typer.Option("--edition", help="Concrete DICOM edition label."),
+    ],
+    cache_dir: Annotated[
+        Path,
+        typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
+    ] = DEFAULT_CACHE_DIR,
+    db: Annotated[
+        Path | None,
+        typer.Option("--db", help="SQLite path. Defaults under cache db/."),
+    ] = None,
+) -> None:
+    """Verify cached source artifacts and an optional SQLite KB."""
+    db_path = db if db is not None else default_db_path(cache_dir, edition)
+    result = verify_edition_cache(edition=edition, cache_dir=cache_dir, db_path=db_path)
+    typer.echo(json.dumps(result.as_jsonable(), indent=2, sort_keys=True))
+    if not result.ok:
+        raise typer.Exit(code=1)
 
 
 @mcp_app.command("serve")
