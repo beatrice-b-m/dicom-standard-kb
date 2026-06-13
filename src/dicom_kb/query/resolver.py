@@ -32,7 +32,7 @@ from dicom_kb.query.answer_contracts import (
     standard_text_search_result,
     uid_result,
 )
-from dicom_kb.query.citations import build_trace, unique_refs
+from dicom_kb.query.citations import CitationBuilder, build_trace, citation_refs
 from dicom_kb.query.conditions import effective_type_summary
 from dicom_kb.query.graph import (
     attribute_context_uses,
@@ -239,17 +239,21 @@ def lookup_sop_class(
 
     sop_class, service_class = found
     iod_records = repository.list_iods_for_sop_class(sop_class.id, edition=edition)
-    refs = unique_refs(
-        [standard_ref(sop_class.source_ref)]
-        + ([standard_ref(service_class.source_ref)] if service_class else [])
-        + [
-            ref
-            for record in iod_records
-            for ref in (
-                standard_ref(record.edge.source_ref),
-                standard_ref(record.iod.source_ref),
-            )
-        ]
+    refs = (
+        CitationBuilder()
+        .add_group(
+            "sop_class",
+            (sop_class.source_ref, service_class.source_ref if service_class else None),
+        )
+        .add_group(
+            "iod_links",
+            (
+                ref
+                for record in iod_records
+                for ref in (record.edge.source_ref, record.iod.source_ref)
+            ),
+        )
+        .refs()
     )
     warnings = [
         record.edge.resolution_warning
@@ -297,20 +301,26 @@ def list_modules_for_iod(
         )
 
     records = repository.list_module_uses_for_iod(iod.id, edition=edition)
-    refs = unique_refs(
-        [standard_ref(iod.source_ref)]
-        + [
-            ref
-            for record in records
-            for ref in (
-                standard_ref(record.use.source_ref),
-                standard_ref(record.module.source_ref),
-                standard_ref(record.condition.source_ref)
-                if record.condition is not None
-                else None,
-            )
-            if ref is not None
-        ]
+    refs = (
+        CitationBuilder()
+        .add_group("iod", (iod.source_ref,))
+        .add_group(
+            "module_uses",
+            (
+                ref
+                for record in records
+                for ref in (
+                    record.use.source_ref,
+                    record.module.source_ref,
+                    (
+                        record.condition.source_ref
+                        if record.condition is not None
+                        else None
+                    ),
+                )
+            ),
+        )
+        .refs()
     )
     return ToolResponse(
         edition=edition,
@@ -367,24 +377,31 @@ def list_attributes_for_module(
             records,
             edition=edition,
         )
-    refs = unique_refs(
-        [standard_ref(module.source_ref)]
-        + [standard_ref(record.attribute_use.source_ref) for record in records]
-        + [
-            standard_ref(record.condition.source_ref)
-            for record in records
-            if record.condition is not None
-        ]
-        + [
-            standard_ref(record.included_macro.source_ref)
-            for record in records
-            if record.included_macro is not None
-        ]
-        + [
-            standard_ref(record.expanded_from_include.source_ref)
-            for record in records
-            if record.expanded_from_include is not None
-        ]
+    refs = (
+        CitationBuilder()
+        .add_group("module", (module.source_ref,))
+        .add_group(
+            "attribute_uses",
+            (
+                ref
+                for record in records
+                for ref in (
+                    record.attribute_use.source_ref,
+                    (
+                        record.condition.source_ref
+                        if record.condition is not None
+                        else None
+                    ),
+                    record.included_macro.source_ref
+                    if record.included_macro is not None
+                    else None,
+                    record.expanded_from_include.source_ref
+                    if record.expanded_from_include is not None
+                    else None,
+                )
+            ),
+        )
+        .refs()
     )
     return ToolResponse(
         edition=edition,
@@ -488,7 +505,11 @@ def resolve_attribute_context(
     ]
     effective_type, explanation, type_warnings = effective_type_summary(uses)
     warnings.extend(type_warnings)
-    refs = unique_refs([standard_ref(element.source_ref)] + context_refs + use_refs)
+    refs = citation_refs(
+        (element.source_ref,),
+        context_refs,
+        use_refs,
+    )
     return ToolResponse(
         edition=edition,
         tool="resolve_attribute_context",
@@ -615,9 +636,9 @@ def _lookup_attribute_value_terms(
             trace=trace,
         )
 
-    refs = unique_refs(
-        [standard_ref(element.source_ref)]
-        + [standard_ref(record.term.source_ref) for record in records]
+    refs = citation_refs(
+        (element.source_ref,),
+        (record.term.source_ref for record in records),
     )
     return ToolResponse(
         edition=edition,
@@ -696,9 +717,9 @@ def retrieve_standard_text(
         if len(plain_text) > max_chars
         else []
     )
-    refs = unique_refs(
-        [standard_ref(node.source_ref)]
-        + [standard_ref(table.source_ref) for table in tables]
+    refs = citation_refs(
+        (node.source_ref,),
+        (table.source_ref for table in tables),
     )
     return ToolResponse(
         edition=edition,
@@ -806,7 +827,7 @@ def search_standard_text(
         input=response_input,
         status="ok",
         result=standard_text_search_result(records),
-        refs=unique_refs([standard_ref(record.node.source_ref) for record in records]),
+        refs=citation_refs(record.node.source_ref for record in records),
         trace=trace,
     )
 
