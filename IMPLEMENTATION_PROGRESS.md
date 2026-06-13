@@ -8,7 +8,7 @@ alone.
 
 - Last updated: 2026-06-13
 - Worktree baseline: clean at start of remediation continuation.
-- Latest observed commit: `880c241 feat(build): emit ingestion quality metrics`
+- Latest observed commit: `54167c5 feat(build): enforce quality gates`
 - Remediation plan status:
   - Official URL remediation is already excluded from the active plan and
     recorded as complete in `REMEDIATION_PLAN.md`.
@@ -26,8 +26,12 @@ alone.
       tested.
     - Configurable quality gates are implemented and tested for failing and
       allowed-warning behavior.
-  - Phase 4, YAML Configuration Profiles, is the next incomplete remediation
-    phase.
+  - Phase 4, YAML Configuration Profiles, is in progress.
+    - `PyYAML` runtime dependency and `types-PyYAML` dev stubs are added.
+    - Typed config profile loading and precedence helpers are implemented and
+      tested.
+    - Root `--config` CLI wiring and command default application remain
+      incomplete.
   - Phases 5-6 remain incomplete.
 
 ## Completed Work
@@ -80,6 +84,13 @@ alone.
 - Added CLI tests proving gate failures exit nonzero and
   `--allow-gate-failures` emits warning output with exit zero.
 - Marked Phase 3 complete in `REMEDIATION_PLAN.md`.
+- Added `PyYAML` as a runtime dependency and `types-PyYAML` for strict mypy.
+- Added `src/dicom_kb/config.py` with strict Section 17 `dicom_kb` profile
+  loading, SQLite URL validation, citation-safety validation, environment
+  parsing helpers, and CLI > environment > config > default precedence helper.
+- Added config unit tests for valid profile loading, unknown-key rejection,
+  invalid YAML, invalid database URL scheme, disabled citation rejection,
+  precedence ordering, SQLite URL path conversion, and environment parsing.
 
 ## Verification Results
 
@@ -137,6 +148,11 @@ alone.
 - 2026-06-13: `uv run mypy src/dicom_kb/build.py
   src/dicom_kb/cli/main.py` passed.
 - 2026-06-13: `uv run pytest` passed (`192 passed, 4 skipped`).
+- 2026-06-13: `uv run pytest tests/unit/test_config.py` passed
+  (`8 passed`).
+- 2026-06-13: `uv run ruff check src/dicom_kb/config.py
+  tests/unit/test_config.py` passed.
+- 2026-06-13: `uv run mypy src/dicom_kb/config.py` passed.
 
 ## Blockers
 
@@ -153,9 +169,8 @@ alone.
 
 Begin Phase 4 YAML configuration profiles:
 
-1. Add a typed configuration model and loader for the Section 17
-   `dicom_kb` YAML shape.
-2. Add `PyYAML` as a runtime dependency if no existing YAML parser is
-   available.
-3. Add root `--config <path>` support and apply config defaults to the
-   first command slice conservatively, preserving CLI flag precedence.
+1. Add root `--config <path>` support in `cli/main.py`.
+2. Apply config/environment defaults to fetch, build, query, MCP, and eval
+   commands while preserving explicit CLI flag precedence.
+3. Add CLI tests proving `--config` supplies edition/cache/db defaults and
+   explicit CLI flags override profile values.
