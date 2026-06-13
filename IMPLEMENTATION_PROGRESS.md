@@ -59,8 +59,10 @@ persist without parser warnings. The rebuilt default-cache 2026b KB records
 Type C attribute rows now also persist as raw `condition` IR records with
 machine status and source refs; the rebuilt default-cache 2026b KB records
 2,586 `condition` rows. Repository-wide verification for this slice passes
-with `uv run ruff check .`, `uv run mypy`, and `uv run pytest` (`169 passed,
-3 skipped`). The repository has a working v1 foundation through:
+with `uv run ruff check .`, `uv run mypy`, and `uv run pytest` (`171 passed,
+3 skipped`). Compound query responses now route citation assembly through a
+group-aware citation builder while preserving the public `refs` envelope
+shape. The repository has a working v1 foundation through:
 
 1. Work Order A: repository/build/legal scaffold.
 2. Work Order B: local source acquisition primitives.
@@ -240,6 +242,10 @@ with `uv run ruff check .`, `uv run mypy`, and `uv run pytest` (`169 passed,
     and Type C attribute rows; graph repositories hydrate those records; IOD
     module, module attribute, and attribute-context responses expose
     machine-status condition payloads and condition citations where relevant.
+49. Citation-refinement slice: compound resolvers use a shared
+    `CitationBuilder` to assemble grouped structured evidence from
+    `SourceRef` and `StandardRef` inputs, then flatten and deduplicate into
+    the existing public `refs` array.
 
 ## Completed commits
 
@@ -314,17 +320,18 @@ with `uv run ruff check .`, `uv run mypy`, and `uv run pytest` (`169 passed,
 - `5ee383a fix(parsers): resolve real PS3.3 macro graph gaps`
 - `6523cb9 feat(query): expose parsed attribute value terms`
 - `a54cc16 feat(query): persist raw PS3.3 conditions`
+- `ac045bd refactor(query): centralize compound citation assembly`
 
 ## Verification at stop
 
-The full local test suite was re-run on 2026-06-12 after the condition
-refinement slice and a default-cache KB rebuild:
+The full local test suite was re-run on 2026-06-12 after the citation
+refinement slice:
 
 ```bash
 uv run pytest
 ```
 
-- pytest: 169 passed, 3 skipped. The skips are the optional external
+- pytest: 171 passed, 3 skipped. The skips are the optional external
   differential comparisons when their local inputs are not configured.
 
 The default-cache 2026b KB was rebuilt from the locally cached official
@@ -617,11 +624,11 @@ resolved per their completion conditions:
   rows persist as raw `condition` records; module, module-attribute, and
   attribute-context responses expose machine-status condition payloads with
   source citations.
+- Compound query resolvers use a shared citation builder that groups evidence
+  internally and preserves first-seen, deduplicated public `refs`.
 
 ## Not yet implemented
 
-- General citation builder beyond direct source-ref conversion for compound
-  responses.
 - Optional real-LLM external-agent runner configuration. The committed R4
   runner is the deterministic reference agent; real-KB transcripts remain
   uncommitted build outputs by design.
@@ -639,6 +646,7 @@ resolved per their completion conditions:
 
 ## Recommended next work order
 
-Citation refinement: move beyond direct source-ref conversion for compound
-responses by centralizing citation assembly across multi-fact answers and
-normalizing duplicate source refs into user-facing evidence groups.
+Optional real-LLM external-agent runner configuration: keep the deterministic
+reference runner as the offline default, but add an explicit opt-in path for
+running committed prompt cases against an external model provider without
+recording uncommitted transcripts.
