@@ -30,6 +30,7 @@ from dicom_kb.query.answer_contracts import (
     standard_ref,
     standard_text_result,
     standard_text_search_result,
+    tool_response,
     uid_result,
 )
 from dicom_kb.query.citations import CitationBuilder, build_trace, citation_refs
@@ -63,7 +64,7 @@ def lookup_data_element(
         try:
             normalize_tag(tag_or_keyword)
         except IdentifierValidationError as exc:
-            return ToolResponse(
+            return tool_response(
                 edition=edition,
                 tool="lookup_data_element",
                 input=response_input,
@@ -77,7 +78,7 @@ def lookup_data_element(
         edition=edition,
     )
     if element is None:
-        return ToolResponse(
+        return tool_response(
             edition=edition,
             tool="lookup_data_element",
             input=response_input,
@@ -87,7 +88,7 @@ def lookup_data_element(
         )
 
     warnings = [warning] if warning else []
-    return ToolResponse(
+    return tool_response(
         edition=edition,
         tool="lookup_data_element",
         input=response_input,
@@ -119,7 +120,7 @@ def lookup_uid(
         try:
             normalize_uid(uid_or_keyword)
         except IdentifierValidationError as exc:
-            return ToolResponse(
+            return tool_response(
                 edition=edition,
                 tool="lookup_uid",
                 input=response_input,
@@ -133,7 +134,7 @@ def lookup_uid(
         edition=edition,
     )
     if uid is None:
-        return ToolResponse(
+        return tool_response(
             edition=edition,
             tool="lookup_uid",
             input=response_input,
@@ -142,7 +143,7 @@ def lookup_uid(
             trace=trace,
         )
 
-    return ToolResponse(
+    return tool_response(
         edition=edition,
         tool="lookup_uid",
         input=response_input,
@@ -173,7 +174,7 @@ def lookup_iod(
         iod_name, edition=edition
     )
     if iod is None:
-        return ToolResponse(
+        return tool_response(
             edition=edition,
             tool="lookup_iod",
             input=response_input,
@@ -182,7 +183,7 @@ def lookup_iod(
             trace=trace,
         )
 
-    return ToolResponse(
+    return tool_response(
         edition=edition,
         tool="lookup_iod",
         input=response_input,
@@ -213,7 +214,7 @@ def lookup_sop_class(
         try:
             normalize_uid(uid_or_name_or_keyword)
         except IdentifierValidationError as exc:
-            return ToolResponse(
+            return tool_response(
                 edition=edition,
                 tool="lookup_sop_class",
                 input=response_input,
@@ -228,7 +229,7 @@ def lookup_sop_class(
         edition=edition,
     )
     if found is None:
-        return ToolResponse(
+        return tool_response(
             edition=edition,
             tool="lookup_sop_class",
             input=response_input,
@@ -260,7 +261,7 @@ def lookup_sop_class(
         for record in iod_records
         if record.edge.resolution_warning is not None
     ]
-    return ToolResponse(
+    return tool_response(
         edition=edition,
         tool="lookup_sop_class",
         input=response_input,
@@ -291,7 +292,7 @@ def list_modules_for_iod(
     repository = Part03Repository(connection)
     iod = repository.find_iod_by_name_or_keyword(iod_name, edition=edition)
     if iod is None:
-        return ToolResponse(
+        return tool_response(
             edition=edition,
             tool="list_modules_for_iod",
             input=response_input,
@@ -322,7 +323,7 @@ def list_modules_for_iod(
         )
         .refs()
     )
-    return ToolResponse(
+    return tool_response(
         edition=edition,
         tool="list_modules_for_iod",
         input=response_input,
@@ -356,7 +357,7 @@ def list_attributes_for_module(
     repository = Part03Repository(connection)
     module = repository.find_module_by_name(module_name, edition=edition)
     if module is None:
-        return ToolResponse(
+        return tool_response(
             edition=edition,
             tool="list_attributes_for_module",
             input=response_input,
@@ -403,7 +404,7 @@ def list_attributes_for_module(
         )
         .refs()
     )
-    return ToolResponse(
+    return tool_response(
         edition=edition,
         tool="list_attributes_for_module",
         input=response_input,
@@ -434,7 +435,7 @@ def resolve_attribute_context(
     )
     response_input = _context_input(attribute, iod_name=iod_name, sop_class=sop_class)
     if (iod_name is None) == (sop_class is None):
-        return ToolResponse(
+        return tool_response(
             edition=edition,
             tool="resolve_attribute_context",
             input=response_input,
@@ -446,7 +447,7 @@ def resolve_attribute_context(
         try:
             normalize_tag(attribute)
         except IdentifierValidationError as exc:
-            return ToolResponse(
+            return tool_response(
                 edition=edition,
                 tool="resolve_attribute_context",
                 input=response_input,
@@ -458,7 +459,7 @@ def resolve_attribute_context(
         try:
             normalize_uid(sop_class)
         except IdentifierValidationError as exc:
-            return ToolResponse(
+            return tool_response(
                 edition=edition,
                 tool="resolve_attribute_context",
                 input=response_input,
@@ -471,7 +472,7 @@ def resolve_attribute_context(
         connection, attribute=attribute, edition=edition
     )
     if element is None:
-        return ToolResponse(
+        return tool_response(
             edition=edition,
             tool="resolve_attribute_context",
             input=response_input,
@@ -510,7 +511,7 @@ def resolve_attribute_context(
         context_refs,
         use_refs,
     )
-    return ToolResponse(
+    return tool_response(
         edition=edition,
         tool="resolve_attribute_context",
         input=response_input,
@@ -595,7 +596,7 @@ def _lookup_attribute_value_terms(
         try:
             normalize_tag(attribute)
         except IdentifierValidationError as exc:
-            return ToolResponse(
+            return tool_response(
                 edition=edition,
                 tool=tool,
                 input=response_input,
@@ -609,7 +610,7 @@ def _lookup_attribute_value_terms(
         edition=edition,
     )
     if element is None:
-        return ToolResponse(
+        return tool_response(
             edition=edition,
             tool=tool,
             input=response_input,
@@ -625,7 +626,7 @@ def _lookup_attribute_value_terms(
         context=context,
     )
     if not records:
-        return ToolResponse(
+        return tool_response(
             edition=edition,
             tool=tool,
             input=response_input,
@@ -640,7 +641,7 @@ def _lookup_attribute_value_terms(
         (element.source_ref,),
         (record.term.source_ref for record in records),
     )
-    return ToolResponse(
+    return tool_response(
         edition=edition,
         tool=tool,
         input=response_input,
@@ -675,7 +676,7 @@ def retrieve_standard_text(
         "max_chars": str(max_chars),
     }
     if not part.startswith("PS3."):
-        return ToolResponse(
+        return tool_response(
             edition=edition,
             tool="retrieve_standard_text",
             input=response_input,
@@ -684,7 +685,7 @@ def retrieve_standard_text(
             trace=trace,
         )
     if max_chars < 1 or max_chars > 4000:
-        return ToolResponse(
+        return tool_response(
             edition=edition,
             tool="retrieve_standard_text",
             input=response_input,
@@ -700,7 +701,7 @@ def retrieve_standard_text(
         edition=edition,
     )
     if node is None:
-        return ToolResponse(
+        return tool_response(
             edition=edition,
             tool="retrieve_standard_text",
             input=response_input,
@@ -721,7 +722,7 @@ def retrieve_standard_text(
         (node.source_ref,),
         (table.source_ref for table in tables),
     )
-    return ToolResponse(
+    return tool_response(
         edition=edition,
         tool="retrieve_standard_text",
         input=response_input,
@@ -758,7 +759,7 @@ def search_standard_text(
     if part_filter is not None:
         response_input["part_filter"] = part_filter
     if not query.strip():
-        return ToolResponse(
+        return tool_response(
             edition=edition,
             tool="search_standard_text",
             input=response_input,
@@ -767,7 +768,7 @@ def search_standard_text(
             trace=trace,
         )
     if len(query) > 200:
-        return ToolResponse(
+        return tool_response(
             edition=edition,
             tool="search_standard_text",
             input=response_input,
@@ -776,7 +777,7 @@ def search_standard_text(
             trace=trace,
         )
     if part_filter is not None and not part_filter.startswith("PS3."):
-        return ToolResponse(
+        return tool_response(
             edition=edition,
             tool="search_standard_text",
             input=response_input,
@@ -785,7 +786,7 @@ def search_standard_text(
             trace=trace,
         )
     if limit < 1 or limit > 50:
-        return ToolResponse(
+        return tool_response(
             edition=edition,
             tool="search_standard_text",
             input=response_input,
@@ -796,7 +797,7 @@ def search_standard_text(
 
     fts_query = build_fts_query(query)
     if fts_query is None:
-        return ToolResponse(
+        return tool_response(
             edition=edition,
             tool="search_standard_text",
             input=response_input,
@@ -812,7 +813,7 @@ def search_standard_text(
         limit=limit,
     )
     if not records:
-        return ToolResponse(
+        return tool_response(
             edition=edition,
             tool="search_standard_text",
             input=response_input,
@@ -821,7 +822,7 @@ def search_standard_text(
             trace=trace,
         )
 
-    return ToolResponse(
+    return tool_response(
         edition=edition,
         tool="search_standard_text",
         input=response_input,

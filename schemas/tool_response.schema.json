@@ -2,6 +2,63 @@
   "$id": "https://dicom-standard-kb.local/schemas/tool_response.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$defs": {
+    "parseConfidence": {
+      "additionalProperties": false,
+      "properties": {
+        "level": {
+          "enum": ["high", "medium", "low", "unknown"],
+          "type": "string"
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "type": ["array", "null"]
+        },
+        "source": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": ["level", "source"],
+      "type": "object"
+    },
+    "responseClassification": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_level": {
+          "enum": [
+            "parsed_table",
+            "parsed_registry",
+            "parsed_cross_reference",
+            "retrieved_text",
+            "external_comparison"
+          ],
+          "type": "string"
+        },
+        "machine_decidability": {
+          "enum": [
+            "decidable",
+            "partially_decidable",
+            "not_decidable",
+            "not_applicable"
+          ],
+          "type": "string"
+        },
+        "normativity": {
+          "enum": [
+            "normative",
+            "explanatory",
+            "derived",
+            "heuristic",
+            "unsupported"
+          ],
+          "type": "string"
+        }
+      },
+      "required": ["normativity", "evidence_level", "machine_decidability"],
+      "type": "object"
+    },
     "responseTrace": {
       "additionalProperties": false,
       "properties": {
@@ -53,6 +110,9 @@
   "additionalProperties": false,
   "description": "Common public envelope returned by CLI and future agent tools.",
   "properties": {
+    "classification": {
+      "$ref": "#/$defs/responseClassification"
+    },
     "edition": {
       "minLength": 1,
       "type": "string"
@@ -66,6 +126,9 @@
     "notice": {
       "const": "Consult the official DICOM Standard for authoritative text.",
       "type": "string"
+    },
+    "parse_confidence": {
+      "$ref": "#/$defs/parseConfidence"
     },
     "refs": {
       "items": {
@@ -100,6 +163,8 @@
     "input",
     "status",
     "result",
+    "classification",
+    "parse_confidence",
     "refs",
     "warnings",
     "notice",

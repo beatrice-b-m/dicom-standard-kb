@@ -303,6 +303,11 @@ def test_lookup_data_element_tag_and_keyword_return_same_entity(
         "retired": False,
     }
     assert by_tag.refs[0].part == "PS3.6"
+    assert by_tag.classification.normativity == "normative"
+    assert by_tag.classification.evidence_level == "parsed_registry"
+    assert by_tag.classification.machine_decidability == "decidable"
+    assert by_tag.parse_confidence.level == "high"
+    assert by_tag.parse_confidence.source == "parsed_registry"
     assert by_tag.trace.query_id == "query-1"
     assert by_tag.trace.resolved_at == RESOLVED_AT
 
@@ -319,9 +324,91 @@ def test_lookup_data_element_returns_validation_error_for_malformed_tag(
     )
 
     assert response.status == "validation_error"
+    assert response.classification.normativity == "unsupported"
+    assert response.parse_confidence.level == "unknown"
     assert response.result is not None
     assert "malformed DICOM tag" in str(response.result["message"])
     assert response.refs == []
+
+
+def test_v1_tool_responses_include_classification_metadata(tmp_path: Path) -> None:
+    registry_connection = _connection(tmp_path / "registry")
+    context_connection = _context_connection(tmp_path / "context")
+    document_connection = _doc_connection(tmp_path / "document")
+
+    responses = [
+        lookup_data_element(
+            registry_connection,
+            tag_or_keyword="Modality",
+            edition="2026b",
+        ),
+        lookup_uid(
+            registry_connection,
+            uid_or_keyword="ExplicitVRLittleEndian",
+            edition="2026b",
+        ),
+        lookup_sop_class(
+            context_connection,
+            uid_or_name_or_keyword="CT Image Storage",
+            edition="2026b",
+        ),
+        lookup_iod(context_connection, iod_name="CT Image", edition="2026b"),
+        list_modules_for_iod(
+            context_connection,
+            iod_name="CT Image",
+            edition="2026b",
+        ),
+        list_attributes_for_module(
+            context_connection,
+            module_name="Patient",
+            edition="2026b",
+        ),
+        resolve_attribute_context(
+            context_connection,
+            attribute="PatientName",
+            iod_name="CT Image",
+            edition="2026b",
+        ),
+        retrieve_standard_text(
+            document_connection,
+            part="PS3.3",
+            section_or_anchor="sect_A.3",
+            edition="2026b",
+        ),
+        search_standard_text(
+            document_connection,
+            query="Patient",
+            edition="2026b",
+        ),
+    ]
+
+    expected = {
+        "lookup_data_element": ("normative", "parsed_registry", "decidable"),
+        "lookup_uid": ("normative", "parsed_registry", "decidable"),
+        "lookup_sop_class": ("normative", "parsed_cross_reference", "decidable"),
+        "lookup_iod": ("normative", "parsed_table", "decidable"),
+        "list_modules_for_iod": ("normative", "parsed_table", "decidable"),
+        "list_attributes_for_module": ("normative", "parsed_table", "decidable"),
+        "resolve_attribute_context": (
+            "normative",
+            "parsed_cross_reference",
+            "partially_decidable",
+        ),
+        "retrieve_standard_text": ("explanatory", "retrieved_text", "not_applicable"),
+        "search_standard_text": ("explanatory", "retrieved_text", "not_applicable"),
+    }
+    for response in responses:
+        assert response.status == "ok"
+        assert (
+            response.classification.normativity,
+            response.classification.evidence_level,
+            response.classification.machine_decidability,
+        ) == expected[response.tool]
+        assert response.parse_confidence.level in {"high", "medium", "low"}
+        assert (
+            response.parse_confidence.source
+            == response.classification.evidence_level
+        )
 
 
 def test_lookup_data_element_returns_not_found_for_unknown_tag(tmp_path: Path) -> None:

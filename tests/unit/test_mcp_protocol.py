@@ -59,6 +59,15 @@ def test_mcp_stdio_protocol_with_official_client(tmp_path: Path) -> None:
                 assert element_payload["edition"] == "2026b"
                 assert element_payload["tool"] == "lookup_data_element"
                 assert element_payload["status"] == "ok"
+                assert element_payload["classification"] == {
+                    "evidence_level": "parsed_registry",
+                    "machine_decidability": "decidable",
+                    "normativity": "normative",
+                }
+                assert element_payload["parse_confidence"] == {
+                    "level": "high",
+                    "source": "parsed_registry",
+                }
                 assert element_payload["refs"]
                 assert element_payload["warnings"] == []
 
@@ -70,6 +79,15 @@ def test_mcp_stdio_protocol_with_official_client(tmp_path: Path) -> None:
                 assert modules_payload["edition"] == "2026b"
                 assert modules_payload["tool"] == "list_modules_for_iod"
                 assert modules_payload["status"] == "ok"
+                assert modules_payload["classification"] == {
+                    "evidence_level": "parsed_table",
+                    "machine_decidability": "decidable",
+                    "normativity": "normative",
+                }
+                assert modules_payload["parse_confidence"] == {
+                    "level": "high",
+                    "source": "parsed_table",
+                }
                 assert modules_payload["refs"]
                 assert modules_payload["warnings"] == []
                 assert modules_payload["result"]["modules"][0]["module_name"] == (

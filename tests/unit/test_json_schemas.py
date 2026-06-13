@@ -4,11 +4,15 @@ import json
 from pathlib import Path
 from typing import get_args
 
+import pytest
+from pydantic import ValidationError
+
 from dicom_kb.query.answer_contracts import (
     NOTICE,
     ResponseStatus,
     StandardRef,
     ToolResponse,
+    tool_response,
 )
 from dicom_kb.sources.manifest import SourceArtifact, SourceManifest
 
@@ -50,6 +54,37 @@ def test_tool_response_schema_matches_public_envelope_contract() -> None:
     assert properties["status"]["enum"] == list(get_args(ResponseStatus))
     assert properties["notice"]["const"] == NOTICE
     assert schema["required"] == list(ToolResponse.model_fields)
+
+
+def test_tool_response_requires_classification_metadata() -> None:
+    with pytest.raises(ValidationError):
+        ToolResponse(
+            edition="2026b",
+            tool="lookup_data_element",
+            input={"tag_or_keyword": "Modality"},
+            status="ok",
+            result={"tag": "(0008,0060)"},
+        )
+
+
+def test_tool_response_factory_adds_deterministic_metadata() -> None:
+    response = tool_response(
+        edition="2026b",
+        tool="lookup_data_element",
+        input={"tag_or_keyword": "Modality"},
+        status="ok",
+        result={"tag": "(0008,0060)"},
+    )
+
+    assert response.classification.model_dump() == {
+        "normativity": "normative",
+        "evidence_level": "parsed_registry",
+        "machine_decidability": "decidable",
+    }
+    assert response.parse_confidence.model_dump(exclude_none=True) == {
+        "level": "high",
+        "source": "parsed_registry",
+    }
 
 
 def test_source_manifest_schema_matches_persisted_manifest_contract() -> None:

@@ -11,7 +11,12 @@ from dicom_kb.db.repositories import (
     Part04Repository,
 )
 from dicom_kb.ir.models import IOD, AttributeUse, DataElement
-from dicom_kb.query.answer_contracts import StandardRef, ToolResponse, standard_ref
+from dicom_kb.query.answer_contracts import (
+    StandardRef,
+    ToolResponse,
+    standard_ref,
+    tool_response,
+)
 from dicom_kb.query.citations import unique_refs
 from dicom_kb.query.conditions import (
     AttributeContextMatch,
@@ -58,7 +63,7 @@ def resolve_context_iods(
     if iod_name is not None:
         iod = part03.find_iod_by_name_or_keyword(iod_name, edition=edition)
         if iod is None:
-            return ToolResponse(
+            return tool_response(
                 edition=edition,
                 tool="resolve_attribute_context",
                 input={"attribute": "", "iod_name": iod_name},
@@ -71,7 +76,7 @@ def resolve_context_iods(
     part04 = Part04Repository(connection)
     found = part04.find_sop_class_by_uid_or_name(sop_class, edition=edition)
     if found is None:
-        return ToolResponse(
+        return tool_response(
             edition=edition,
             tool="resolve_attribute_context",
             input={"attribute": "", "sop_class": sop_class},
@@ -81,7 +86,7 @@ def resolve_context_iods(
     resolved_sop_class, service_class = found
     iod_records = part04.list_iods_for_sop_class(resolved_sop_class.id, edition=edition)
     if not iod_records:
-        return ToolResponse(
+        return tool_response(
             edition=edition,
             tool="resolve_attribute_context",
             input={"attribute": "", "sop_class": sop_class},

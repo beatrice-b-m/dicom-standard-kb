@@ -8,7 +8,7 @@ alone.
 
 - Last updated: 2026-06-13
 - Worktree baseline: clean at start of remediation continuation.
-- Latest observed commit: `40cc4f8 feat(cli): add context attribute alias`
+- Latest observed commit: `201da85 test(make): add DICOM integration targets`
 - Remediation plan status:
   - Official URL remediation is already excluded from the active plan and
     recorded as complete in `REMEDIATION_PLAN.md`.
@@ -17,9 +17,13 @@ alone.
     - `dicom-kb context attribute ...` is implemented and tested.
     - `make test-dicom-integration` and opt-in `make test-dicom-current`
       are implemented and tested by dry-run smoke coverage.
-  - Phase 2, Response Classification and Parse Confidence, is the next
-    incomplete remediation phase.
-  - Phases 3-6 remain incomplete.
+  - Phase 2, Response Classification and Parse Confidence, is complete.
+    - `ToolResponse` requires `classification` and `parse_confidence`.
+    - JSON schema requires both new fields.
+    - Python resolver, CLI, and MCP tests cover representative metadata.
+  - Phase 3, Build Metrics and Quality Gates, is the next incomplete
+    remediation phase.
+  - Phases 4-6 remain incomplete.
 
 ## Completed Work
 
@@ -45,6 +49,18 @@ alone.
   are wired and the default `test` target does not include the current-edition
   network marker.
 - Marked Phase 1 complete in `REMEDIATION_PLAN.md`.
+- Added `ResponseClassification` and `ParseConfidence` models to the public
+  query response contract.
+- Added required `classification` and `parse_confidence` fields to
+  `ToolResponse`, populated through a `tool_response` factory with
+  deterministic defaults per tool and response status.
+- Routed resolver and graph helper response construction through the metadata
+  factory.
+- Updated `schemas/tool_response.schema.json` to require classification and
+  parse-confidence metadata.
+- Added model/schema tests, v1 resolver metadata coverage, CLI serialization
+  assertions, and MCP protocol assertions for the new fields.
+- Marked Phase 2 complete in `REMEDIATION_PLAN.md`.
 
 ## Verification Results
 
@@ -72,6 +88,16 @@ alone.
   (`1 passed, 1 skipped`).
 - 2026-06-13: `uv run ruff check tests/unit/test_makefile.py
   tests/integration_requires_dicom_download/test_current_resolution.py` passed.
+- 2026-06-13: `uv run pytest tests/unit/test_query_resolver.py
+  tests/unit/test_json_schemas.py tests/unit/test_cli_lookup.py
+  tests/unit/test_mcp_protocol.py` passed (`59 passed`).
+- 2026-06-13: `uv run pytest` passed (`186 passed, 4 skipped`).
+- 2026-06-13: `uv run ruff check src/dicom_kb/query/answer_contracts.py
+  src/dicom_kb/query/resolver.py src/dicom_kb/query/graph.py
+  tests/unit/test_json_schemas.py tests/unit/test_query_resolver.py
+  tests/unit/test_cli_lookup.py tests/unit/test_mcp_protocol.py` passed.
+- 2026-06-13: `uv run mypy src/dicom_kb/query/answer_contracts.py
+  src/dicom_kb/query/resolver.py src/dicom_kb/query/graph.py` passed.
 
 ## Blockers
 
@@ -86,11 +112,10 @@ alone.
 
 ## Next Recommended Task
 
-Begin Phase 2 response classification and parse confidence:
+Begin Phase 3 build metrics and quality gates:
 
-1. Add `ResponseClassification` and `ParseConfidence` models to
-   `query/answer_contracts.py`.
-2. Add required `classification` and `parse_confidence` fields to
-   `ToolResponse` with deterministic defaults per tool/status.
-3. Update schema and representative query/CLI/MCP tests so all public
-   response surfaces emit the new metadata.
+1. Add a build metrics aggregation model covering Section 16 counters.
+2. Extend import/build summaries to emit unresolved include/xref counts,
+   parse warnings, and source refs.
+3. Persist metrics under `build_metadata.metadata_json["metrics"]` and add
+   focused tests before implementing configurable quality gates.

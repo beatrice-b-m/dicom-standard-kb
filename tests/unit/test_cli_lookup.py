@@ -122,6 +122,15 @@ def test_cli_lookup_tag_outputs_success_envelope(tmp_path: Path) -> None:
         "vr": "CS",
     }
     assert payload["refs"][0]["part"] == "PS3.6"
+    assert payload["classification"] == {
+        "evidence_level": "parsed_registry",
+        "machine_decidability": "decidable",
+        "normativity": "normative",
+    }
+    assert payload["parse_confidence"] == {
+        "level": "high",
+        "source": "parsed_registry",
+    }
     assert payload["warnings"] == []
     assert payload["trace"]["query_id"]
     assert payload["trace"]["resolved_at"]
@@ -657,6 +666,15 @@ def test_cli_resolve_attribute_context_outputs_effective_type(
 
     assert payload["tool"] == "resolve_attribute_context"
     assert payload["status"] == "ok"
+    assert payload["classification"] == {
+        "evidence_level": "parsed_cross_reference",
+        "machine_decidability": "partially_decidable",
+        "normativity": "normative",
+    }
+    assert payload["parse_confidence"] == {
+        "level": "medium",
+        "source": "parsed_cross_reference",
+    }
     assert payload["result"]["attribute"]["tag"] == "(0010,0010)"
     assert payload["result"]["uses"][0]["module"] == "Patient"
     assert payload["result"]["effective_type"] == "2"

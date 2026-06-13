@@ -68,6 +68,10 @@ Acceptance criteria:
 
 ## Phase 2: Response Classification and Parse Confidence
 
+Status: Complete. Public `ToolResponse` envelopes now require
+`classification` and `parse_confidence`, schema validation requires both
+fields, and Python, CLI, and MCP tests cover representative metadata.
+
 Goal: make the public response envelope fully express the Section 11 safety
 classification and the Section 12 parse-confidence requirement.
 

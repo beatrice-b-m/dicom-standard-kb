@@ -31,6 +31,37 @@ from dicom_kb.ir.models import (
 NOTICE = "Consult the official DICOM Standard for authoritative text."
 
 ResponseStatus = Literal["ok", "not_found", "validation_error"]
+Normativity = Literal["normative", "explanatory", "derived", "heuristic", "unsupported"]
+EvidenceLevel = Literal[
+    "parsed_table",
+    "parsed_registry",
+    "parsed_cross_reference",
+    "retrieved_text",
+    "external_comparison",
+]
+MachineDecidability = Literal[
+    "decidable",
+    "partially_decidable",
+    "not_decidable",
+    "not_applicable",
+]
+ParseConfidenceLevel = Literal["high", "medium", "low", "unknown"]
+
+
+REGISTRY_TOOLS = frozenset({"lookup_data_element", "lookup_uid"})
+TABLE_TOOLS = frozenset(
+    {
+        "lookup_iod",
+        "list_modules_for_iod",
+        "list_attributes_for_module",
+        "lookup_enumerated_values",
+        "lookup_defined_terms",
+    }
+)
+CROSS_REFERENCE_TOOLS = frozenset(
+    {"lookup_sop_class", "resolve_attribute_context"}
+)
+TEXT_TOOLS = frozenset({"retrieve_standard_text", "search_standard_text"})
 
 
 class StandardRef(BaseModel):
@@ -56,6 +87,26 @@ class ResponseTrace(BaseModel):
     source_manifest_sha256: str | None = None
 
 
+class ResponseClassification(BaseModel):
+    """Safety classification for a public tool response."""
+
+    model_config = ConfigDict(frozen=True)
+
+    normativity: Normativity
+    evidence_level: EvidenceLevel
+    machine_decidability: MachineDecidability
+
+
+class ParseConfidence(BaseModel):
+    """Conservative parse confidence metadata for a public tool response."""
+
+    model_config = ConfigDict(frozen=True)
+
+    level: ParseConfidenceLevel
+    source: str
+    notes: list[str] | None = None
+
+
 class ToolResponse(BaseModel):
     """Common envelope for all public query tools."""
 
@@ -66,10 +117,122 @@ class ToolResponse(BaseModel):
     input: dict[str, str]
     status: ResponseStatus
     result: dict[str, Any] | None
+    classification: ResponseClassification
+    parse_confidence: ParseConfidence
     refs: list[StandardRef] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     notice: str = NOTICE
     trace: ResponseTrace = Field(default_factory=ResponseTrace)
+
+
+def tool_response(
+    *,
+    edition: str,
+    tool: str,
+    input: dict[str, str],
+    status: ResponseStatus,
+    result: dict[str, Any] | None,
+    refs: list[StandardRef] | None = None,
+    warnings: list[str] | None = None,
+    trace: ResponseTrace | None = None,
+    classification: ResponseClassification | None = None,
+    parse_confidence: ParseConfidence | None = None,
+) -> ToolResponse:
+    """Build a response with deterministic classification metadata."""
+    response_warnings = warnings or []
+    response_classification = classification or classification_for_tool(
+        tool=tool,
+        status=status,
+    )
+    response_parse_confidence = parse_confidence or parse_confidence_for_tool(
+        tool=tool,
+        status=status,
+        warnings=response_warnings,
+        classification=response_classification,
+    )
+    return ToolResponse(
+        edition=edition,
+        tool=tool,
+        input=input,
+        status=status,
+        result=result,
+        classification=response_classification,
+        parse_confidence=response_parse_confidence,
+        refs=refs or [],
+        warnings=response_warnings,
+        trace=trace or ResponseTrace(),
+    )
+
+
+def classification_for_tool(
+    *, tool: str, status: ResponseStatus
+) -> ResponseClassification:
+    """Return deterministic Section 11 classification for a tool/status pair."""
+    evidence_level = evidence_level_for_tool(tool)
+    if status != "ok":
+        return ResponseClassification(
+            normativity="unsupported",
+            evidence_level=evidence_level,
+            machine_decidability="not_applicable",
+        )
+    if tool in TEXT_TOOLS:
+        return ResponseClassification(
+            normativity="explanatory",
+            evidence_level="retrieved_text",
+            machine_decidability="not_applicable",
+        )
+    if tool == "resolve_attribute_context":
+        return ResponseClassification(
+            normativity="normative",
+            evidence_level="parsed_cross_reference",
+            machine_decidability="partially_decidable",
+        )
+    return ResponseClassification(
+        normativity="normative",
+        evidence_level=evidence_level,
+        machine_decidability="decidable",
+    )
+
+
+def parse_confidence_for_tool(
+    *,
+    tool: str,
+    status: ResponseStatus,
+    warnings: list[str],
+    classification: ResponseClassification,
+) -> ParseConfidence:
+    """Return conservative parse confidence metadata for a response."""
+    if status == "validation_error":
+        return ParseConfidence(level="unknown", source="input_validation")
+    if status == "not_found":
+        return ParseConfidence(
+            level="medium",
+            source=classification.evidence_level,
+            notes=["No matching parsed fact was found."],
+        )
+    if tool in TEXT_TOOLS:
+        return ParseConfidence(level="low", source="retrieved_text")
+    if tool == "resolve_attribute_context" or warnings:
+        notes = ["Warnings were emitted; inspect the response warnings."]
+        return ParseConfidence(
+            level="medium",
+            source=classification.evidence_level,
+            notes=notes if warnings else None,
+        )
+    return ParseConfidence(level="high", source=classification.evidence_level)
+
+
+def evidence_level_for_tool(tool: str) -> EvidenceLevel:
+    """Map a public tool name to its primary evidence source."""
+    if tool in REGISTRY_TOOLS:
+        return "parsed_registry"
+    if tool in CROSS_REFERENCE_TOOLS:
+        return "parsed_cross_reference"
+    if tool in TEXT_TOOLS:
+        return "retrieved_text"
+    if tool in TABLE_TOOLS:
+        return "parsed_table"
+    return "parsed_table"
 
 
 def data_element_result(element: DataElement) -> dict[str, Any]:
