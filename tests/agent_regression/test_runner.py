@@ -7,6 +7,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
+from click.utils import strip_ansi
 from typer.testing import CliRunner
 
 from dicom_kb.build import default_db_path
@@ -181,7 +182,8 @@ def test_cli_eval_run_requires_external_command(tmp_path: Path) -> None:
     )
 
     assert result.exit_code != 0
-    assert "external agent runs require --external-command" in result.output
+    output = " ".join(strip_ansi(result.output).split())
+    assert "external agent runs require --external-command" in output
 
 
 def _build_fixture_cache(tmp_path: Path) -> Path:
