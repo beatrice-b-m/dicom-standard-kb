@@ -9,6 +9,7 @@ from datetime import datetime
 
 from dicom_kb.ir.models import SourceRef
 from dicom_kb.query.answer_contracts import ResponseTrace, StandardRef, standard_ref
+from dicom_kb.sources.official_urls import official_standard_ref_url
 
 
 def build_trace(
@@ -53,6 +54,15 @@ def unique_refs(refs: list[StandardRef]) -> list[StandardRef]:
 
 
 CitationInput = SourceRef | StandardRef | None
+
+
+def official_source_url(source_ref: SourceRef) -> str | None:
+    """Derive the official CHTML URL for a source ref when possible."""
+    return official_standard_ref_url(
+        edition=source_ref.edition_id,
+        part=source_ref.part,
+        anchor=source_ref.xml_id or source_ref.table_id,
+    )
 
 
 @dataclass(frozen=True)

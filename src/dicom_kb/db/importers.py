@@ -34,6 +34,7 @@ from dicom_kb.ir.models import (
     Xref,
 )
 from dicom_kb.sources.manifest import SourceManifest
+from dicom_kb.sources.official_urls import official_standard_ref_url
 
 
 @dataclass(frozen=True)
@@ -359,6 +360,11 @@ def _unique_source_refs(source_refs: Iterable[SourceRef]) -> tuple[SourceRef, ..
 
 
 def _insert_source_ref(connection: sqlite3.Connection, source_ref: SourceRef) -> None:
+    canonical_url = source_ref.canonical_url or official_standard_ref_url(
+        edition=source_ref.edition_id,
+        part=source_ref.part,
+        anchor=source_ref.xml_id or source_ref.table_id,
+    )
     connection.execute(
         """
         INSERT OR IGNORE INTO source_ref (
@@ -373,7 +379,7 @@ def _insert_source_ref(connection: sqlite3.Connection, source_ref: SourceRef) ->
             source_ref.table_id,
             source_ref.xml_id,
             source_ref.title,
-            source_ref.canonical_url,
+            canonical_url,
         ),
     )
 

@@ -894,7 +894,10 @@ def test_list_modules_for_iod_returns_ordered_ps33_modules(tmp_path: Path) -> No
                         "section": "sect_A.3",
                         "table": "CT Image IOD Modules",
                         "anchor": "table_A.3-1",
-                        "official_url": None,
+                        "official_url": (
+                            "https://dicom.nema.org/medical/dicom/2026b/"
+                            "output/chtml/part03/table_A.3-1.html"
+                        ),
                         "edition": "2026b",
                     }
                 ],
@@ -1003,7 +1006,10 @@ def test_list_attributes_for_module_exposes_attribute_conditions(
                 "section": "sect_C.7.1.1",
                 "table": "Patient Module Attributes",
                 "anchor": "table_C.7-1",
-                "official_url": None,
+                "official_url": (
+                    "https://dicom.nema.org/medical/dicom/2026b/output/chtml/"
+                    "part03/table_C.7-1.html"
+                ),
                 "edition": "2026b",
             }
         ],

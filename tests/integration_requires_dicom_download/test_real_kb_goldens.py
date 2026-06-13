@@ -313,10 +313,13 @@ def _ok_result(response: ToolResponse) -> dict[str, Any]:
 def _assert_ref(
     refs: list[StandardRef], *, part: str, anchor: str | None = None
 ) -> None:
-    assert any(
-        ref.part == part and (anchor is None or ref.anchor == anchor)
+    matches = [
+        ref
         for ref in refs
-    )
+        if ref.part == part and (anchor is None or ref.anchor == anchor)
+    ]
+    assert matches
+    assert all(ref.official_url for ref in matches if ref.anchor is not None)
 
 
 def _attribute_by_tag(

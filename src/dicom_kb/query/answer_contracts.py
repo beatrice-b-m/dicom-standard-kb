@@ -258,12 +258,14 @@ def attribute_value_terms_result(
 
 def standard_ref(source_ref: SourceRef) -> StandardRef:
     """Convert an internal source ref to the public citation shape."""
+    from dicom_kb.query.citations import official_source_url
+
     return StandardRef(
         part=source_ref.part,
         section=source_ref.section,
         table=source_ref.title or source_ref.table_id,
         anchor=source_ref.xml_id,
-        official_url=source_ref.canonical_url,
+        official_url=source_ref.canonical_url or official_source_url(source_ref),
         edition=source_ref.edition_id,
     )
 
