@@ -8,15 +8,18 @@ alone.
 
 - Last updated: 2026-06-13
 - Worktree baseline: clean at start of remediation continuation.
-- Latest observed commit: `9443f30 feat(cli): add cache verification command`
+- Latest observed commit: `40cc4f8 feat(cli): add context attribute alias`
 - Remediation plan status:
   - Official URL remediation is already excluded from the active plan and
     recorded as complete in `REMEDIATION_PLAN.md`.
-  - Phase 1, Surface Parity, is in progress.
+  - Phase 1, Surface Parity, is complete.
     - `dicom-kb verify --edition <edition>` is implemented and tested.
     - `dicom-kb context attribute ...` is implemented and tested.
-    - Makefile aliases and `test-dicom-current` remain incomplete.
-  - Phases 2-6 remain incomplete.
+    - `make test-dicom-integration` and opt-in `make test-dicom-current`
+      are implemented and tested by dry-run smoke coverage.
+  - Phase 2, Response Classification and Parse Confidence, is the next
+    incomplete remediation phase.
+  - Phases 3-6 remain incomplete.
 
 ## Completed Work
 
@@ -33,6 +36,15 @@ alone.
   alias for `dicom-kb resolve attribute-context`.
 - Added a CLI regression proving the alias emits the same stable response
   payload as `resolve attribute-context`.
+- Added `make test-dicom-integration` as an alias for `make test-integration`.
+- Added opt-in `make test-dicom-current`, which runs only tests marked
+  `dicom_current` and sets `DICOM_KB_RUN_CURRENT=1`.
+- Added a current-edition live integration test that is skipped unless the
+  opt-in Makefile target enables it.
+- Added a Makefile dry-run smoke test proving the DICOM integration aliases
+  are wired and the default `test` target does not include the current-edition
+  network marker.
+- Marked Phase 1 complete in `REMEDIATION_PLAN.md`.
 
 ## Verification Results
 
@@ -55,6 +67,11 @@ alone.
 - 2026-06-13: `uv run ruff check src/dicom_kb/cli/main.py
   tests/unit/test_cli_lookup.py` passed.
 - 2026-06-13: `uv run mypy src/dicom_kb/cli/main.py` passed.
+- 2026-06-13: `uv run pytest tests/unit/test_makefile.py
+  tests/integration_requires_dicom_download/test_current_resolution.py` passed
+  (`1 passed, 1 skipped`).
+- 2026-06-13: `uv run ruff check tests/unit/test_makefile.py
+  tests/integration_requires_dicom_download/test_current_resolution.py` passed.
 
 ## Blockers
 
@@ -69,10 +86,11 @@ alone.
 
 ## Next Recommended Task
 
-Continue Phase 1 surface parity:
+Begin Phase 2 response classification and parse confidence:
 
-1. Add `make test-dicom-integration` as an alias for `make test-integration`.
-2. Add opt-in `make test-dicom-current` for live current-edition resolution
-   tests without including it in default offline tests.
-3. Add a smoke check for the Makefile aliases that do not require network
-   access.
+1. Add `ResponseClassification` and `ParseConfidence` models to
+   `query/answer_contracts.py`.
+2. Add required `classification` and `parse_confidence` fields to
+   `ToolResponse` with deterministic defaults per tool/status.
+3. Update schema and representative query/CLI/MCP tests so all public
+   response surfaces emit the new metadata.

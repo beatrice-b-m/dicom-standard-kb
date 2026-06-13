@@ -1,4 +1,4 @@
-.PHONY: install lint typecheck test test-integration ingest-fixture run-mcp run-api
+.PHONY: install lint typecheck test test-integration test-dicom-integration test-dicom-current ingest-fixture run-mcp run-api
 
 install:
 	uv sync --all-extras --dev
@@ -14,6 +14,11 @@ test:
 
 test-integration:
 	uv run --dev pytest tests/integration_requires_dicom_download
+
+test-dicom-integration: test-integration
+
+test-dicom-current:
+	DICOM_KB_RUN_CURRENT=1 uv run --dev pytest -m dicom_current tests/integration_requires_dicom_download/test_current_resolution.py
 
 ingest-fixture:
 	uv run --dev dicom-kb build-fixture

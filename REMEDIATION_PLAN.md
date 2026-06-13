@@ -19,6 +19,10 @@ for the affected surface before moving to the next phase.
 
 ## Phase 1: Surface Parity
 
+Status: Complete. The documented `verify` command, `context attribute`
+alias, `test-dicom-integration` alias, and opt-in `test-dicom-current`
+target have been implemented with focused tests.
+
 Goal: make documented command examples runnable without changing response
 contracts or ingestion semantics.
 
