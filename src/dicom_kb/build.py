@@ -113,6 +113,16 @@ class BuildMetrics:
 
 
 @dataclass(frozen=True)
+class QualityGateSettings:
+    """Optional build quality thresholds."""
+
+    max_unresolved_xref_rate: float | None = None
+    max_unresolved_include_rate: float | None = None
+    max_parse_warnings: int | None = None
+    allow_gate_failures: bool = False
+
+
+@dataclass(frozen=True)
 class BuildSummary:
     """Summary emitted after building a local SQLite KB."""
 
@@ -122,6 +132,7 @@ class BuildSummary:
     import_summaries: tuple[ImportSummary, ...]
     warnings: tuple[str, ...]
     metrics: BuildMetrics
+    gate_failures: tuple[str, ...] = ()
 
     def as_jsonable(self) -> dict[str, object]:
         """Return a JSON-serializable representation for CLI output."""
@@ -131,6 +142,7 @@ class BuildSummary:
             "manifest_sha256": self.manifest_sha256,
             "imports": [asdict(summary) for summary in self.import_summaries],
             "metrics": self.metrics.as_jsonable(),
+            "gate_failures": list(self.gate_failures),
             "warnings": list(self.warnings),
         }
 
@@ -143,9 +155,61 @@ class DatabaseExistsError(BuildError):
     """Raised when a target database exists and force was not requested."""
 
 
+class BuildQualityGateError(BuildError):
+    """Raised when a build completes but configured quality gates fail."""
+
+    def __init__(self, summary: BuildSummary) -> None:
+        self.summary = summary
+        super().__init__(
+            "build quality gates failed: " + "; ".join(summary.gate_failures)
+        )
+
+
 def default_db_path(cache_dir: Path, edition: str) -> Path:
     """Return the conventional SQLite database path for an edition."""
     return cache_dir / "db" / f"{edition}.sqlite"
+
+
+def evaluate_quality_gates(
+    metrics: BuildMetrics, settings: QualityGateSettings
+) -> tuple[str, ...]:
+    """Return configured quality-gate failure messages."""
+    failures: list[str] = []
+    if settings.max_unresolved_xref_rate is not None:
+        rate = _rate(metrics.xrefs_unresolved, metrics.xrefs_total)
+        if rate > settings.max_unresolved_xref_rate:
+            failures.append(
+                "unresolved xref rate "
+                f"{rate:.6g} exceeds configured maximum "
+                f"{settings.max_unresolved_xref_rate:.6g}"
+            )
+    if settings.max_unresolved_include_rate is not None:
+        include_total = (
+            metrics.include_rows_resolved + metrics.include_rows_unresolved
+        )
+        rate = _rate(metrics.include_rows_unresolved, include_total)
+        if rate > settings.max_unresolved_include_rate:
+            failures.append(
+                "unresolved include-row rate "
+                f"{rate:.6g} exceeds configured maximum "
+                f"{settings.max_unresolved_include_rate:.6g}"
+            )
+    if (
+        settings.max_parse_warnings is not None
+        and metrics.parse_warnings > settings.max_parse_warnings
+    ):
+        failures.append(
+            "parse warning count "
+            f"{metrics.parse_warnings} exceeds configured maximum "
+            f"{settings.max_parse_warnings}"
+        )
+    return tuple(failures)
+
+
+def _rate(numerator: int, denominator: int) -> float:
+    if denominator <= 0:
+        return 0.0
+    return numerator / denominator
 
 
 def build_sqlite_database(
@@ -154,6 +218,7 @@ def build_sqlite_database(
     cache_dir: Path = DEFAULT_CACHE_DIR,
     db_path: Path | None = None,
     force: bool = False,
+    quality_gates: QualityGateSettings | None = None,
 ) -> BuildSummary:
     """Build an edition-pinned SQLite KB from cached manifest artifacts."""
     manifest = read_manifest(manifest_path(cache_dir, edition))
@@ -169,6 +234,9 @@ def build_sqlite_database(
     connection = connect_sqlite(target_path)
     warnings: list[str] = []
     summaries: list[ImportSummary] = []
+    metrics: BuildMetrics | None = None
+    gate_failures: tuple[str, ...] = ()
+    gate_settings = quality_gates or QualityGateSettings()
     try:
         apply_migrations(connection)
         import_manifest(connection, manifest)
@@ -249,6 +317,7 @@ def build_sqlite_database(
             parse_warnings=len(warnings),
             source_refs=_source_ref_count(connection),
         )
+        gate_failures = evaluate_quality_gates(metrics, gate_settings)
         import_build_metadata(
             connection,
             edition=manifest.edition,
@@ -272,14 +341,25 @@ def build_sqlite_database(
     finally:
         connection.close()
 
-    return BuildSummary(
+    if metrics is None:
+        raise BuildError(f"failed to compute build metrics for {manifest.edition}")
+    summary_warnings = (
+        tuple([*warnings, *gate_failures])
+        if gate_failures and gate_settings.allow_gate_failures
+        else tuple(warnings)
+    )
+    summary = BuildSummary(
         edition=manifest.edition,
         db_path=target_path,
         manifest_sha256=manifest.source_manifest_sha256,
         import_summaries=tuple(summaries),
-        warnings=tuple(warnings),
+        warnings=summary_warnings,
         metrics=metrics,
+        gate_failures=gate_failures,
     )
+    if gate_failures and not gate_settings.allow_gate_failures:
+        raise BuildQualityGateError(summary)
+    return summary
 
 
 def _load_docbook_documents(

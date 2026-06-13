@@ -10,7 +10,13 @@ from typing import Annotated
 import typer
 from pydantic import BaseModel
 
-from dicom_kb.build import build_sqlite_database, default_db_path
+from dicom_kb.build import (
+    BuildQualityGateError,
+    BuildSummary,
+    QualityGateSettings,
+    build_sqlite_database,
+    default_db_path,
+)
 from dicom_kb.eval.reporting import report_as_jsonable, score_agent_run_file
 from dicom_kb.eval.runner import (
     ExternalAgentError,
@@ -111,6 +117,34 @@ def build_fixture(
         bool,
         typer.Option("--force", help="Overwrite existing fixture artifacts and DB."),
     ] = False,
+    max_unresolved_xref_rate: Annotated[
+        float | None,
+        typer.Option(
+            "--max-unresolved-xref-rate",
+            help="Fail when unresolved xref rate exceeds this value.",
+        ),
+    ] = None,
+    max_unresolved_include_rate: Annotated[
+        float | None,
+        typer.Option(
+            "--max-unresolved-include-rate",
+            help="Fail when unresolved include-row rate exceeds this value.",
+        ),
+    ] = None,
+    max_parse_warnings: Annotated[
+        int | None,
+        typer.Option(
+            "--max-parse-warnings",
+            help="Fail when parser warning count exceeds this value.",
+        ),
+    ] = None,
+    allow_gate_failures: Annotated[
+        bool,
+        typer.Option(
+            "--allow-gate-failures",
+            help="Emit gate failures as warnings and exit zero.",
+        ),
+    ] = False,
 ) -> None:
     """Build a small synthetic SQLite KB for offline development."""
     artifacts = _synthetic_fixture_artifacts(edition)
@@ -120,11 +154,17 @@ def build_fixture(
         cache_dir=cache_dir,
         force=force,
     )
-    summary = build_sqlite_database(
+    summary = _run_sqlite_build(
         edition=edition,
         cache_dir=cache_dir,
         db_path=db,
         force=force,
+        quality_gates=_quality_gate_settings(
+            max_unresolved_xref_rate=max_unresolved_xref_rate,
+            max_unresolved_include_rate=max_unresolved_include_rate,
+            max_parse_warnings=max_parse_warnings,
+            allow_gate_failures=allow_gate_failures,
+        ),
     )
     typer.echo(json.dumps(summary.as_jsonable(), indent=2, sort_keys=True))
 
@@ -268,15 +308,49 @@ def build_command(
         bool,
         typer.Option("--force", help="Overwrite an existing SQLite database."),
     ] = False,
+    max_unresolved_xref_rate: Annotated[
+        float | None,
+        typer.Option(
+            "--max-unresolved-xref-rate",
+            help="Fail when unresolved xref rate exceeds this value.",
+        ),
+    ] = None,
+    max_unresolved_include_rate: Annotated[
+        float | None,
+        typer.Option(
+            "--max-unresolved-include-rate",
+            help="Fail when unresolved include-row rate exceeds this value.",
+        ),
+    ] = None,
+    max_parse_warnings: Annotated[
+        int | None,
+        typer.Option(
+            "--max-parse-warnings",
+            help="Fail when parser warning count exceeds this value.",
+        ),
+    ] = None,
+    allow_gate_failures: Annotated[
+        bool,
+        typer.Option(
+            "--allow-gate-failures",
+            help="Emit gate failures as warnings and exit zero.",
+        ),
+    ] = False,
 ) -> None:
     """Build a SQLite KB from cached DocBook artifacts."""
     if backend != "sqlite":
         raise typer.BadParameter("only the sqlite backend is supported in v1")
-    summary = build_sqlite_database(
+    summary = _run_sqlite_build(
         edition=edition,
         cache_dir=cache_dir,
         db_path=db,
         force=force,
+        quality_gates=_quality_gate_settings(
+            max_unresolved_xref_rate=max_unresolved_xref_rate,
+            max_unresolved_include_rate=max_unresolved_include_rate,
+            max_parse_warnings=max_parse_warnings,
+            allow_gate_failures=allow_gate_failures,
+        ),
     )
     typer.echo(json.dumps(summary.as_jsonable(), indent=2, sort_keys=True))
 
@@ -302,6 +376,57 @@ def verify_command(
     typer.echo(json.dumps(result.as_jsonable(), indent=2, sort_keys=True))
     if not result.ok:
         raise typer.Exit(code=1)
+
+
+def _quality_gate_settings(
+    *,
+    max_unresolved_xref_rate: float | None,
+    max_unresolved_include_rate: float | None,
+    max_parse_warnings: int | None,
+    allow_gate_failures: bool,
+) -> QualityGateSettings:
+    _validate_rate_option(
+        max_unresolved_xref_rate,
+        option_name="--max-unresolved-xref-rate",
+    )
+    _validate_rate_option(
+        max_unresolved_include_rate,
+        option_name="--max-unresolved-include-rate",
+    )
+    if max_parse_warnings is not None and max_parse_warnings < 0:
+        raise typer.BadParameter("--max-parse-warnings must be zero or greater")
+    return QualityGateSettings(
+        max_unresolved_xref_rate=max_unresolved_xref_rate,
+        max_unresolved_include_rate=max_unresolved_include_rate,
+        max_parse_warnings=max_parse_warnings,
+        allow_gate_failures=allow_gate_failures,
+    )
+
+
+def _validate_rate_option(value: float | None, *, option_name: str) -> None:
+    if value is not None and not 0 <= value <= 1:
+        raise typer.BadParameter(f"{option_name} must be between 0 and 1")
+
+
+def _run_sqlite_build(
+    *,
+    edition: str,
+    cache_dir: Path,
+    db_path: Path | None,
+    force: bool,
+    quality_gates: QualityGateSettings,
+) -> BuildSummary:
+    try:
+        return build_sqlite_database(
+            edition=edition,
+            cache_dir=cache_dir,
+            db_path=db_path,
+            force=force,
+            quality_gates=quality_gates,
+        )
+    except BuildQualityGateError as exc:
+        typer.echo(json.dumps(exc.summary.as_jsonable(), indent=2, sort_keys=True))
+        raise typer.Exit(code=1) from exc
 
 
 @mcp_app.command("serve")

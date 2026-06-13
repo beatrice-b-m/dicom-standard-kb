@@ -126,6 +126,10 @@ Acceptance criteria:
 
 ## Phase 3: Build Metrics and Quality Gates
 
+Status: Complete. Build output and metadata include Section 16 metrics, and
+`build` / `build-fixture` support configurable quality gates with
+`--allow-gate-failures` warning behavior.
+
 Goal: make ingestion quality observable and fail-fast when configured
 thresholds are exceeded.
 

@@ -9,8 +9,10 @@ import pytest
 from dicom_kb.build import (
     BuildMetrics,
     DatabaseExistsError,
+    QualityGateSettings,
     build_sqlite_database,
     default_db_path,
+    evaluate_quality_gates,
 )
 from dicom_kb.db.importers import ImportSummary
 from dicom_kb.query.resolver import (
@@ -195,3 +197,30 @@ def test_build_metrics_aggregate_import_summaries() -> None:
         "parse_warnings": 2,
         "source_refs": 8,
     }
+
+
+def test_evaluate_quality_gates_reports_threshold_failures() -> None:
+    metrics = BuildMetrics(
+        edition="2026b",
+        parts_loaded=("PS3.3",),
+        include_rows_resolved=3,
+        include_rows_unresolved=1,
+        xrefs_total=10,
+        xrefs_unresolved=2,
+        parse_warnings=4,
+    )
+
+    failures = evaluate_quality_gates(
+        metrics,
+        QualityGateSettings(
+            max_unresolved_xref_rate=0.1,
+            max_unresolved_include_rate=0.2,
+            max_parse_warnings=3,
+        ),
+    )
+
+    assert failures == (
+        "unresolved xref rate 0.2 exceeds configured maximum 0.1",
+        "unresolved include-row rate 0.25 exceeds configured maximum 0.2",
+        "parse warning count 4 exceeds configured maximum 3",
+    )

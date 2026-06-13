@@ -8,7 +8,7 @@ alone.
 
 - Last updated: 2026-06-13
 - Worktree baseline: clean at start of remediation continuation.
-- Latest observed commit: `a38647c feat(query): add response classification metadata`
+- Latest observed commit: `880c241 feat(build): emit ingestion quality metrics`
 - Remediation plan status:
   - Official URL remediation is already excluded from the active plan and
     recorded as complete in `REMEDIATION_PLAN.md`.
@@ -21,11 +21,14 @@ alone.
     - `ToolResponse` requires `classification` and `parse_confidence`.
     - JSON schema requires both new fields.
     - Python resolver, CLI, and MCP tests cover representative metadata.
-  - Phase 3, Build Metrics and Quality Gates, is in progress.
+  - Phase 3, Build Metrics and Quality Gates, is complete.
     - Build metrics aggregation and metadata persistence are implemented and
       tested.
-    - Configurable quality gates remain incomplete.
-  - Phases 4-6 remain incomplete.
+    - Configurable quality gates are implemented and tested for failing and
+      allowed-warning behavior.
+  - Phase 4, YAML Configuration Profiles, is the next incomplete remediation
+    phase.
+  - Phases 5-6 remain incomplete.
 
 ## Completed Work
 
@@ -69,6 +72,14 @@ alone.
   `build_metadata.metadata_json["metrics"]`.
 - Added tests for metrics aggregation, fixture build metrics content,
   metadata persistence, unresolved xref counts, and unresolved include counts.
+- Added `QualityGateSettings`, quality-gate evaluation, and
+  `BuildQualityGateError`.
+- Added `build` and `build-fixture` flags for unresolved xref rate,
+  unresolved include-row rate, parse warning count, and
+  `--allow-gate-failures`.
+- Added CLI tests proving gate failures exit nonzero and
+  `--allow-gate-failures` emits warning output with exit zero.
+- Marked Phase 3 complete in `REMEDIATION_PLAN.md`.
 
 ## Verification Results
 
@@ -117,6 +128,15 @@ alone.
   tests/unit/test_db_importers.py tests/unit/test_cli_lookup.py
   tests/unit/test_sources_verify.py` passed (`43 passed`).
 - 2026-06-13: `uv run pytest` passed (`189 passed, 4 skipped`).
+- 2026-06-13: `uv run pytest tests/unit/test_build.py
+  tests/unit/test_cli_build.py tests/unit/test_cli_lookup.py` passed
+  (`27 passed`).
+- 2026-06-13: `uv run ruff check src/dicom_kb/build.py
+  src/dicom_kb/cli/main.py tests/unit/test_build.py
+  tests/unit/test_cli_build.py` passed.
+- 2026-06-13: `uv run mypy src/dicom_kb/build.py
+  src/dicom_kb/cli/main.py` passed.
+- 2026-06-13: `uv run pytest` passed (`192 passed, 4 skipped`).
 
 ## Blockers
 
@@ -131,10 +151,11 @@ alone.
 
 ## Next Recommended Task
 
-Begin Phase 3 build metrics and quality gates:
+Begin Phase 4 YAML configuration profiles:
 
-1. Add quality-gate settings to `build` and `build-fixture`:
-   `--max-unresolved-xref-rate`, `--max-unresolved-include-rate`,
-   `--max-parse-warnings`, and `--allow-gate-failures`.
-2. Evaluate gates against `BuildMetrics` before reporting build success.
-3. Add CLI tests for failing gates and allow-gate-failures warning behavior.
+1. Add a typed configuration model and loader for the Section 17
+   `dicom_kb` YAML shape.
+2. Add `PyYAML` as a runtime dependency if no existing YAML parser is
+   available.
+3. Add root `--config <path>` support and apply config defaults to the
+   first command slice conservatively, preserving CLI flag precedence.
