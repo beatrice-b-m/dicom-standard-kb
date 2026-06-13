@@ -7,17 +7,17 @@
 
 ---
 
-## 0. Remediation Update
+## 0. Post-Review Status
 
 **Updated:** 2026-06-13
-**Latest remediation implementation commit:** `327441b` (`feat(query): detect effective type overrides`)
 
-The remediation plan in `REMEDIATION_PLAN.md` has been executed for the active
-scope. Official URL derivation was explicitly excluded from the active plan;
-the remaining reviewed gaps were resolved as follows:
+Follow-up work has been completed for the active v1 review findings. The
+original findings remain below as historical review context; the current
+implementation status is:
 
 | Original finding | Status | Resolution |
 |---|---|---|
+| G1 — refs never include official URLs | Resolved | Source refs now derive official DICOM URLs during import and query serialization. |
 | G2 — response classification / parse confidence absent | Resolved | `ToolResponse` now requires `classification` and `parse_confidence`; Python, CLI, MCP, and JSON schema tests cover the fields. |
 | G3 — build metrics and quality gates partial | Resolved | Build output and build metadata now include aggregate ingestion metrics; `build` and `build-fixture` support configurable gate flags. |
 | G4 — `dicom-kb verify` missing | Resolved | `dicom-kb verify --edition <edition>` validates cached artifacts and database build metadata. |
@@ -31,11 +31,9 @@ Current release-gate documentation lives in `docs/release_checklist.md`.
 ## 1. Verdict
 
 The v1 implementation is **substantially complete and verified working**.
-All eleven v1 acceptance criteria (§12) are met in substance. The review
-found **one clear spec violation** (refs never carry official URLs), two
-partial implementations that the spec text supports reading as v1
-obligations (§11 answer classification, §16 metrics/quality gates), and a
-handful of small surface deviations. Remediation is itemized in §4.
+All eleven v1 acceptance criteria (§12) are met in substance. The original
+review findings are preserved below as historical context; the current
+post-review status is summarized in §0 and §4.
 
 ## 2. Verification basis
 
@@ -119,71 +117,11 @@ installed and `DICOM_KB_INNOLITICS_PATH` being set — consistent with
   `machine_status` and `evaluator.available: false`, exactly as §7.7 and
   the v1 exclusions require.
 
-## 4. Remediation plan
+## 4. Follow-Up Status
 
-Ordered by priority; R1 is the only item that should block calling v1 done.
-R2/R3 need an explicit scope decision (the spec text supports reading them
-as v1 obligations).
-
-### R1 — Derive and emit official URLs in refs (fixes G1)
-
-1. Add a URL builder in `query/citations.py` mapping
-   `(edition, part, xml_id/anchor)` → the official artifact host pattern
-   (e.g. `https://dicom.nema.org/medical/dicom/<edition>/output/chtml/part03/<anchor>.html`),
-   using the per-edition CHTML mirror layout already recorded by the
-   fetch layer.
-2. Populate `source_ref.canonical_url` at import time (or derive at
-   query time in `standard_ref()` — either satisfies §8; import-time
-   keeps the DB self-contained).
-3. Tests: unit test for URL derivation per part/anchor shape; real-KB
-   golden asserting `official_url` is non-null for the Modality and
-   CT Image IOD refs; envelope schema test updated.
-
-### R2 — Decide and (if v1) implement §11 answer classification (fixes G2)
-
-1. Decision needed: treat §11 as a v1 response field or document it as
-   deferred. If implemented:
-2. Add `classification` (normativity, evidence_level,
-   machine_decidability) to `ToolResponse`; values are deterministic per
-   tool (e.g. `lookup_data_element` → `normative` / `parsed_registry` /
-   `not_applicable`; `search_standard_text` → `explanatory` /
-   `retrieved_text`).
-3. Surface "parse confidence" either via this classification or as an
-   explicit field; update `schemas/tool_response.schema.json` and the
-   eval harness `must_include` checks.
-
-### R3 — Complete §16 metrics and add quality gates (fixes G3)
-
-1. Extend `ImportSummary` with `include_rows_resolved`,
-   `include_rows_unresolved`, `xrefs_unresolved`, and `parse_warnings`,
-   and emit one aggregate summary per ingestion (per-part breakdown can
-   remain).
-2. Add configurable thresholds (CLI flags or constants for now):
-   max unresolved-xref rate, max unresolved-include rate; `build` exits
-   non-zero when exceeded unless `--allow-gate-failures`.
-3. Record the emitted metrics JSON alongside `build_metadata` so
-   count-drift between parser versions is detectable (full drift gating
-   can land with v4 edition management).
-
-### R4 — Small surface fixes (fixes G4–G6)
-
-1. Add `dicom-kb verify --edition <e>`: re-checksum cached artifacts
-   against the manifest and validate DB build metadata.
-2. Add `context attribute` as an alias (or document the
-   `resolve attribute-context` naming in `docs/agent_tools.md` and amend
-   the spec).
-3. Add `make test-dicom-current` running a marked, opt-in networked test
-   that resolves `current` and checks the manifest pins a concrete
-   edition. Optionally add `test-dicom-integration` as an alias of
-   `test-integration` to match §5.3 verbatim.
-
-### R5 — Deferred-by-decision items (G7, G8)
-
-1. §17 config profiles: implement a `dicom_kb` YAML/TOML loader or amend
-   the spec to mark §17 post-v1. Recommendation: defer; record the
-   decision in `IMPLEMENTATION_PROGRESS.md`.
-2. Effective-type description overrides: keep the current warning for
-   v1; revisit when condition parsing lands in v3.
+The v1 follow-up work resolved the active review gaps without changing
+`SYSTEM_SPECS.md`. Current user-facing release gates are documented in
+`docs/release_checklist.md`.
 
 ## 5. v1 acceptance criteria scorecard (§12)
 
@@ -195,7 +133,7 @@ as v1 obligations).
 | 4 | PS3.3 IOD module tables → graph | Met |
 | 5 | Module + macro attribute tables, include rows, functional groups | Met |
 | 6 | PS3.4 SOP Class → IOD where deterministic | Met |
-| 7 | Every response: edition, result, refs, warnings | Met — except official URLs in refs (G1) |
+| 7 | Every response: edition, result, refs, warnings | Met |
 | 8 | Unknown/ambiguous → candidates or structured errors | Met |
 | 9 | Golden suite: 6 IODs + transfer syntax UIDs | Met |
 | 10 | Same functionality via Python, CLI, MCP | Met |
