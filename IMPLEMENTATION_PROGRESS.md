@@ -8,7 +8,7 @@ alone.
 
 - Last updated: 2026-06-13
 - Worktree baseline: clean at start of remediation continuation.
-- Latest observed commit: `df4403b feat(config): load YAML profiles`
+- Latest observed commit: `50a9fa4 feat(config): apply profiles to CLI`
 - Remediation plan status:
   - Official URL remediation is already excluded from the active plan and
     recorded as complete in `REMEDIATION_PLAN.md`.
@@ -32,8 +32,14 @@ alone.
       tested.
     - Root `--config` CLI wiring and command default application are
       implemented and tested.
-  - Phase 5, Effective-Type Override Handling, is the next incomplete
-    remediation phase.
+  - Phase 5, Effective-Type Override Handling, is complete.
+    - Effective-type resolution inspects matched attribute-use description
+      and condition text for bounded override phrases.
+    - Explicit unambiguous overrides replace the computed lowest-type result
+      and cite the source ref in the explanation.
+    - Conflicting or ambiguous override prose withholds the primary effective
+      type and keeps the response partially decidable with source-ref
+      warnings.
   - Phase 6 remains incomplete.
 
 ## Completed Work
@@ -100,6 +106,16 @@ alone.
   override profile values.
 - Added a config unit test for the public-CI Section 17 profile shape.
 - Marked Phase 4 complete in `REMEDIATION_PLAN.md`.
+- Added a bounded effective-type override detector for matched
+  attribute-use description and condition text.
+- Threaded source-ref ids and matched row text through attribute-context graph
+  matches without changing the uses payload.
+- Removed the blanket lowest-type override warning when all matched row text
+  has been inspected.
+- Added tests for no override text, one explicit override, conflicting
+  explicit overrides, ambiguous override prose, resolver warnings, and
+  partially-decidable resolver classification.
+- Marked Phase 5 complete in `REMEDIATION_PLAN.md`.
 
 ## Verification Results
 
@@ -171,6 +187,14 @@ alone.
 - 2026-06-13: `uv run mypy src/dicom_kb/cli/main.py
   src/dicom_kb/config.py` passed.
 - 2026-06-13: `uv run pytest` passed (`204 passed, 4 skipped`).
+- 2026-06-13: `uv run pytest tests/unit/test_query_conditions.py
+  tests/unit/test_query_resolver.py` passed (`37 passed`).
+- 2026-06-13: `uv run ruff check src/dicom_kb/query/conditions.py
+  src/dicom_kb/query/graph.py tests/unit/test_query_conditions.py
+  tests/unit/test_query_resolver.py` passed.
+- 2026-06-13: `uv run mypy src/dicom_kb/query/conditions.py
+  src/dicom_kb/query/graph.py` passed.
+- 2026-06-13: `uv run pytest` passed (`211 passed, 4 skipped`).
 
 ## Blockers
 
@@ -180,16 +204,16 @@ alone.
 
 - Phase 4 configuration profiles should be implemented as specified unless
   later remediation discovers a spec conflict.
-- Phase 5 effective-type override handling should remain conservative and
-  should not broaden into full condition parsing.
+- Phase 5 effective-type override handling remains conservative and does not
+  broaden into full condition parsing.
 
 ## Next Recommended Task
 
-Begin Phase 5 effective-type override handling:
+Begin Phase 6 documentation and release-gate work:
 
-1. Add a bounded detector in `query/conditions.py` for explicit type
-   override phrases in matched attribute-use descriptions/condition text.
-2. Return explicit override results when exactly one override is detected,
-   and surface conflicting/ambiguous override text as partially decidable.
-3. Add synthetic resolver tests for no override, one override, conflicting
-   overrides, and ambiguous prose.
+1. Update user-facing docs for the new verify command, context alias,
+   response metadata, build metrics/gates, config profiles, and effective-type
+   override behavior.
+2. Update the implementation review/release checklist to record the resolved
+   gaps.
+3. Run the default offline release verification set.

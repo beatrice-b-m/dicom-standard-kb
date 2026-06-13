@@ -227,6 +227,11 @@ Acceptance criteria:
 
 ## Phase 5: Effective-Type Override Handling
 
+Status: Complete. Effective-type resolution now inspects matched
+attribute-use description and condition text for bounded override language,
+uses explicit overrides when unambiguous, and withholds the primary effective
+type when override prose is conflicting or ambiguous.
+
 Goal: remove the open-ended caveat around "lowest type unless the attribute
 description explicitly states otherwise" without overclaiming automated
 reasoning.

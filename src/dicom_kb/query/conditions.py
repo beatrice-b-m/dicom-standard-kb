@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -20,6 +21,9 @@ class AttributeContextMatch:
 
     payload: dict[str, Any]
     type_designation: str | None
+    description_text: str | None = None
+    condition_text: str | None = None
+    source_ref_id: str | None = None
 
 
 def build_attribute_context_use_payload(
@@ -110,6 +114,74 @@ _TYPE_RANK = {
     "3": 4,
 }
 
+_EXPLICIT_TYPE_OVERRIDE_RE = re.compile(
+    r"\b(?:shall\s+be|is|are)\s+Type\s+(1C|2C|1|2|3)\b"
+    r"(?:\s+in\s+this\s+module)?",
+    re.IGNORECASE,
+)
+_TYPE_MENTION_RE = re.compile(r"\bType\s+(1C|2C|1|2|3)\b", re.IGNORECASE)
+_AMBIGUOUS_TYPE_CUE_RE = re.compile(
+    r"\b(?:and|or|and/or|may|might|could|except|unless|depending|otherwise)\b",
+    re.IGNORECASE,
+)
+
+
+@dataclass(frozen=True)
+class _TypeOverrideCandidate:
+    """Potential effective-type override language in stored row text."""
+
+    type_designation: str
+    source_ref_id: str
+
+
+def _normalize_type_designation(value: str) -> str:
+    return value.upper()
+
+
+def _match_source_id(use: AttributeContextMatch) -> str:
+    return use.source_ref_id or str(use.payload.get("attribute_use_id", "unknown"))
+
+
+def _override_candidates(
+    uses: list[AttributeContextMatch],
+) -> tuple[list[_TypeOverrideCandidate], list[str]]:
+    explicit: list[_TypeOverrideCandidate] = []
+    ambiguous_source_refs: list[str] = []
+    for use in uses:
+        source_ref_id = _match_source_id(use)
+        for text in (use.description_text, use.condition_text):
+            if not text:
+                continue
+            explicit_matches = [
+                _normalize_type_designation(match.group(1))
+                for match in _EXPLICIT_TYPE_OVERRIDE_RE.finditer(text)
+            ]
+            explicit.extend(
+                _TypeOverrideCandidate(
+                    type_designation=value,
+                    source_ref_id=source_ref_id,
+                )
+                for value in explicit_matches
+            )
+            if explicit_matches:
+                continue
+            type_mentions = [
+                _normalize_type_designation(match.group(1))
+                for match in _TYPE_MENTION_RE.finditer(text)
+            ]
+            if type_mentions and (
+                len(set(type_mentions)) > 1 or _AMBIGUOUS_TYPE_CUE_RE.search(text)
+            ):
+                ambiguous_source_refs.append(source_ref_id)
+    return explicit, sorted(set(ambiguous_source_refs))
+
+
+def _format_override_candidates(candidates: list[_TypeOverrideCandidate]) -> str:
+    return ", ".join(
+        f"Type {candidate.type_designation} in {candidate.source_ref_id}"
+        for candidate in candidates
+    )
+
 
 def effective_type_summary(
     uses: list[AttributeContextMatch],
@@ -126,6 +198,41 @@ def effective_type_summary(
     ]
     if not type_values:
         return None, "Matched uses do not declare a type designation.", []
+
+    explicit_overrides, ambiguous_source_refs = _override_candidates(uses)
+    if ambiguous_source_refs:
+        return (
+            None,
+            "Ambiguous type override language was found in matched row text.",
+            [
+                "ambiguous type override language found in source refs: "
+                f"{', '.join(ambiguous_source_refs)}"
+            ],
+        )
+    if explicit_overrides:
+        override_types = {
+            candidate.type_designation for candidate in explicit_overrides
+        }
+        if len(override_types) == 1:
+            effective_type = next(iter(override_types))
+            source_refs = sorted(
+                {candidate.source_ref_id for candidate in explicit_overrides}
+            )
+            return (
+                effective_type,
+                "Explicit type override language selected Type "
+                f"{effective_type} from source refs: {', '.join(source_refs)}.",
+                [],
+            )
+        return (
+            None,
+            "Conflicting explicit type override language was found in matched "
+            "row text.",
+            [
+                "conflicting explicit type overrides found: "
+                f"{_format_override_candidates(explicit_overrides)}"
+            ],
+        )
 
     ranked = [value for value in type_values if value in _TYPE_RANK]
     if not ranked:
@@ -148,10 +255,7 @@ def effective_type_summary(
         "Multiple applicable uses in resolved context; selected the lowest "
         "DICOM type value among recognized designations."
     )
-    warnings = [
-        "effective type assumes no attribute description overrides the "
-        "multiple-module lowest-type rule"
-    ]
+    warnings: list[str] = []
     unrecognized = sorted(set(type_values) - set(ranked))
     if unrecognized:
         warnings.append(

@@ -140,12 +140,24 @@ def _context_connection(tmp_path: Path) -> sqlite3.Connection:
     return connection
 
 
-def _context_connection_with_duplicate_attribute(tmp_path: Path) -> sqlite3.Connection:
+def _context_connection_with_duplicate_attribute(
+    tmp_path: Path,
+    *,
+    patient_description: str | None = None,
+    duplicate_description: str = "Duplicate contextual use.",
+) -> sqlite3.Connection:
     connection = _connection(tmp_path)
     parsed_part03 = parse_part03(
         parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3"),
         edition="2026b",
     )
+    attribute_uses = [
+        row.model_copy(update={"description_text": patient_description})
+        if row.id == "2026b.module.patient.attribute_use.0"
+        and patient_description is not None
+        else row
+        for row in parsed_part03.attribute_uses
+    ]
     duplicate = AttributeUse(
         id="2026b.module.ct_image.attribute_use.0",
         edition_id="2026b",
@@ -155,7 +167,7 @@ def _context_connection_with_duplicate_attribute(tmp_path: Path) -> sqlite3.Conn
         attribute_tag="(0010,0010)",
         attribute_name="Patient's Name",
         type_designation="1",
-        description_text="Duplicate contextual use.",
+        description_text=duplicate_description,
         sequence_depth=0,
         row_order=0,
         source_ref=parsed_part03.modules[2].source_ref,
@@ -168,7 +180,7 @@ def _context_connection_with_duplicate_attribute(tmp_path: Path) -> sqlite3.Conn
         macros=parsed_part03.macros,
         iod_module_uses=parsed_part03.iod_module_uses,
         iod_functional_group_uses=parsed_part03.iod_functional_group_uses,
-        attribute_uses=[*parsed_part03.attribute_uses, duplicate],
+        attribute_uses=[*attribute_uses, duplicate],
         conditions=parsed_part03.conditions,
     )
     return connection
@@ -891,9 +903,87 @@ def test_resolve_attribute_context_computes_lowest_type_for_multiple_uses(
     assert response.result["effective_type_explanation"].startswith(
         "Multiple applicable uses"
     )
+    assert response.warnings == []
+
+
+def test_resolve_attribute_context_uses_explicit_type_override(
+    tmp_path: Path,
+) -> None:
+    response = resolve_attribute_context(
+        _context_connection_with_duplicate_attribute(
+            tmp_path,
+            duplicate_description=(
+                "For this context, Patient's Name shall be Type 3 in this module."
+            ),
+        ),
+        attribute="Patient's Name",
+        iod_name="CT Image",
+        edition="2026b",
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert response.status == "ok"
+    assert response.result is not None
+    assert response.result["effective_type"] == "3"
+    assert response.result["effective_type_explanation"].startswith(
+        "Explicit type override language selected Type 3"
+    )
+    assert response.warnings == []
+
+
+def test_resolve_attribute_context_withholds_conflicting_overrides(
+    tmp_path: Path,
+) -> None:
+    response = resolve_attribute_context(
+        _context_connection_with_duplicate_attribute(
+            tmp_path,
+            patient_description=(
+                "For this context, Patient's Name shall be Type 2 in this module."
+            ),
+            duplicate_description=(
+                "For this context, Patient's Name shall be Type 1 in this module."
+            ),
+        ),
+        attribute="Patient's Name",
+        iod_name="CT Image",
+        edition="2026b",
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert response.status == "ok"
+    assert response.result is not None
+    assert response.result["effective_type"] is None
+    assert response.classification.machine_decidability == "partially_decidable"
+    assert response.warnings is not None
+    assert response.warnings[0].startswith("conflicting explicit type overrides found")
+
+
+def test_resolve_attribute_context_withholds_ambiguous_override_text(
+    tmp_path: Path,
+) -> None:
+    response = resolve_attribute_context(
+        _context_connection_with_duplicate_attribute(
+            tmp_path,
+            duplicate_description=(
+                "Patient's Name may be Type 1 or Type 2 depending on context."
+            ),
+        ),
+        attribute="Patient's Name",
+        iod_name="CT Image",
+        edition="2026b",
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert response.status == "ok"
+    assert response.result is not None
+    assert response.result["effective_type"] is None
+    assert response.classification.machine_decidability == "partially_decidable"
     assert response.warnings == [
-        "effective type assumes no attribute description overrides the "
-        "multiple-module lowest-type rule"
+        "ambiguous type override language found in source refs: "
+        "2026b.PS3.3.table_A.3-1"
     ]
 
 

@@ -162,6 +162,13 @@ def attribute_context_uses(
                             record_by_id,
                         ),
                         type_designation=attribute_use.type_designation,
+                        description_text=attribute_use.description_text,
+                        condition_text=(
+                            record.condition.raw_text
+                            if record.condition is not None
+                            else None
+                        ),
+                        source_ref_id=attribute_use.source_ref.id,
                     )
                 )
                 refs.extend(
@@ -225,6 +232,13 @@ def attribute_context_uses(
                             record_by_id,
                         ),
                         type_designation=attribute_use.type_designation,
+                        description_text=attribute_use.description_text,
+                        condition_text=(
+                            record.condition.raw_text
+                            if record.condition is not None
+                            else None
+                        ),
+                        source_ref_id=attribute_use.source_ref.id,
                     )
                 )
                 refs.extend(
