@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from pathlib import Path
 from typing import Annotated
@@ -16,6 +17,16 @@ from dicom_kb.build import (
     QualityGateSettings,
     build_sqlite_database,
     default_db_path,
+)
+from dicom_kb.config import (
+    ConfigError,
+    DicomKBConfig,
+    int_env,
+    load_config_profile,
+    path_env,
+    sqlite_url_path,
+    str_env,
+    value_with_precedence,
 )
 from dicom_kb.eval.reporting import report_as_jsonable, score_agent_run_file
 from dicom_kb.eval.runner import (
@@ -77,16 +88,34 @@ app.add_typer(resolve_app, name="resolve")
 app.add_typer(context_app, name="context")
 app.add_typer(mcp_app, name="mcp")
 app.add_typer(eval_app, name="eval")
+_ACTIVE_CONFIG = DicomKBConfig()
 
 
 @app.callback()
 def main(
-    version: bool = typer.Option(False, "--version", help="Show version and exit."),
+    version: Annotated[
+        bool,
+        typer.Option("--version", help="Show version and exit."),
+    ] = False,
+    config: Annotated[
+        Path | None,
+        typer.Option(
+            "--config",
+            help="YAML config profile with a top-level dicom_kb mapping.",
+        ),
+    ] = None,
 ) -> None:
     """Show startup metadata for every CLI invocation."""
     if version:
         typer.echo(f"dicom-standard-kb {__version__}")
         raise typer.Exit()
+    global _ACTIVE_CONFIG
+    _ACTIVE_CONFIG = DicomKBConfig()
+    if config is not None:
+        try:
+            _ACTIVE_CONFIG = load_config_profile(config)
+        except ConfigError as exc:
+            raise typer.BadParameter(str(exc)) from exc
 
 
 @app.command()
@@ -99,16 +128,16 @@ def doctor() -> None:
 @app.command("build-fixture")
 def build_fixture(
     edition: Annotated[
-        str,
+        str | None,
         typer.Option("--edition", help="Concrete synthetic fixture edition label."),
-    ] = "2026b",
+    ] = None,
     cache_dir: Annotated[
-        Path,
+        Path | None,
         typer.Option(
             "--cache-dir",
             help="Local dicom-kb cache directory.",
         ),
-    ] = DEFAULT_CACHE_DIR,
+    ] = None,
     db: Annotated[
         Path | None,
         typer.Option("--db", help="Output SQLite path. Defaults under cache db/."),
@@ -147,17 +176,20 @@ def build_fixture(
     ] = False,
 ) -> None:
     """Build a small synthetic SQLite KB for offline development."""
-    artifacts = _synthetic_fixture_artifacts(edition)
+    resolved_edition = _resolve_edition(edition, default="2026b")
+    resolved_cache_dir = _resolve_cache_dir(cache_dir)
+    resolved_db = _resolve_db_path(db)
+    artifacts = _synthetic_fixture_artifacts(resolved_edition)
     register_local_artifacts(
-        edition=edition,
+        edition=resolved_edition,
         artifacts=artifacts,
-        cache_dir=cache_dir,
+        cache_dir=resolved_cache_dir,
         force=force,
     )
     summary = _run_sqlite_build(
-        edition=edition,
-        cache_dir=cache_dir,
-        db_path=db,
+        edition=resolved_edition,
+        cache_dir=resolved_cache_dir,
+        db_path=resolved_db,
         force=force,
         quality_gates=_quality_gate_settings(
             max_unresolved_xref_rate=max_unresolved_xref_rate,
@@ -172,9 +204,9 @@ def build_fixture(
 @app.command("fetch")
 def fetch_command(
     edition: Annotated[
-        str,
+        str | None,
         typer.Option("--edition", help="DICOM edition label to register."),
-    ],
+    ] = None,
     docbook_xml: Annotated[
         list[str] | None,
         typer.Option(
@@ -234,27 +266,31 @@ def fetch_command(
         ),
     ] = DEFAULT_DICOM_ARCHIVE_BASE_URL,
     cache_dir: Annotated[
-        Path,
+        Path | None,
         typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
-    ] = DEFAULT_CACHE_DIR,
+    ] = None,
     force: Annotated[
         bool,
         typer.Option("--force", help="Overwrite existing cached artifacts/manifest."),
     ] = False,
 ) -> None:
     """Fetch or register source artifacts into the dicom-kb cache."""
+    resolved_edition_input = _resolve_edition(edition)
+    resolved_cache_dir = _resolve_cache_dir(cache_dir)
     if docbook_xml:
         if mirror_chtml_tree:
             raise typer.BadParameter(
                 "--mirror-chtml-tree is only valid for official --format chtml fetches"
             )
-        resolved = EditionResolver(current_edition=current_edition).resolve(edition)
+        resolved = EditionResolver(current_edition=current_edition).resolve(
+            resolved_edition_input
+        )
         artifacts = _docbook_xml_artifacts(docbook_xml, edition=resolved.edition)
         manifest = register_local_artifacts(
-            edition=edition,
+            edition=resolved_edition_input,
             current_edition=current_edition,
             artifacts=artifacts,
-            cache_dir=cache_dir,
+            cache_dir=resolved_cache_dir,
             force=force,
         )
     else:
@@ -272,10 +308,10 @@ def fetch_command(
             ):
                 raise typer.BadParameter("--mirror-chtml-tree requires --format chtml")
             manifest = fetch_official_artifacts(
-                edition=edition,
+                edition=resolved_edition_input,
                 parts=parts,
                 formats=formats,
-                cache_dir=cache_dir,
+                cache_dir=resolved_cache_dir,
                 base_url=source_base_url,
                 archive_base_url=archive_base_url,
                 mirror_chtml_tree=mirror_chtml_tree,
@@ -289,13 +325,13 @@ def fetch_command(
 @app.command("build")
 def build_command(
     edition: Annotated[
-        str,
+        str | None,
         typer.Option("--edition", help="Concrete DICOM edition label."),
-    ],
+    ] = None,
     cache_dir: Annotated[
-        Path,
+        Path | None,
         typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
-    ] = DEFAULT_CACHE_DIR,
+    ] = None,
     db: Annotated[
         Path | None,
         typer.Option("--db", help="Output SQLite path. Defaults under cache db/."),
@@ -340,10 +376,13 @@ def build_command(
     """Build a SQLite KB from cached DocBook artifacts."""
     if backend != "sqlite":
         raise typer.BadParameter("only the sqlite backend is supported in v1")
+    resolved_edition = _resolve_edition(edition)
+    resolved_cache_dir = _resolve_cache_dir(cache_dir)
+    resolved_db = _resolve_db_path(db)
     summary = _run_sqlite_build(
-        edition=edition,
-        cache_dir=cache_dir,
-        db_path=db,
+        edition=resolved_edition,
+        cache_dir=resolved_cache_dir,
+        db_path=resolved_db,
         force=force,
         quality_gates=_quality_gate_settings(
             max_unresolved_xref_rate=max_unresolved_xref_rate,
@@ -358,21 +397,32 @@ def build_command(
 @app.command("verify")
 def verify_command(
     edition: Annotated[
-        str,
+        str | None,
         typer.Option("--edition", help="Concrete DICOM edition label."),
-    ],
+    ] = None,
     cache_dir: Annotated[
-        Path,
+        Path | None,
         typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
-    ] = DEFAULT_CACHE_DIR,
+    ] = None,
     db: Annotated[
         Path | None,
         typer.Option("--db", help="SQLite path. Defaults under cache db/."),
     ] = None,
 ) -> None:
     """Verify cached source artifacts and an optional SQLite KB."""
-    db_path = db if db is not None else default_db_path(cache_dir, edition)
-    result = verify_edition_cache(edition=edition, cache_dir=cache_dir, db_path=db_path)
+    resolved_edition = _resolve_edition(edition)
+    resolved_cache_dir = _resolve_cache_dir(cache_dir)
+    resolved_db = _resolve_db_path(db)
+    db_path = (
+        resolved_db
+        if resolved_db is not None
+        else default_db_path(resolved_cache_dir, resolved_edition)
+    )
+    result = verify_edition_cache(
+        edition=resolved_edition,
+        cache_dir=resolved_cache_dir,
+        db_path=db_path,
+    )
     typer.echo(json.dumps(result.as_jsonable(), indent=2, sort_keys=True))
     if not result.ok:
         raise typer.Exit(code=1)
@@ -400,6 +450,49 @@ def _quality_gate_settings(
         max_unresolved_include_rate=max_unresolved_include_rate,
         max_parse_warnings=max_parse_warnings,
         allow_gate_failures=allow_gate_failures,
+    )
+
+
+def _resolve_edition(cli_value: str | None, *, default: str | None = None) -> str:
+    resolved = value_with_precedence(
+        cli_value=cli_value,
+        env_value=str_env(os.environ, "DICOM_KB_EDITION"),
+        config_value=_ACTIVE_CONFIG.edition,
+        default=default,
+    )
+    if resolved is None:
+        raise typer.BadParameter(
+            "--edition is required when not supplied by environment or config"
+        )
+    return resolved
+
+
+def _resolve_cache_dir(cli_value: Path | None) -> Path:
+    return value_with_precedence(
+        cli_value=cli_value,
+        env_value=path_env(os.environ, "DICOM_KB_CACHE_DIR"),
+        config_value=_ACTIVE_CONFIG.artifact_dir,
+        default=DEFAULT_CACHE_DIR,
+    )
+
+
+def _resolve_db_path(cli_value: Path | None) -> Path | None:
+    if cli_value is not None:
+        return cli_value
+    env_database_url = str_env(os.environ, "DICOM_KB_DATABASE_URL")
+    if env_database_url is not None:
+        return sqlite_url_path(env_database_url)
+    if _ACTIVE_CONFIG.database_url is not None:
+        return sqlite_url_path(_ACTIVE_CONFIG.database_url)
+    return None
+
+
+def _resolve_max_text_chars(cli_value: int | None, *, default: int) -> int:
+    return value_with_precedence(
+        cli_value=cli_value,
+        env_value=int_env(os.environ, "DICOM_KB_MAX_TEXT_EXCERPT_CHARS"),
+        config_value=_ACTIVE_CONFIG.max_text_excerpt_chars,
+        default=default,
     )
 
 
@@ -432,20 +525,24 @@ def _run_sqlite_build(
 @mcp_app.command("serve")
 def mcp_serve_command(
     edition: Annotated[
-        str,
+        str | None,
         typer.Option("--edition", help="Concrete DICOM edition label."),
-    ],
+    ] = None,
     db: Annotated[
         Path | None,
         typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
     ] = None,
     cache_dir: Annotated[
-        Path,
+        Path | None,
         typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
-    ] = DEFAULT_CACHE_DIR,
+    ] = None,
 ) -> None:
     """Serve v1 query tools over MCP stdio."""
-    config = MCPServerConfig(edition=edition, db_path=db, cache_dir=cache_dir)
+    config = MCPServerConfig(
+        edition=_resolve_edition(edition),
+        db_path=_resolve_db_path(db),
+        cache_dir=_resolve_cache_dir(cache_dir),
+    )
     try:
         serve_mcp_stdio(config)
     except MissingMCPDependencyError as exc:
@@ -494,10 +591,6 @@ def eval_score_command(
 
 @eval_app.command("run")
 def eval_run_command(
-    edition: Annotated[
-        str,
-        typer.Option("--edition", help="Concrete DICOM edition label."),
-    ],
     out: Annotated[
         Path,
         typer.Option(
@@ -505,14 +598,18 @@ def eval_run_command(
             help="Write compact agent transcripts to this JSON file.",
         ),
     ],
+    edition: Annotated[
+        str | None,
+        typer.Option("--edition", help="Concrete DICOM edition label."),
+    ] = None,
     db: Annotated[
         Path | None,
         typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
     ] = None,
     cache_dir: Annotated[
-        Path,
+        Path | None,
         typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
-    ] = DEFAULT_CACHE_DIR,
+    ] = None,
     cases: Annotated[
         list[str] | None,
         typer.Option(
@@ -565,15 +662,26 @@ def eval_run_command(
 ) -> None:
     """Run reference or opt-in external agent transcripts for prompt cases."""
     selected_cases = select_agent_regression_cases(tuple(cases or ()))
+    resolved_edition = _resolve_edition(edition)
+    resolved_cache_dir = _resolve_cache_dir(cache_dir)
+    resolved_db = _resolve_db_path(db)
     if agent == "reference":
-        with _connect_query_db(db, cache_dir=cache_dir, edition=edition) as connection:
+        with _connect_query_db(
+            resolved_db,
+            cache_dir=resolved_cache_dir,
+            edition=resolved_edition,
+        ) as connection:
             runs = run_reference_agent_cases(
                 connection,
-                edition=edition,
+                edition=resolved_edition,
                 cases=selected_cases,
             )
     elif agent == "external":
-        db_path = db if db is not None else default_db_path(cache_dir, edition)
+        db_path = (
+            resolved_db
+            if resolved_db is not None
+            else default_db_path(resolved_cache_dir, resolved_edition)
+        )
         if not db_path.exists():
             raise typer.BadParameter(f"SQLite KB does not exist: {db_path}")
         try:
@@ -585,10 +693,10 @@ def eval_run_command(
             )
             runs = run_external_agent_cases(
                 config=config,
-                edition=edition,
+                edition=resolved_edition,
                 cases=selected_cases,
                 db_path=db_path,
-                cache_dir=cache_dir,
+                cache_dir=resolved_cache_dir,
             )
         except ExternalAgentError as exc:
             raise typer.BadParameter(str(exc)) from exc
@@ -597,7 +705,7 @@ def eval_run_command(
     write_agent_runs(out, runs)
     payload = {
         "agent": agent,
-        "edition": edition,
+        "edition": resolved_edition,
         "runs": len(runs),
         "output": str(out),
     }
@@ -628,31 +736,37 @@ def retrieve_text_command(
         typer.Argument(help="DocBook xml:id, HTML anchor, or section number."),
     ],
     edition: Annotated[
-        str,
+        str | None,
         typer.Option("--edition", help="Concrete DICOM edition label."),
-    ],
+    ] = None,
     db: Annotated[
         Path | None,
         typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
     ] = None,
     cache_dir: Annotated[
-        Path,
+        Path | None,
         typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
-    ] = DEFAULT_CACHE_DIR,
+    ] = None,
     max_chars: Annotated[
-        int,
+        int | None,
         typer.Option("--max-chars", help="Maximum excerpt characters to return."),
-    ] = 800,
+    ] = None,
 ) -> None:
     """Retrieve a capped excerpt from persisted standard text."""
-    with _connect_query_db(db, cache_dir=cache_dir, edition=edition) as connection:
+    resolved_edition = _resolve_edition(edition)
+    resolved_max_chars = _resolve_max_text_chars(max_chars, default=800)
+    with _connect_query_db(
+        _resolve_db_path(db),
+        cache_dir=_resolve_cache_dir(cache_dir),
+        edition=resolved_edition,
+    ) as connection:
         _echo_response(
             retrieve_standard_text(
                 connection,
                 part=part,
                 section_or_anchor=section_or_anchor,
-                edition=edition,
-                max_chars=max_chars,
+                edition=resolved_edition,
+                max_chars=resolved_max_chars,
             )
         )
 
@@ -664,17 +778,17 @@ def search_text_command(
         typer.Argument(help="Full-text query over persisted DocBook text."),
     ],
     edition: Annotated[
-        str,
+        str | None,
         typer.Option("--edition", help="Concrete DICOM edition label."),
-    ],
+    ] = None,
     db: Annotated[
         Path | None,
         typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
     ] = None,
     cache_dir: Annotated[
-        Path,
+        Path | None,
         typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
-    ] = DEFAULT_CACHE_DIR,
+    ] = None,
     part_filter: Annotated[
         str | None,
         typer.Option("--part", help="Optional DICOM part label, for example PS3.3."),
@@ -685,12 +799,17 @@ def search_text_command(
     ] = 10,
 ) -> None:
     """Search persisted standard text with SQLite FTS5."""
-    with _connect_query_db(db, cache_dir=cache_dir, edition=edition) as connection:
+    resolved_edition = _resolve_edition(edition)
+    with _connect_query_db(
+        _resolve_db_path(db),
+        cache_dir=_resolve_cache_dir(cache_dir),
+        edition=resolved_edition,
+    ) as connection:
         _echo_response(
             search_standard_text(
                 connection,
                 query=query,
-                edition=edition,
+                edition=resolved_edition,
                 part_filter=part_filter,
                 limit=limit,
             )
@@ -704,25 +823,30 @@ def lookup_tag(
         typer.Argument(help="DICOM tag like (0008,0060), range tag, or keyword."),
     ],
     edition: Annotated[
-        str,
+        str | None,
         typer.Option("--edition", help="Concrete DICOM edition label."),
-    ],
+    ] = None,
     db: Annotated[
         Path | None,
         typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
     ] = None,
     cache_dir: Annotated[
-        Path,
+        Path | None,
         typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
-    ] = DEFAULT_CACHE_DIR,
+    ] = None,
 ) -> None:
     """Look up a PS3.6 data element by tag or keyword."""
-    with _connect_query_db(db, cache_dir=cache_dir, edition=edition) as connection:
+    resolved_edition = _resolve_edition(edition)
+    with _connect_query_db(
+        _resolve_db_path(db),
+        cache_dir=_resolve_cache_dir(cache_dir),
+        edition=resolved_edition,
+    ) as connection:
         _echo_response(
             lookup_data_element(
                 connection,
                 tag_or_keyword=tag_or_keyword,
-                edition=edition,
+                edition=resolved_edition,
             )
         )
 
@@ -734,25 +858,30 @@ def lookup_uid_command(
         typer.Argument(help="DICOM UID value or UID keyword."),
     ],
     edition: Annotated[
-        str,
+        str | None,
         typer.Option("--edition", help="Concrete DICOM edition label."),
-    ],
+    ] = None,
     db: Annotated[
         Path | None,
         typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
     ] = None,
     cache_dir: Annotated[
-        Path,
+        Path | None,
         typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
-    ] = DEFAULT_CACHE_DIR,
+    ] = None,
 ) -> None:
     """Look up a PS3.6 UID registry entry by UID value or keyword."""
-    with _connect_query_db(db, cache_dir=cache_dir, edition=edition) as connection:
+    resolved_edition = _resolve_edition(edition)
+    with _connect_query_db(
+        _resolve_db_path(db),
+        cache_dir=_resolve_cache_dir(cache_dir),
+        edition=resolved_edition,
+    ) as connection:
         _echo_response(
             lookup_uid(
                 connection,
                 uid_or_keyword=uid_or_keyword,
-                edition=edition,
+                edition=resolved_edition,
             )
         )
 
@@ -764,25 +893,30 @@ def lookup_iod_command(
         typer.Argument(help="DICOM IOD name or keyword, for example 'CT Image'."),
     ],
     edition: Annotated[
-        str,
+        str | None,
         typer.Option("--edition", help="Concrete DICOM edition label."),
-    ],
+    ] = None,
     db: Annotated[
         Path | None,
         typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
     ] = None,
     cache_dir: Annotated[
-        Path,
+        Path | None,
         typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
-    ] = DEFAULT_CACHE_DIR,
+    ] = None,
 ) -> None:
     """Look up a PS3.3 IOD by name or keyword."""
-    with _connect_query_db(db, cache_dir=cache_dir, edition=edition) as connection:
+    resolved_edition = _resolve_edition(edition)
+    with _connect_query_db(
+        _resolve_db_path(db),
+        cache_dir=_resolve_cache_dir(cache_dir),
+        edition=resolved_edition,
+    ) as connection:
         _echo_response(
             lookup_iod(
                 connection,
                 iod_name=iod_name,
-                edition=edition,
+                edition=resolved_edition,
             )
         )
 
@@ -794,25 +928,30 @@ def lookup_sop_class_command(
         typer.Argument(help="DICOM SOP Class UID, name, or UID keyword."),
     ],
     edition: Annotated[
-        str,
+        str | None,
         typer.Option("--edition", help="Concrete DICOM edition label."),
-    ],
+    ] = None,
     db: Annotated[
         Path | None,
         typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
     ] = None,
     cache_dir: Annotated[
-        Path,
+        Path | None,
         typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
-    ] = DEFAULT_CACHE_DIR,
+    ] = None,
 ) -> None:
     """Look up a PS3.4 SOP Class and linked IODs."""
-    with _connect_query_db(db, cache_dir=cache_dir, edition=edition) as connection:
+    resolved_edition = _resolve_edition(edition)
+    with _connect_query_db(
+        _resolve_db_path(db),
+        cache_dir=_resolve_cache_dir(cache_dir),
+        edition=resolved_edition,
+    ) as connection:
         _echo_response(
             lookup_sop_class(
                 connection,
                 uid_or_name_or_keyword=uid_or_name_or_keyword,
-                edition=edition,
+                edition=resolved_edition,
             )
         )
 
@@ -824,29 +963,34 @@ def lookup_enumerated_values_command(
         typer.Argument(help="DICOM attribute tag, keyword, or name."),
     ],
     edition: Annotated[
-        str,
+        str | None,
         typer.Option("--edition", help="Concrete DICOM edition label."),
-    ],
+    ] = None,
     db: Annotated[
         Path | None,
         typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
     ] = None,
     cache_dir: Annotated[
-        Path,
+        Path | None,
         typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
-    ] = DEFAULT_CACHE_DIR,
+    ] = None,
     context: Annotated[
         str | None,
         typer.Option("--context", help="Optional module, macro, or context label."),
     ] = None,
 ) -> None:
     """Look up parsed enumerated values for a DICOM attribute."""
-    with _connect_query_db(db, cache_dir=cache_dir, edition=edition) as connection:
+    resolved_edition = _resolve_edition(edition)
+    with _connect_query_db(
+        _resolve_db_path(db),
+        cache_dir=_resolve_cache_dir(cache_dir),
+        edition=resolved_edition,
+    ) as connection:
         _echo_response(
             lookup_enumerated_values(
                 connection,
                 attribute=attribute,
-                edition=edition,
+                edition=resolved_edition,
                 context=context,
             )
         )
@@ -859,29 +1003,34 @@ def lookup_defined_terms_command(
         typer.Argument(help="DICOM attribute tag, keyword, or name."),
     ],
     edition: Annotated[
-        str,
+        str | None,
         typer.Option("--edition", help="Concrete DICOM edition label."),
-    ],
+    ] = None,
     db: Annotated[
         Path | None,
         typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
     ] = None,
     cache_dir: Annotated[
-        Path,
+        Path | None,
         typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
-    ] = DEFAULT_CACHE_DIR,
+    ] = None,
     context: Annotated[
         str | None,
         typer.Option("--context", help="Optional module, macro, or context label."),
     ] = None,
 ) -> None:
     """Look up parsed defined terms for a DICOM attribute."""
-    with _connect_query_db(db, cache_dir=cache_dir, edition=edition) as connection:
+    resolved_edition = _resolve_edition(edition)
+    with _connect_query_db(
+        _resolve_db_path(db),
+        cache_dir=_resolve_cache_dir(cache_dir),
+        edition=resolved_edition,
+    ) as connection:
         _echo_response(
             lookup_defined_terms(
                 connection,
                 attribute=attribute,
-                edition=edition,
+                edition=resolved_edition,
                 context=context,
             )
         )
@@ -894,25 +1043,30 @@ def iod_modules(
         typer.Argument(help="DICOM IOD name or keyword, for example 'CT Image'."),
     ],
     edition: Annotated[
-        str,
+        str | None,
         typer.Option("--edition", help="Concrete DICOM edition label."),
-    ],
+    ] = None,
     db: Annotated[
         Path | None,
         typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
     ] = None,
     cache_dir: Annotated[
-        Path,
+        Path | None,
         typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
-    ] = DEFAULT_CACHE_DIR,
+    ] = None,
 ) -> None:
     """List PS3.3 modules used by an IOD."""
-    with _connect_query_db(db, cache_dir=cache_dir, edition=edition) as connection:
+    resolved_edition = _resolve_edition(edition)
+    with _connect_query_db(
+        _resolve_db_path(db),
+        cache_dir=_resolve_cache_dir(cache_dir),
+        edition=resolved_edition,
+    ) as connection:
         _echo_response(
             list_modules_for_iod(
                 connection,
                 iod_name=iod_name,
-                edition=edition,
+                edition=resolved_edition,
             )
         )
 
@@ -924,17 +1078,17 @@ def module_attributes(
         typer.Argument(help="DICOM module name, for example 'Patient'."),
     ],
     edition: Annotated[
-        str,
+        str | None,
         typer.Option("--edition", help="Concrete DICOM edition label."),
-    ],
+    ] = None,
     db: Annotated[
         Path | None,
         typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
     ] = None,
     cache_dir: Annotated[
-        Path,
+        Path | None,
         typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
-    ] = DEFAULT_CACHE_DIR,
+    ] = None,
     expand_macros: Annotated[
         bool,
         typer.Option(
@@ -944,12 +1098,17 @@ def module_attributes(
     ] = False,
 ) -> None:
     """List PS3.3 attributes used by a module."""
-    with _connect_query_db(db, cache_dir=cache_dir, edition=edition) as connection:
+    resolved_edition = _resolve_edition(edition)
+    with _connect_query_db(
+        _resolve_db_path(db),
+        cache_dir=_resolve_cache_dir(cache_dir),
+        edition=resolved_edition,
+    ) as connection:
         _echo_response(
             list_attributes_for_module(
                 connection,
                 module_name=module_name,
-                edition=edition,
+                edition=resolved_edition,
                 expand_macros=expand_macros,
             )
         )
@@ -962,17 +1121,17 @@ def resolve_attribute_context_command(
         typer.Argument(help="DICOM attribute tag, keyword, or name."),
     ],
     edition: Annotated[
-        str,
+        str | None,
         typer.Option("--edition", help="Concrete DICOM edition label."),
-    ],
+    ] = None,
     db: Annotated[
         Path | None,
         typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
     ] = None,
     cache_dir: Annotated[
-        Path,
+        Path | None,
         typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
-    ] = DEFAULT_CACHE_DIR,
+    ] = None,
     iod_name: Annotated[
         str | None,
         typer.Option("--iod", help="DICOM IOD name or keyword context."),
@@ -983,11 +1142,12 @@ def resolve_attribute_context_command(
     ] = None,
 ) -> None:
     """Resolve an attribute's PS3.3 use and effective type in context."""
+    resolved_edition = _resolve_edition(edition)
     _echo_attribute_context_response(
         attribute=attribute,
-        edition=edition,
-        db=db,
-        cache_dir=cache_dir,
+        edition=resolved_edition,
+        db=_resolve_db_path(db),
+        cache_dir=_resolve_cache_dir(cache_dir),
         iod_name=iod_name,
         sop_class=sop_class,
     )
@@ -1000,17 +1160,17 @@ def context_attribute_command(
         typer.Argument(help="DICOM attribute tag, keyword, or name."),
     ],
     edition: Annotated[
-        str,
+        str | None,
         typer.Option("--edition", help="Concrete DICOM edition label."),
-    ],
+    ] = None,
     db: Annotated[
         Path | None,
         typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
     ] = None,
     cache_dir: Annotated[
-        Path,
+        Path | None,
         typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
-    ] = DEFAULT_CACHE_DIR,
+    ] = None,
     iod_name: Annotated[
         str | None,
         typer.Option("--iod", help="DICOM IOD name or keyword context."),
@@ -1021,11 +1181,12 @@ def context_attribute_command(
     ] = None,
 ) -> None:
     """Alias for the documented context attribute resolver example."""
+    resolved_edition = _resolve_edition(edition)
     _echo_attribute_context_response(
         attribute=attribute,
-        edition=edition,
-        db=db,
-        cache_dir=cache_dir,
+        edition=resolved_edition,
+        db=_resolve_db_path(db),
+        cache_dir=_resolve_cache_dir(cache_dir),
         iod_name=iod_name,
         sop_class=sop_class,
     )

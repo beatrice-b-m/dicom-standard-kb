@@ -46,6 +46,27 @@ def test_load_config_profile_accepts_section17_shape(tmp_path: Path) -> None:
     assert config.publish_generated_db is False
 
 
+def test_load_config_profile_accepts_public_ci_shape(tmp_path: Path) -> None:
+    path = tmp_path / "dicom-kb-ci.yaml"
+    path.write_text(
+        """
+        dicom_kb:
+          allow_text_retrieval: false
+          use_synthetic_fixtures_only: true
+          require_dicom_download_for_integration: true
+          publish_generated_db: false
+        """,
+        encoding="utf-8",
+    )
+
+    config = load_config_profile(path)
+
+    assert config.allow_text_retrieval is False
+    assert config.use_synthetic_fixtures_only is True
+    assert config.require_dicom_download_for_integration is True
+    assert config.publish_generated_db is False
+
+
 def test_load_config_profile_rejects_unknown_keys(tmp_path: Path) -> None:
     path = tmp_path / "dicom-kb.yaml"
     path.write_text(

@@ -181,6 +181,10 @@ Acceptance criteria:
 
 ## Phase 4: YAML Configuration Profiles
 
+Status: Complete. YAML profiles load through `--config`, support Section 17
+fields, enforce SQLite-only database URLs, and provide CLI defaults while
+preserving explicit CLI flag precedence.
+
 Goal: let local and CI workflows provide stable command defaults without
 duplicating long CLI flag lists.
 
