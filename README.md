@@ -48,16 +48,33 @@ uv run dicom-kb --help
 uv run dicom-kb doctor
 ```
 
-To install only the CLI as a local `uv` tool from the checkout:
+To install `dicom-kb` as a standalone `uv` tool from a source checkout, run
+the install command from the repository root:
 
 ```bash
+cd dicom-kb
 uv tool install .
 ```
 
-For MCP support in a tool install, include the optional extra:
+This puts the `dicom-kb` executable on uv's tool path so it can be launched
+without `uv run`:
+
+```bash
+dicom-kb --help
+dicom-kb doctor
+```
+
+For MCP support in the tool install, include the optional extra:
 
 ```bash
 uv tool install '.[mcp]'
+```
+
+If you already installed the CLI-only tool and later need MCP support,
+reinstall it with the extra:
+
+```bash
+uv tool install --reinstall '.[mcp]'
 ```
 
 ## Quickstart Without Network Access
