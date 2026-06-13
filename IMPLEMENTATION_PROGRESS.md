@@ -8,7 +8,7 @@ alone.
 
 - Last updated: 2026-06-13
 - Worktree baseline: clean at start of remediation continuation.
-- Latest observed commit: `201da85 test(make): add DICOM integration targets`
+- Latest observed commit: `a38647c feat(query): add response classification metadata`
 - Remediation plan status:
   - Official URL remediation is already excluded from the active plan and
     recorded as complete in `REMEDIATION_PLAN.md`.
@@ -21,8 +21,10 @@ alone.
     - `ToolResponse` requires `classification` and `parse_confidence`.
     - JSON schema requires both new fields.
     - Python resolver, CLI, and MCP tests cover representative metadata.
-  - Phase 3, Build Metrics and Quality Gates, is the next incomplete
-    remediation phase.
+  - Phase 3, Build Metrics and Quality Gates, is in progress.
+    - Build metrics aggregation and metadata persistence are implemented and
+      tested.
+    - Configurable quality gates remain incomplete.
   - Phases 4-6 remain incomplete.
 
 ## Completed Work
@@ -61,6 +63,12 @@ alone.
 - Added model/schema tests, v1 resolver metadata coverage, CLI serialization
   assertions, and MCP protocol assertions for the new fields.
 - Marked Phase 2 complete in `REMEDIATION_PLAN.md`.
+- Added `BuildMetrics` aggregation for the Section 16 ingestion counters.
+- Extended `ImportSummary` with unresolved xref and include-row counters.
+- Added metrics to `BuildSummary.as_jsonable()` and persisted them under
+  `build_metadata.metadata_json["metrics"]`.
+- Added tests for metrics aggregation, fixture build metrics content,
+  metadata persistence, unresolved xref counts, and unresolved include counts.
 
 ## Verification Results
 
@@ -98,6 +106,17 @@ alone.
   tests/unit/test_cli_lookup.py tests/unit/test_mcp_protocol.py` passed.
 - 2026-06-13: `uv run mypy src/dicom_kb/query/answer_contracts.py
   src/dicom_kb/query/resolver.py src/dicom_kb/query/graph.py` passed.
+- 2026-06-13: `uv run pytest tests/unit/test_build.py
+  tests/unit/test_db_importers.py` passed (`15 passed`).
+- 2026-06-13: `uv run ruff check src/dicom_kb/build.py
+  src/dicom_kb/db/importers.py tests/unit/test_build.py
+  tests/unit/test_db_importers.py` passed.
+- 2026-06-13: `uv run mypy src/dicom_kb/build.py
+  src/dicom_kb/db/importers.py` passed.
+- 2026-06-13: `uv run pytest tests/unit/test_build.py
+  tests/unit/test_db_importers.py tests/unit/test_cli_lookup.py
+  tests/unit/test_sources_verify.py` passed (`43 passed`).
+- 2026-06-13: `uv run pytest` passed (`189 passed, 4 skipped`).
 
 ## Blockers
 
@@ -114,8 +133,8 @@ alone.
 
 Begin Phase 3 build metrics and quality gates:
 
-1. Add a build metrics aggregation model covering Section 16 counters.
-2. Extend import/build summaries to emit unresolved include/xref counts,
-   parse warnings, and source refs.
-3. Persist metrics under `build_metadata.metadata_json["metrics"]` and add
-   focused tests before implementing configurable quality gates.
+1. Add quality-gate settings to `build` and `build-fixture`:
+   `--max-unresolved-xref-rate`, `--max-unresolved-include-rate`,
+   `--max-parse-warnings`, and `--allow-gate-failures`.
+2. Evaluate gates against `BuildMetrics` before reporting build success.
+3. Add CLI tests for failing gates and allow-gate-failures warning behavior.

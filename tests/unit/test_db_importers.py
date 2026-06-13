@@ -18,6 +18,7 @@ from dicom_kb.db.repositories import (
     UIDRepository,
 )
 from dicom_kb.docbook.parser import parse_docbook_xml
+from dicom_kb.ir.models import AttributeUse, SourceRef
 from dicom_kb.parsers.part03_iods import parse_part03
 from dicom_kb.parsers.part04_sop_classes import parse_part04
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
@@ -81,6 +82,7 @@ def test_import_docbook_structure_persists_nodes_xrefs_and_table_ir(
 
     assert summary.doc_nodes == 10
     assert summary.xrefs == 2
+    assert summary.xrefs_unresolved == 0
     assert summary.raw_table_irs == 4
 
     section = connection.execute(
@@ -143,6 +145,30 @@ def test_import_docbook_structure_persists_nodes_xrefs_and_table_ir(
         ('"Patient" AND "name"',),
     ).fetchone()
     assert fts_match["node_id"] == "2026b.PS3.3.sect_C.7.1.1"
+
+
+def test_import_docbook_structure_counts_unresolved_xrefs(tmp_path: Path) -> None:
+    connection = _connection(tmp_path)
+    document = parse_docbook_xml(
+        """
+        <book xmlns="http://docbook.org/ns/docbook" xml:id="book">
+          <chapter xml:id="chapter">
+            <title>Chapter</title>
+            <para>See <xref linkend="missing_target"/>.</para>
+          </chapter>
+        </book>
+        """,
+        part="PS3.3",
+    )
+
+    summary = import_docbook_structure(
+        connection,
+        edition="2026b",
+        document=document,
+    )
+
+    assert summary.xrefs == 1
+    assert summary.xrefs_unresolved == 1
 
 
 def test_range_tag_lookup_returns_match_warning(tmp_path: Path) -> None:
@@ -235,6 +261,8 @@ def test_import_part03_graph_records(tmp_path: Path) -> None:
     assert summary.iod_functional_group_uses == 1
     assert summary.attribute_uses == 5
     assert summary.conditions == 2
+    assert summary.include_rows_resolved == 1
+    assert summary.include_rows_unresolved == 0
 
     conditions = connection.execute(
         """
@@ -300,6 +328,42 @@ def test_import_part03_graph_records(tmp_path: Path) -> None:
         """
     ).fetchone()
     assert nested["parent_name"] == "Referenced Patient Sequence"
+
+
+def test_import_part03_counts_unresolved_include_rows(tmp_path: Path) -> None:
+    connection = _connection(tmp_path)
+    source_ref = SourceRef(
+        id="2026b.test.source_ref",
+        edition_id="2026b",
+        part="PS3.3",
+        table_id="table_missing",
+        xml_id="table_missing",
+        title="Missing Include",
+    )
+    include = AttributeUse(
+        id="2026b.test.attribute_use.include",
+        edition_id="2026b",
+        owner_type="module",
+        owner_id="2026b.module.synthetic",
+        row_kind="include",
+        include_target_text='Include Table 99-1 "Missing Macro"',
+        row_order=0,
+        source_ref=source_ref,
+    )
+
+    summary = import_part03(
+        connection,
+        edition="2026b",
+        iods=(),
+        modules=(),
+        macros=(),
+        iod_module_uses=(),
+        iod_functional_group_uses=(),
+        attribute_uses=(include,),
+    )
+
+    assert summary.include_rows_resolved == 0
+    assert summary.include_rows_unresolved == 1
 
 
 def test_import_attribute_value_terms_links_attribute_context(tmp_path: Path) -> None:

@@ -7,10 +7,12 @@ from pathlib import Path
 import pytest
 
 from dicom_kb.build import (
+    BuildMetrics,
     DatabaseExistsError,
     build_sqlite_database,
     default_db_path,
 )
+from dicom_kb.db.importers import ImportSummary
 from dicom_kb.query.resolver import (
     lookup_data_element,
     lookup_defined_terms,
@@ -72,6 +74,33 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
     assert summary.db_path == default_db_path(cache_dir, "2026b")
     assert summary.db_path.exists()
     assert any("skipped malformed tag row" in warning for warning in summary.warnings)
+    metrics = summary.metrics.as_jsonable()
+    assert set(metrics) == {
+        "edition",
+        "parts_loaded",
+        "data_elements",
+        "uids",
+        "iods",
+        "modules",
+        "macros",
+        "iod_module_uses",
+        "iod_functional_group_uses",
+        "attribute_uses",
+        "include_rows_resolved",
+        "include_rows_unresolved",
+        "sop_classes",
+        "conditions",
+        "xrefs_total",
+        "xrefs_unresolved",
+        "parse_warnings",
+        "source_refs",
+    }
+    assert metrics["edition"] == "2026b"
+    assert metrics["parts_loaded"] == ["PS3.3", "PS3.4", "PS3.6"]
+    assert metrics["parse_warnings"] == len(summary.warnings)
+    assert metrics["include_rows_resolved"] == 1
+    assert metrics["include_rows_unresolved"] == 0
+    assert metrics["xrefs_total"] >= metrics["xrefs_unresolved"]
 
     with _connect(summary.db_path) as connection:
         tag_response = lookup_data_element(
@@ -106,6 +135,7 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
         "artifacts/2026b/raw/source/docbook/part04/part04.xml",
         "artifacts/2026b/raw/source/docbook/part06/part06.xml",
     }
+    assert payload["metrics"] == metrics
 
 
 def test_build_sqlite_database_refuses_existing_db_without_force(
@@ -117,3 +147,51 @@ def test_build_sqlite_database_refuses_existing_db_without_force(
 
     with pytest.raises(DatabaseExistsError):
         build_sqlite_database(edition="2026b", cache_dir=cache_dir)
+
+
+def test_build_metrics_aggregate_import_summaries() -> None:
+    metrics = BuildMetrics.from_imports(
+        edition="2026b",
+        parts_loaded=("PS3.3", "PS3.6"),
+        import_summaries=(
+            ImportSummary(
+                edition="2026b",
+                source_refs=3,
+                data_elements=2,
+                uid_registry_entries=1,
+                xrefs=4,
+                xrefs_unresolved=1,
+            ),
+            ImportSummary(
+                edition="2026b",
+                source_refs=5,
+                iods=1,
+                modules=2,
+                attribute_uses=3,
+                include_rows_resolved=1,
+                include_rows_unresolved=1,
+            ),
+        ),
+        parse_warnings=2,
+    )
+
+    assert metrics.as_jsonable() == {
+        "edition": "2026b",
+        "parts_loaded": ["PS3.3", "PS3.6"],
+        "data_elements": 2,
+        "uids": 1,
+        "iods": 1,
+        "modules": 2,
+        "macros": 0,
+        "iod_module_uses": 0,
+        "iod_functional_group_uses": 0,
+        "attribute_uses": 3,
+        "include_rows_resolved": 1,
+        "include_rows_unresolved": 1,
+        "sop_classes": 0,
+        "conditions": 0,
+        "xrefs_total": 4,
+        "xrefs_unresolved": 1,
+        "parse_warnings": 2,
+        "source_refs": 8,
+    }

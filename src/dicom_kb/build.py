@@ -37,6 +37,82 @@ DOCBOOK_XML_FORMAT = "docbook_xml"
 
 
 @dataclass(frozen=True)
+class BuildMetrics:
+    """Section 16 ingestion metrics emitted and persisted after a build."""
+
+    edition: str
+    parts_loaded: tuple[str, ...]
+    data_elements: int = 0
+    uids: int = 0
+    iods: int = 0
+    modules: int = 0
+    macros: int = 0
+    iod_module_uses: int = 0
+    iod_functional_group_uses: int = 0
+    attribute_uses: int = 0
+    include_rows_resolved: int = 0
+    include_rows_unresolved: int = 0
+    sop_classes: int = 0
+    conditions: int = 0
+    xrefs_total: int = 0
+    xrefs_unresolved: int = 0
+    parse_warnings: int = 0
+    source_refs: int = 0
+
+    @classmethod
+    def from_imports(
+        cls,
+        *,
+        edition: str,
+        parts_loaded: tuple[str, ...],
+        import_summaries: tuple[ImportSummary, ...],
+        parse_warnings: int,
+        source_refs: int | None = None,
+    ) -> BuildMetrics:
+        """Aggregate import summaries into the public Section 16 shape."""
+        return cls(
+            edition=edition,
+            parts_loaded=parts_loaded,
+            data_elements=sum(summary.data_elements for summary in import_summaries),
+            uids=sum(summary.uid_registry_entries for summary in import_summaries),
+            iods=sum(summary.iods for summary in import_summaries),
+            modules=sum(summary.modules for summary in import_summaries),
+            macros=sum(summary.macros for summary in import_summaries),
+            iod_module_uses=sum(
+                summary.iod_module_uses for summary in import_summaries
+            ),
+            iod_functional_group_uses=sum(
+                summary.iod_functional_group_uses for summary in import_summaries
+            ),
+            attribute_uses=sum(summary.attribute_uses for summary in import_summaries),
+            include_rows_resolved=sum(
+                summary.include_rows_resolved for summary in import_summaries
+            ),
+            include_rows_unresolved=sum(
+                summary.include_rows_unresolved for summary in import_summaries
+            ),
+            sop_classes=sum(summary.sop_classes for summary in import_summaries),
+            conditions=sum(summary.conditions for summary in import_summaries),
+            xrefs_total=sum(summary.xrefs for summary in import_summaries),
+            xrefs_unresolved=sum(
+                summary.xrefs_unresolved for summary in import_summaries
+            ),
+            parse_warnings=parse_warnings,
+            source_refs=(
+                source_refs
+                if source_refs is not None
+                else sum(summary.source_refs for summary in import_summaries)
+            ),
+        )
+
+    def as_jsonable(self) -> dict[str, object]:
+        """Return a JSON-serializable metrics object."""
+        payload = asdict(self)
+        payload["parts_loaded"] = list(self.parts_loaded)
+        return payload
+
+
+@dataclass(frozen=True)
 class BuildSummary:
     """Summary emitted after building a local SQLite KB."""
 
@@ -45,6 +121,7 @@ class BuildSummary:
     manifest_sha256: str
     import_summaries: tuple[ImportSummary, ...]
     warnings: tuple[str, ...]
+    metrics: BuildMetrics
 
     def as_jsonable(self) -> dict[str, object]:
         """Return a JSON-serializable representation for CLI output."""
@@ -53,6 +130,7 @@ class BuildSummary:
             "db_path": str(self.db_path),
             "manifest_sha256": self.manifest_sha256,
             "imports": [asdict(summary) for summary in self.import_summaries],
+            "metrics": self.metrics.as_jsonable(),
             "warnings": list(self.warnings),
         }
 
@@ -164,6 +242,13 @@ def build_sqlite_database(
                 )
             )
 
+        metrics = BuildMetrics.from_imports(
+            edition=manifest.edition,
+            parts_loaded=tuple(sorted(documents)),
+            import_summaries=tuple(summaries),
+            parse_warnings=len(warnings),
+            source_refs=_source_ref_count(connection),
+        )
         import_build_metadata(
             connection,
             edition=manifest.edition,
@@ -180,6 +265,7 @@ def build_sqlite_database(
                 artifact.local_path: artifact.sha256 for artifact in manifest.artifacts
             },
             repository_commit=_repository_commit(),
+            metrics=metrics.as_jsonable(),
         )
     except (sqlite3.Error, ImportError, OSError) as exc:
         raise BuildError(f"failed to build SQLite KB for {manifest.edition}") from exc
@@ -192,6 +278,7 @@ def build_sqlite_database(
         manifest_sha256=manifest.source_manifest_sha256,
         import_summaries=tuple(summaries),
         warnings=tuple(warnings),
+        metrics=metrics,
     )
 
 
@@ -212,6 +299,11 @@ def _warning_messages(warnings: tuple[ParserWarning, ...]) -> tuple[str, ...]:
         f"{warning.part} {warning.table_id or 'unknown'}: {warning.message}"
         for warning in warnings
     )
+
+
+def _source_ref_count(connection: sqlite3.Connection) -> int:
+    row = connection.execute("SELECT count(*) AS count FROM source_ref").fetchone()
+    return int(row["count"])
 
 
 def _iod_ref_keys(iod: IOD) -> tuple[str, ...]:

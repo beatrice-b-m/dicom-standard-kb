@@ -57,8 +57,11 @@ class ImportSummary:
     sop_class_iods: int = 0
     doc_nodes: int = 0
     xrefs: int = 0
+    xrefs_unresolved: int = 0
     raw_table_irs: int = 0
     attribute_value_terms: int = 0
+    include_rows_resolved: int = 0
+    include_rows_unresolved: int = 0
 
 
 def import_manifest(connection: sqlite3.Connection, manifest: SourceManifest) -> None:
@@ -116,9 +119,10 @@ def import_build_metadata(
     source_urls: Iterable[str],
     source_sha256: dict[str, str],
     repository_commit: str | None = None,
+    metrics: dict[str, object] | None = None,
 ) -> None:
     """Record reproducible build metadata for a generated SQLite database."""
-    metadata = {
+    metadata: dict[str, object] = {
         "edition": edition,
         "source_urls": tuple(source_urls),
         "source_sha256": source_sha256,
@@ -127,6 +131,8 @@ def import_build_metadata(
         "schema_version": schema_version,
         "repository_commit": repository_commit,
     }
+    if metrics is not None:
+        metadata["metrics"] = metrics
     with connection:
         connection.execute(
             """
@@ -182,6 +188,7 @@ def import_docbook_structure(
         source_refs=len(source_refs),
         doc_nodes=len(nodes),
         xrefs=len(xrefs),
+        xrefs_unresolved=sum(1 for xref in xrefs if not xref.resolved),
         raw_table_irs=len(raw_tables),
     )
 
@@ -240,6 +247,9 @@ def import_part03(
     functional_group_use_records = tuple(iod_functional_group_uses)
     attribute_use_records = tuple(attribute_uses)
     condition_records = tuple(conditions)
+    include_records = tuple(
+        record for record in attribute_use_records if record.row_kind == "include"
+    )
     source_refs = _unique_source_refs(
         [record.source_ref for record in iod_records]
         + [record.source_ref for record in module_records]
@@ -281,6 +291,15 @@ def import_part03(
         iod_functional_group_uses=len(functional_group_use_records),
         attribute_uses=len(attribute_use_records),
         conditions=len(condition_records),
+        include_rows_resolved=sum(
+            1 for record in include_records if record.included_macro_id is not None
+        ),
+        include_rows_unresolved=sum(
+            1
+            for record in include_records
+            if record.include_target_text is not None
+            and record.included_macro_id is None
+        ),
     )
 
 
