@@ -662,6 +662,53 @@ def test_cli_resolve_attribute_context_outputs_effective_type(
     assert payload["result"]["effective_type"] == "2"
 
 
+def test_cli_context_attribute_alias_matches_resolve_command(
+    tmp_path: Path,
+) -> None:
+    db_path = _fixture_db(tmp_path)
+    runner = CliRunner()
+    resolve_result = runner.invoke(
+        app,
+        [
+            "resolve",
+            "attribute-context",
+            "PatientName",
+            "--edition",
+            "2026b",
+            "--iod",
+            "CT Image",
+            "--db",
+            str(db_path),
+        ],
+    )
+    context_result = runner.invoke(
+        app,
+        [
+            "context",
+            "attribute",
+            "PatientName",
+            "--edition",
+            "2026b",
+            "--iod",
+            "CT Image",
+            "--db",
+            str(db_path),
+        ],
+    )
+    assert resolve_result.exit_code == 0, resolve_result.output
+    assert context_result.exit_code == 0, context_result.output
+    resolve_payload = json.loads(resolve_result.output)
+    context_payload = json.loads(context_result.output)
+
+    assert _without_trace(resolve_payload) == _without_trace(context_payload)
+
+
+def _without_trace(payload: dict[str, Any]) -> dict[str, Any]:
+    stable_payload = dict(payload)
+    stable_payload.pop("trace", None)
+    return stable_payload
+
+
 def test_cli_eval_score_outputs_agent_report(tmp_path: Path) -> None:
     transcript = tmp_path / "agent-runs.json"
     transcript.write_text(

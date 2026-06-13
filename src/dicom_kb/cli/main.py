@@ -61,12 +61,14 @@ lookup_app = typer.Typer(help="Run exact lookups against a local SQLite KB.")
 iod_app = typer.Typer(help="Query PS3.3 IOD graph records.")
 module_app = typer.Typer(help="Query PS3.3 module graph records.")
 resolve_app = typer.Typer(help="Resolve DICOM facts in a usage context.")
+context_app = typer.Typer(help="Resolve documented DICOM context examples.")
 mcp_app = typer.Typer(help="Run the MCP server adapter.")
 eval_app = typer.Typer(help="Run agent regression scoring utilities.")
 app.add_typer(lookup_app, name="lookup")
 app.add_typer(iod_app, name="iod")
 app.add_typer(module_app, name="module")
 app.add_typer(resolve_app, name="resolve")
+app.add_typer(context_app, name="context")
 app.add_typer(mcp_app, name="mcp")
 app.add_typer(eval_app, name="eval")
 
@@ -856,6 +858,63 @@ def resolve_attribute_context_command(
     ] = None,
 ) -> None:
     """Resolve an attribute's PS3.3 use and effective type in context."""
+    _echo_attribute_context_response(
+        attribute=attribute,
+        edition=edition,
+        db=db,
+        cache_dir=cache_dir,
+        iod_name=iod_name,
+        sop_class=sop_class,
+    )
+
+
+@context_app.command("attribute")
+def context_attribute_command(
+    attribute: Annotated[
+        str,
+        typer.Argument(help="DICOM attribute tag, keyword, or name."),
+    ],
+    edition: Annotated[
+        str,
+        typer.Option("--edition", help="Concrete DICOM edition label."),
+    ],
+    db: Annotated[
+        Path | None,
+        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
+    ] = None,
+    cache_dir: Annotated[
+        Path,
+        typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
+    ] = DEFAULT_CACHE_DIR,
+    iod_name: Annotated[
+        str | None,
+        typer.Option("--iod", help="DICOM IOD name or keyword context."),
+    ] = None,
+    sop_class: Annotated[
+        str | None,
+        typer.Option("--sop-class", help="DICOM SOP Class UID, name, or keyword."),
+    ] = None,
+) -> None:
+    """Alias for the documented context attribute resolver example."""
+    _echo_attribute_context_response(
+        attribute=attribute,
+        edition=edition,
+        db=db,
+        cache_dir=cache_dir,
+        iod_name=iod_name,
+        sop_class=sop_class,
+    )
+
+
+def _echo_attribute_context_response(
+    *,
+    attribute: str,
+    edition: str,
+    db: Path | None,
+    cache_dir: Path,
+    iod_name: str | None,
+    sop_class: str | None,
+) -> None:
     with _connect_query_db(db, cache_dir=cache_dir, edition=edition) as connection:
         _echo_response(
             resolve_attribute_context(

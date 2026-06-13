@@ -8,14 +8,14 @@ alone.
 
 - Last updated: 2026-06-13
 - Worktree baseline: clean at start of remediation continuation.
-- Latest observed commit: `4f77f08 docs(remediation): create progress ledger`
+- Latest observed commit: `9443f30 feat(cli): add cache verification command`
 - Remediation plan status:
   - Official URL remediation is already excluded from the active plan and
     recorded as complete in `REMEDIATION_PLAN.md`.
   - Phase 1, Surface Parity, is in progress.
     - `dicom-kb verify --edition <edition>` is implemented and tested.
-    - `dicom-kb context attribute ...`, Makefile aliases, and
-      `test-dicom-current` remain incomplete.
+    - `dicom-kb context attribute ...` is implemented and tested.
+    - Makefile aliases and `test-dicom-current` remain incomplete.
   - Phases 2-6 remain incomplete.
 
 ## Completed Work
@@ -29,6 +29,10 @@ alone.
 - Added focused tests for a fresh fixture build, checksum mismatch, missing
   artifact, missing DB warning, DB metadata mismatch, CLI success output, and
   CLI failure output.
+- Added `dicom-kb context attribute <attribute> --iod <iod>` as a documented
+  alias for `dicom-kb resolve attribute-context`.
+- Added a CLI regression proving the alias emits the same stable response
+  payload as `resolve attribute-context`.
 
 ## Verification Results
 
@@ -46,6 +50,11 @@ alone.
 - 2026-06-13: `uv run ruff check src/dicom_kb/sources/verify.py
   src/dicom_kb/cli/main.py tests/unit/test_sources_verify.py` passed.
 - 2026-06-13: `uv run mypy src/dicom_kb/sources/verify.py` passed.
+- 2026-06-13: `uv run pytest tests/unit/test_cli_lookup.py` passed
+  (`21 passed`).
+- 2026-06-13: `uv run ruff check src/dicom_kb/cli/main.py
+  tests/unit/test_cli_lookup.py` passed.
+- 2026-06-13: `uv run mypy src/dicom_kb/cli/main.py` passed.
 
 ## Blockers
 
@@ -62,9 +71,8 @@ alone.
 
 Continue Phase 1 surface parity:
 
-1. Add `dicom-kb context attribute <attribute> --iod <iod>` as an alias that
-   reuses the existing `resolve attribute-context` path.
-2. Add CLI tests proving `context attribute` and `resolve attribute-context`
-   produce equivalent payloads for fixture data.
-3. Add `make test-dicom-integration` and opt-in `make test-dicom-current`
-   targets after the context alias lands.
+1. Add `make test-dicom-integration` as an alias for `make test-integration`.
+2. Add opt-in `make test-dicom-current` for live current-edition resolution
+   tests without including it in default offline tests.
+3. Add a smoke check for the Makefile aliases that do not require network
+   access.
