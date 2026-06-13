@@ -94,8 +94,9 @@ uv run dicom-kb lookup tag '(0008,0060)' \
 ```
 
 Every query command returns a JSON envelope containing the result, citations,
-edition metadata, and a notice to consult the official DICOM Standard for
-authoritative text.
+edition metadata, deterministic response classification, parse-confidence
+metadata, and a notice to consult the official DICOM Standard for authoritative
+text.
 
 ## Build a Real Local Knowledge Base
 
@@ -107,6 +108,7 @@ the build and query commands.
 ```bash
 uv run dicom-kb fetch --edition current
 uv run dicom-kb build --edition <concrete-edition>
+uv run dicom-kb verify --edition <concrete-edition>
 ```
 
 The default official fetch downloads the v1 DocBook XML parts used by the
@@ -150,6 +152,18 @@ By default, generated databases are written to:
 Pass `--db /path/to/file.sqlite` to build or query against an explicit database
 path.
 
+Build commands emit ingestion metrics and can enforce quality gates:
+
+```bash
+uv run dicom-kb build --edition <edition> \
+  --max-unresolved-xref-rate 0.05 \
+  --max-unresolved-include-rate 0.0 \
+  --max-parse-warnings 0
+```
+
+Add `--allow-gate-failures` to keep the command warning-only while tuning
+thresholds.
+
 ## CLI Usage
 
 Show command help:
@@ -179,7 +193,17 @@ uv run dicom-kb module attributes 'Patient' --edition <edition> --expand-macros
 uv run dicom-kb resolve attribute-context Modality \
   --edition <edition> \
   --iod 'CT Image'
+uv run dicom-kb context attribute Modality \
+  --edition <edition> \
+  --iod 'CT Image'
 ```
+
+Attribute-context resolution reports an `effective_type` when it is
+machine-resolvable. For multiple applicable uses it applies the DICOM
+lowest-type rule after inspecting matched row descriptions and condition text
+for bounded override language such as "shall be Type 1". Conflicting or
+ambiguous override prose leaves `effective_type` null and reports source-ref
+warnings.
 
 Defined terms, enumerated values, and text search:
 
@@ -188,6 +212,21 @@ uv run dicom-kb lookup defined-terms Modality --edition <edition>
 uv run dicom-kb lookup enumerated-values PatientSex --edition <edition>
 uv run dicom-kb search-text 'transfer syntax' --edition <edition> --part PS3.6
 uv run dicom-kb retrieve-text PS3.6 <section-or-anchor> --edition <edition>
+```
+
+Use a YAML profile to supply shared defaults. CLI flags take precedence over
+environment variables, which take precedence over config values:
+
+```yaml
+dicom_kb:
+  edition: 2026b
+  artifact_dir: /tmp/dicom-standard-kb
+  database_url: sqlite:////tmp/dicom-kb.sqlite
+  require_citations: true
+```
+
+```bash
+uv run dicom-kb --config ./dicom-kb.yaml lookup tag Modality
 ```
 
 ## MCP Usage
@@ -245,6 +284,8 @@ Integration tests that require a locally built official knowledge base live in
 
 ```bash
 make test-integration
+make test-dicom-integration
+make test-dicom-current
 ```
 
 Useful make targets:
@@ -257,6 +298,7 @@ make run-mcp
 ## Documentation
 
 - `docs/build_local_kb.md`: detailed official fetch and local build workflow
+- `docs/release_checklist.md`: release verification checklist
 - `docs/architecture.md`: system architecture notes
 - `docs/agent_tools.md`: guidance for coding agents using deterministic tools
 - `docs/legal.md`: legal and redistribution notes

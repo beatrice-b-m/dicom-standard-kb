@@ -279,6 +279,11 @@ Acceptance criteria:
 
 ## Phase 6: Documentation and Release Gate
 
+Status: Complete. User-facing docs, agent guidance, local-build docs,
+implementation review notes, and release checklist items now cover the
+remediated command surface, response envelope, build gates, config profiles,
+verification, and effective-type override behavior.
+
 Goal: make the remediated behavior visible to users and lock it into the
 release process.
 

@@ -7,6 +7,27 @@
 
 ---
 
+## 0. Remediation Update
+
+**Updated:** 2026-06-13
+**Latest remediation implementation commit:** `327441b` (`feat(query): detect effective type overrides`)
+
+The remediation plan in `REMEDIATION_PLAN.md` has been executed for the active
+scope. Official URL derivation was explicitly excluded from the active plan;
+the remaining reviewed gaps were resolved as follows:
+
+| Original finding | Status | Resolution |
+|---|---|---|
+| G2 — response classification / parse confidence absent | Resolved | `ToolResponse` now requires `classification` and `parse_confidence`; Python, CLI, MCP, and JSON schema tests cover the fields. |
+| G3 — build metrics and quality gates partial | Resolved | Build output and build metadata now include aggregate ingestion metrics; `build` and `build-fixture` support configurable gate flags. |
+| G4 — `dicom-kb verify` missing | Resolved | `dicom-kb verify --edition <edition>` validates cached artifacts and database build metadata. |
+| G5 — `context attribute` naming deviation | Resolved | `dicom-kb context attribute` is implemented as an alias for `resolve attribute-context`. |
+| G6 — DICOM integration Make targets missing | Resolved | `make test-dicom-integration` and opt-in `make test-dicom-current` are available. |
+| G7 — YAML config profiles absent | Resolved | Root `--config` loads a strict top-level `dicom_kb` YAML profile with CLI > environment > config > default precedence. |
+| G8 — effective-type override caveat | Resolved | Attribute-context resolution now inspects matched row description and condition text for bounded override language and withholds ambiguous/conflicting results. |
+
+Current release-gate documentation lives in `docs/release_checklist.md`.
+
 ## 1. Verdict
 
 The v1 implementation is **substantially complete and verified working**.

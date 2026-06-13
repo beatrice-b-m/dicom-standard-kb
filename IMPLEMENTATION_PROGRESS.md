@@ -8,7 +8,7 @@ alone.
 
 - Last updated: 2026-06-13
 - Worktree baseline: clean at start of remediation continuation.
-- Latest observed commit: `50a9fa4 feat(config): apply profiles to CLI`
+- Latest observed commit: `327441b feat(query): detect effective type overrides`
 - Remediation plan status:
   - Official URL remediation is already excluded from the active plan and
     recorded as complete in `REMEDIATION_PLAN.md`.
@@ -40,7 +40,14 @@ alone.
     - Conflicting or ambiguous override prose withholds the primary effective
       type and keeps the response partially decidable with source-ref
       warnings.
-  - Phase 6 remains incomplete.
+  - Phase 6, Documentation and Release Gate, is complete.
+    - README, quickstart, agent-tool guidance, and local build docs describe
+      the remediated command surface and response envelope.
+    - `docs/release_checklist.md` records release gates for response
+      metadata, build metrics, config compatibility, verification, and local
+      official-edition integration checks.
+    - `IMPLEMENTATION_REVIEW.md` records the active remediation gaps as
+      resolved.
 
 ## Completed Work
 
@@ -116,6 +123,19 @@ alone.
   explicit overrides, ambiguous override prose, resolver warnings, and
   partially-decidable resolver classification.
 - Marked Phase 5 complete in `REMEDIATION_PLAN.md`.
+- Updated README examples for response metadata, `verify`, `context
+  attribute`, build quality gates, YAML config profiles, and effective-type
+  override behavior.
+- Expanded agent-tool guidance for response envelope preservation,
+  context-aware queries, effective-type interpretation, and cache
+  verification.
+- Expanded quickstart and local-build docs with fixture, official-edition,
+  verification, metrics, gates, config, and release-test examples.
+- Added `docs/release_checklist.md` with offline, build, config, and
+  official-edition release gates.
+- Updated `IMPLEMENTATION_REVIEW.md` with a remediation status table for the
+  active reviewed gaps.
+- Marked Phase 6 complete in `REMEDIATION_PLAN.md`.
 
 ## Verification Results
 
@@ -195,6 +215,12 @@ alone.
 - 2026-06-13: `uv run mypy src/dicom_kb/query/conditions.py
   src/dicom_kb/query/graph.py` passed.
 - 2026-06-13: `uv run pytest` passed (`211 passed, 4 skipped`).
+- 2026-06-13: `make lint` passed (`ruff check .` clean).
+- 2026-06-13: `make typecheck` passed (`mypy` clean across 51 source
+  files).
+- 2026-06-13: `make test` passed (`211 passed, 4 skipped`).
+- 2026-06-13: `make test-dicom-integration` passed (`40 passed, 4 skipped`);
+  skipped checks were optional integration prerequisites in the existing suite.
 
 ## Blockers
 
@@ -209,11 +235,5 @@ alone.
 
 ## Next Recommended Task
 
-Begin Phase 6 documentation and release-gate work:
-
-1. Update user-facing docs for the new verify command, context alias,
-   response metadata, build metrics/gates, config profiles, and effective-type
-   override behavior.
-2. Update the implementation review/release checklist to record the resolved
-   gaps.
-3. Run the default offline release verification set.
+No remediation phases remain. Before handing off, confirm release-gate command
+results and commit the Phase 6 documentation slice.

@@ -3,6 +3,7 @@
 ```bash
 dicom-kb fetch --edition current
 dicom-kb build --edition 2026b
+dicom-kb verify --edition 2026b
 dicom-kb lookup tag Modality --edition 2026b
 ```
 
@@ -49,3 +50,71 @@ dicom-kb fetch --edition 2026b --docbook-xml PS3.6=/path/to/part06.xml
 ```
 
 Generated databases live in the local cache and are not committed.
+
+## Verification
+
+After fetching and building, verify the local cache:
+
+```bash
+dicom-kb verify --edition 2026b
+```
+
+The verifier recomputes cached artifact checksums from the edition manifest
+and checks database build metadata when a database for the edition is present.
+Use `--db /path/to/file.sqlite` when the database is outside the default cache
+location.
+
+## Build Metrics and Quality Gates
+
+`build` and `build-fixture` emit a `metrics` object with aggregate ingestion
+quality counters, including resolved and unresolved include rows, resolved and
+unresolved cross references, parse warnings, and source-ref counts. The same
+metrics are persisted in build metadata.
+
+Use quality gates to fail a build when a local threshold is exceeded:
+
+```bash
+dicom-kb build --edition 2026b \
+  --max-unresolved-xref-rate 0.05 \
+  --max-unresolved-include-rate 0.0 \
+  --max-parse-warnings 0
+```
+
+Add `--allow-gate-failures` to emit warnings but keep the command exit code at
+zero while establishing thresholds for a new edition.
+
+## Configuration Profiles
+
+All major command paths accept a root `--config` option with a top-level
+`dicom_kb` YAML mapping:
+
+```yaml
+dicom_kb:
+  edition: 2026b
+  artifact_dir: /data/dicom-standard-kb
+  database_url: sqlite:////data/dicom-standard-kb/db/2026b.sqlite
+  allow_network_fetch: false
+  require_citations: true
+  require_edition_pin: true
+```
+
+CLI flags override environment variables, which override config values, which
+override built-in defaults.
+
+## Release Checks
+
+The default offline release checks are:
+
+```bash
+make lint
+make typecheck
+make test
+```
+
+Run local official-edition integration checks only after an official edition
+has been fetched and built in the local cache:
+
+```bash
+make test-dicom-integration
+make test-dicom-current
+```
