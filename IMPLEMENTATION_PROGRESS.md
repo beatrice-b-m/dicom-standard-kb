@@ -59,10 +59,13 @@ persist without parser warnings. The rebuilt default-cache 2026b KB records
 Type C attribute rows now also persist as raw `condition` IR records with
 machine status and source refs; the rebuilt default-cache 2026b KB records
 2,586 `condition` rows. Repository-wide verification for this slice passes
-with `uv run ruff check .`, `uv run mypy`, and `uv run pytest` (`171 passed,
+with `uv run ruff check .`, `uv run mypy`, and `uv run pytest` (`173 passed,
 3 skipped`). Compound query responses now route citation assembly through a
 group-aware citation builder while preserving the public `refs` envelope
-shape. The repository has a working v1 foundation through:
+shape. `dicom-kb eval run` now also has an explicit opt-in external harness
+mode that executes a configured command and validates returned `AgentRun`
+transcripts, while the deterministic reference runner remains the offline
+default. The repository has a working v1 foundation through:
 
 1. Work Order A: repository/build/legal scaffold.
 2. Work Order B: local source acquisition primitives.
@@ -246,6 +249,11 @@ shape. The repository has a working v1 foundation through:
     `CitationBuilder` to assemble grouped structured evidence from
     `SourceRef` and `StandardRef` inputs, then flatten and deduplicate into
     the existing public `refs` array.
+50. Optional external-agent runner configuration: `dicom-kb eval run
+    --agent external` executes a configured command, passes selected committed
+    prompt cases plus local KB context as JSON, validates returned `AgentRun`
+    transcripts, and keeps the deterministic reference runner as the default
+    offline path.
 
 ## Completed commits
 
@@ -321,17 +329,18 @@ shape. The repository has a working v1 foundation through:
 - `6523cb9 feat(query): expose parsed attribute value terms`
 - `a54cc16 feat(query): persist raw PS3.3 conditions`
 - `ac045bd refactor(query): centralize compound citation assembly`
+- `e29581c feat(eval): add external agent runner harness`
 
 ## Verification at stop
 
-The full local test suite was re-run on 2026-06-12 after the citation
-refinement slice:
+The full local test suite was re-run on 2026-06-12 after the external-agent
+runner slice:
 
 ```bash
 uv run pytest
 ```
 
-- pytest: 171 passed, 3 skipped. The skips are the optional external
+- pytest: 173 passed, 3 skipped. The skips are the optional external
   differential comparisons when their local inputs are not configured.
 
 The default-cache 2026b KB was rebuilt from the locally cached official
@@ -626,12 +635,12 @@ resolved per their completion conditions:
   source citations.
 - Compound query resolvers use a shared citation builder that groups evidence
   internally and preserves first-seen, deduplicated public `refs`.
+- `dicom-kb eval run --agent external` is an opt-in external harness mode that
+  executes a configured command, sends edition/case/KB context as JSON, and
+  validates returned transcripts before they are written for scoring.
 
 ## Not yet implemented
 
-- Optional real-LLM external-agent runner configuration. The committed R4
-  runner is the deterministic reference agent; real-KB transcripts remain
-  uncommitted build outputs by design.
 - Post-v1 by design: HTTP `api/` surface, PostgreSQL deployment, and v2
   parsers (`part16_templates.py`, `part18_web_services.py`).
 
@@ -646,7 +655,7 @@ resolved per their completion conditions:
 
 ## Recommended next work order
 
-Optional real-LLM external-agent runner configuration: keep the deterministic
-reference runner as the offline default, but add an explicit opt-in path for
-running committed prompt cases against an external model provider without
-recording uncommitted transcripts.
+No remaining v1 implementation gap is tracked here. The next substantial work
+is post-v1 planning for the HTTP `api/` surface, PostgreSQL deployment, and v2
+parser modules, which remain intentionally out of scope for the current local
+SQLite builder.
