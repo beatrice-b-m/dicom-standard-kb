@@ -8,7 +8,8 @@ alone.
 
 - Last updated: 2026-06-13
 - Worktree baseline: clean at start of remediation continuation.
-- Latest observed commit: `327441b feat(query): detect effective type overrides`
+- Latest completed remediation slice before this ledger update:
+  `7b1c3c4 docs(remediation): document completed gap fixes`
 - Remediation plan status:
   - Official URL remediation is already excluded from the active plan and
     recorded as complete in `REMEDIATION_PLAN.md`.
@@ -221,6 +222,11 @@ alone.
 - 2026-06-13: `make test` passed (`211 passed, 4 skipped`).
 - 2026-06-13: `make test-dicom-integration` passed (`40 passed, 4 skipped`);
   skipped checks were optional integration prerequisites in the existing suite.
+- 2026-06-13: `git log --oneline -3` confirmed the Phase 6 documentation
+  commit:
+  `7b1c3c4 docs(remediation): document completed gap fixes`,
+  `327441b feat(query): detect effective type overrides`,
+  `50a9fa4 feat(config): apply profiles to CLI`.
 
 ## Blockers
 
@@ -228,12 +234,10 @@ alone.
 
 ## Open Decisions
 
-- Phase 4 configuration profiles should be implemented as specified unless
-  later remediation discovers a spec conflict.
 - Phase 5 effective-type override handling remains conservative and does not
   broaden into full condition parsing.
 
 ## Next Recommended Task
 
-No remediation phases remain. Before handing off, confirm release-gate command
-results and commit the Phase 6 documentation slice.
+No remediation phases remain in `REMEDIATION_PLAN.md`. Stop per the active
+goal; future roadmap or post-v1 work should start as a separate task.
