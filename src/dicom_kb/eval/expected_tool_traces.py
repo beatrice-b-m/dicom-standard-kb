@@ -182,4 +182,106 @@ EXPECTED_TOOL_TRACES: dict[str, tuple[ExpectedToolCall, ...]] = {
             arguments={"code_value": "CT", "scheme": ""},
         ),
     ),
+    "agent.v2.workflow.person_name_vr_defined_terms": (
+        ExpectedToolCall(tool="lookup_vr", arguments={"vr": "PN"}),
+        ExpectedToolCall(
+            tool="lookup_data_element",
+            arguments={"tag_or_keyword": "Patient's Name"},
+        ),
+        ExpectedToolCall(
+            tool="lookup_defined_terms",
+            arguments={"attribute": "Patient's Name"},
+        ),
+    ),
+    "agent.v2.workflow.sequence_vr_encoding": (
+        ExpectedToolCall(tool="lookup_vr", arguments={"vr": "SQ"}),
+        ExpectedToolCall(tool="explain_encoding_rule", arguments={"topic": "SQ"}),
+    ),
+    "agent.v2.workflow.ob_pixel_data_encoding": (
+        ExpectedToolCall(tool="lookup_vr", arguments={"vr": "OB"}),
+        ExpectedToolCall(
+            tool="lookup_data_element",
+            arguments={"tag_or_keyword": "(7FE0,0010)"},
+        ),
+    ),
+    "agent.v2.workflow.un_vr_encoding": (
+        ExpectedToolCall(tool="lookup_vr", arguments={"vr": "UN"}),
+        ExpectedToolCall(tool="explain_encoding_rule", arguments={"topic": "UN"}),
+    ),
+    "agent.v2.workflow.implicit_transfer_syntax_uid": (
+        ExpectedToolCall(
+            tool="lookup_uid",
+            arguments={"uid_or_keyword": "1.2.840.10008.1.2"},
+        ),
+        ExpectedToolCall(
+            tool="lookup_transfer_syntax",
+            arguments={"uid_or_keyword": "1.2.840.10008.1.2"},
+        ),
+    ),
+    "agent.v2.workflow.deflated_transfer_syntax_encoding": (
+        ExpectedToolCall(
+            tool="lookup_uid",
+            arguments={"uid_or_keyword": "1.2.840.10008.1.2.1.99"},
+        ),
+        ExpectedToolCall(
+            tool="lookup_transfer_syntax",
+            arguments={"uid_or_keyword": "1.2.840.10008.1.2.1.99"},
+        ),
+    ),
+    "agent.v2.workflow.big_endian_transfer_syntax_retired": (
+        ExpectedToolCall(
+            tool="lookup_uid",
+            arguments={"uid_or_keyword": "1.2.840.10008.1.2.2"},
+        ),
+        ExpectedToolCall(
+            tool="lookup_transfer_syntax",
+            arguments={"uid_or_keyword": "1.2.840.10008.1.2.2"},
+        ),
+    ),
+    "agent.v2.workflow.dicomweb_retrieve_media_type": (
+        ExpectedToolCall(
+            tool="lookup_dicomweb_transaction",
+            arguments={"name_or_route": "RetrieveStudy"},
+        ),
+        ExpectedToolCall(
+            tool="lookup_media_type",
+            arguments={"media_type_or_context": "application/dicom"},
+        ),
+    ),
+    "agent.v2.workflow.dicomweb_store_media_type": (
+        ExpectedToolCall(
+            tool="lookup_dicomweb_transaction",
+            arguments={"name_or_route": "StoreInstances"},
+        ),
+        ExpectedToolCall(
+            tool="lookup_media_type",
+            arguments={"media_type_or_context": "STOW-RS request"},
+        ),
+    ),
+    "agent.v2.workflow.dicomweb_ambiguous_route_candidates": (
+        ExpectedToolCall(
+            tool="lookup_dicomweb_transaction",
+            arguments={"name_or_route": "/studies/{studyInstanceUID}"},
+        ),
+    ),
+    "agent.v2.workflow.sr_template_context_group_code": (
+        ExpectedToolCall(
+            tool="lookup_sr_template",
+            arguments={"tid_or_name": "1500"},
+        ),
+        ExpectedToolCall(
+            tool="lookup_context_group",
+            arguments={"cid_or_name": "29"},
+        ),
+        ExpectedToolCall(
+            tool="lookup_code_meaning",
+            arguments={"code_value": "CT", "scheme": "DCM"},
+        ),
+    ),
+    "agent.v2.workflow.media_file_preamble_fallback": (
+        ExpectedToolCall(
+            tool="lookup_media_type",
+            arguments={"media_type_or_context": "File Preamble"},
+        ),
+    ),
 }

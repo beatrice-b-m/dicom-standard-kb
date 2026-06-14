@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 from dicom_kb.eval.expected_tool_traces import EXPECTED_TOOL_TRACES
-from dicom_kb.eval.prompt_cases import AGENT_REGRESSION_CASES, V2_UNSUPPORTED_CASES
+from dicom_kb.eval.prompt_cases import (
+    AGENT_REGRESSION_CASES,
+    V2_UNSUPPORTED_CASES,
+    V2_WORKFLOW_CASES,
+)
 
 V1_AGENT_TOOL_NAMES = {
     "lookup_data_element",
@@ -31,7 +35,7 @@ V2_AGENT_TOOL_NAMES = {
 def test_agent_prompt_case_floor_ids_and_edition_pins() -> None:
     case_ids = [case.id for case in AGENT_REGRESSION_CASES]
 
-    assert len(AGENT_REGRESSION_CASES) >= 89
+    assert len(AGENT_REGRESSION_CASES) >= 100
     assert len(case_ids) == len(set(case_ids))
     assert all(case.edition == "2026b" for case in AGENT_REGRESSION_CASES)
     assert all(case.expected_tools for case in AGENT_REGRESSION_CASES)
@@ -87,6 +91,23 @@ def test_agent_prompt_cases_cover_v2_unsupported_claim_domains() -> None:
         for case in unsupported_cases
     )
     assert unsupported_case_ids <= set(EXPECTED_TOOL_TRACES)
+
+
+def test_agent_prompt_cases_include_v2_workflow_final_batch() -> None:
+    workflow_cases = [
+        case
+        for case in AGENT_REGRESSION_CASES
+        if case.id.startswith("agent.v2.workflow.")
+    ]
+    workflow_case_ids = {case.id for case in workflow_cases}
+
+    assert len(workflow_cases) >= 12
+    assert len(V2_WORKFLOW_CASES) >= 12
+    assert all(case_id in EXPECTED_TOOL_TRACES for case_id in workflow_case_ids)
+    assert all(
+        len(EXPECTED_TOOL_TRACES[case.id]) == len(case.expected_tools)
+        for case in workflow_cases
+    )
 
 
 def test_agent_prompt_cases_include_error_and_ambiguity_floor() -> None:

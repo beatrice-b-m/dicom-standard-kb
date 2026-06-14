@@ -443,6 +443,48 @@ def _run_v2_tool_case(case_id: str, invoke: ToolInvoker) -> None:
         invoke("lookup_code_meaning", {"code_value": "ZZZ", "scheme": "DCM"})
     elif case_key == "unsupported.code_meaning.empty_scheme":
         invoke("lookup_code_meaning", {"code_value": "CT", "scheme": ""})
+    elif case_key == "workflow.person_name_vr_defined_terms":
+        invoke("lookup_vr", {"vr": "PN"})
+        invoke("lookup_data_element", {"tag_or_keyword": "Patient's Name"})
+        invoke("lookup_defined_terms", {"attribute": "Patient's Name"})
+    elif case_key == "workflow.sequence_vr_encoding":
+        invoke("lookup_vr", {"vr": "SQ"})
+        invoke("explain_encoding_rule", {"topic": "SQ"})
+    elif case_key == "workflow.ob_pixel_data_encoding":
+        invoke("lookup_vr", {"vr": "OB"})
+        invoke("lookup_data_element", {"tag_or_keyword": "(7FE0,0010)"})
+    elif case_key == "workflow.un_vr_encoding":
+        invoke("lookup_vr", {"vr": "UN"})
+        invoke("explain_encoding_rule", {"topic": "UN"})
+    elif case_key == "workflow.implicit_transfer_syntax_uid":
+        uid = _uid_value("implicit_vr_little_endian")
+        invoke("lookup_uid", {"uid_or_keyword": uid})
+        invoke("lookup_transfer_syntax", {"uid_or_keyword": uid})
+    elif case_key == "workflow.deflated_transfer_syntax_encoding":
+        uid = _uid_value("deflated_explicit_vr_little_endian")
+        invoke("lookup_uid", {"uid_or_keyword": uid})
+        invoke("lookup_transfer_syntax", {"uid_or_keyword": uid})
+    elif case_key == "workflow.big_endian_transfer_syntax_retired":
+        uid = _uid_value("explicit_vr_big_endian")
+        invoke("lookup_uid", {"uid_or_keyword": uid})
+        invoke("lookup_transfer_syntax", {"uid_or_keyword": uid})
+    elif case_key == "workflow.dicomweb_retrieve_media_type":
+        invoke("lookup_dicomweb_transaction", {"name_or_route": "RetrieveStudy"})
+        invoke("lookup_media_type", {"media_type_or_context": "application/dicom"})
+    elif case_key == "workflow.dicomweb_store_media_type":
+        invoke("lookup_dicomweb_transaction", {"name_or_route": "StoreInstances"})
+        invoke("lookup_media_type", {"media_type_or_context": "STOW-RS request"})
+    elif case_key == "workflow.dicomweb_ambiguous_route_candidates":
+        invoke(
+            "lookup_dicomweb_transaction",
+            {"name_or_route": "/studies/{studyInstanceUID}"},
+        )
+    elif case_key == "workflow.sr_template_context_group_code":
+        invoke("lookup_sr_template", {"tid_or_name": "1500"})
+        invoke("lookup_context_group", {"cid_or_name": "29"})
+        invoke("lookup_code_meaning", {"code_value": "CT", "scheme": "DCM"})
+    elif case_key == "workflow.media_file_preamble_fallback":
+        invoke("lookup_media_type", {"media_type_or_context": "File Preamble"})
     else:
         raise ValueError(f"no reference v2 route for case: {case_id}")
 

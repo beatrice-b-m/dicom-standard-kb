@@ -336,6 +336,110 @@ V2_UNSUPPORTED_CASES = (
         ("code", "validation", "unsupported"),
     ),
 )
+V2_WORKFLOW_CASES = (
+    (
+        "workflow.person_name_vr_defined_terms",
+        (
+            "Check the PN VR and Patient's Name defined terms together, "
+            "with citations."
+        ),
+        ("lookup_vr", "lookup_data_element", "lookup_defined_terms"),
+        ("PN", "Patient's Name", "defined terms"),
+    ),
+    (
+        "workflow.sequence_vr_encoding",
+        "Check the SQ VR and explain the sequence encoding rule with citations.",
+        ("lookup_vr", "explain_encoding_rule"),
+        ("SQ", "Sequence of Items", "PS3.5"),
+    ),
+    (
+        "workflow.ob_pixel_data_encoding",
+        (
+            "Check the OB VR, then look up Pixel Data and cite the dictionary "
+            "evidence."
+        ),
+        ("lookup_vr", "lookup_data_element"),
+        ("OB", "Pixel Data"),
+    ),
+    (
+        "workflow.un_vr_encoding",
+        "Check the UN VR and explain its encoding rule without guessing.",
+        ("lookup_vr", "explain_encoding_rule"),
+        ("UN", "Unknown", "PS3.5"),
+    ),
+    (
+        "workflow.implicit_transfer_syntax_uid",
+        (
+            "Look up Implicit VR Little Endian as a UID and as a transfer "
+            "syntax detail."
+        ),
+        ("lookup_uid", "lookup_transfer_syntax"),
+        ("Implicit VR Little Endian", "encoding"),
+    ),
+    (
+        "workflow.deflated_transfer_syntax_encoding",
+        (
+            "Look up Deflated Explicit VR Little Endian and summarize the "
+            "encoding details."
+        ),
+        ("lookup_uid", "lookup_transfer_syntax"),
+        ("Deflated Explicit VR Little Endian", "encoding"),
+    ),
+    (
+        "workflow.big_endian_transfer_syntax_retired",
+        (
+            "Look up Explicit VR Big Endian with UID metadata and transfer "
+            "syntax encoding details."
+        ),
+        ("lookup_uid", "lookup_transfer_syntax"),
+        ("Explicit VR Big Endian", "retired", "encoding"),
+    ),
+    (
+        "workflow.dicomweb_retrieve_media_type",
+        (
+            "Look up RetrieveStudy and the application/dicom media type "
+            "constraints with citations."
+        ),
+        ("lookup_dicomweb_transaction", "lookup_media_type"),
+        ("RetrieveStudy", "application/dicom", "PS3.18"),
+    ),
+    (
+        "workflow.dicomweb_store_media_type",
+        (
+            "Look up StoreInstances and the STOW-RS request media type "
+            "constraints."
+        ),
+        ("lookup_dicomweb_transaction", "lookup_media_type"),
+        ("StoreInstances", "STOW-RS request", "multipart/related"),
+    ),
+    (
+        "workflow.dicomweb_ambiguous_route_candidates",
+        (
+            "Resolve /studies/{studyInstanceUID} and report candidate "
+            "DICOMweb transactions instead of guessing."
+        ),
+        ("lookup_dicomweb_transaction",),
+        ("DICOMweb", "candidates", "source references"),
+    ),
+    (
+        "workflow.sr_template_context_group_code",
+        (
+            "Look up TID 1500, CID 29, and code CT in scheme DCM with "
+            "PS3.16 citations."
+        ),
+        ("lookup_sr_template", "lookup_context_group", "lookup_code_meaning"),
+        ("TID 1500", "CID 29", "Computed Tomography"),
+    ),
+    (
+        "workflow.media_file_preamble_fallback",
+        (
+            "Ask for the File Preamble media rule and return only bounded "
+            "cited fallback text."
+        ),
+        ("lookup_media_type",),
+        ("File Preamble", "PS3.10", "fallback"),
+    ),
+)
 
 def get_agent_regression_case(case_id: str) -> AgentRegressionCase:
     """Return a committed agent regression case by id."""
@@ -584,6 +688,18 @@ def _v2_unsupported_cases() -> tuple[AgentRegressionCase, ...]:
     )
 
 
+def _v2_workflow_cases() -> tuple[AgentRegressionCase, ...]:
+    return tuple(
+        _case(
+            f"agent.v2.{case_id}",
+            prompt,
+            tools,
+            must_include,
+        )
+        for case_id, prompt, tools, must_include in V2_WORKFLOW_CASES
+    )
+
+
 def _error_cases() -> tuple[AgentRegressionCase, ...]:
     return tuple(
         _case(
@@ -634,6 +750,7 @@ def _agent_regression_cases() -> tuple[AgentRegressionCase, ...]:
         *_workflow_cases(),
         *_v2_tool_cases(),
         *_v2_unsupported_cases(),
+        *_v2_workflow_cases(),
         *_error_cases(),
     )
 

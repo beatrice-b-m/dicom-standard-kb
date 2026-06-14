@@ -63,10 +63,20 @@ def test_phase8_eval_harness_progress_is_recorded() -> None:
         "| d1615de | Added the first focused v2 public-tool prompt batch"
         in progress
     )
-    assert "| Phase 8 - Evaluation harness expansion | In progress |" in progress
     assert (
-        "| Next recommended action | Continue Phase 8 by adding the final prompt"
+        "| b5ee0e2 | Added the second focused v2 prompt batch"
         in progress
     )
-    assert "89 prompt cases exist" in progress
+    assert "| Phase 8 - Evaluation harness expansion | Complete |" in progress
+    assert (
+        "| 6 | At least 100 coding-task regression prompts pass through "
+        "deterministic tool calls before answer synthesis. | Complete |"
+        in progress
+    )
+    assert (
+        "| Next recommended action | Start Phase 9 by updating user-facing docs"
+        in progress
+    )
+    assert "101 prompt cases" in progress
     assert "Unsupported normative claim checks cover v2 topics." in progress
+    assert "final Phase 8 v2 workflow prompt batch" in progress
