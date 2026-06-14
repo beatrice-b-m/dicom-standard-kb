@@ -394,6 +394,13 @@ def build_sqlite_database(
                     transactions=parsed_part18.dicomweb_transactions,
                 )
             )
+            summaries.append(
+                import_dicom_media_types(
+                    connection,
+                    edition=manifest.edition,
+                    media_types=parsed_part18.media_types,
+                )
+            )
 
         metrics = BuildMetrics.from_imports(
             edition=manifest.edition,

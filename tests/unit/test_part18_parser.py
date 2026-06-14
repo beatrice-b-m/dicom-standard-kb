@@ -4,7 +4,11 @@ import json
 import sqlite3
 from pathlib import Path
 
-from dicom_kb.db.importers import import_dicomweb_transactions, import_docbook_structure
+from dicom_kb.db.importers import (
+    import_dicom_media_types,
+    import_dicomweb_transactions,
+    import_docbook_structure,
+)
 from dicom_kb.db.models import apply_migrations, connect_sqlite
 from dicom_kb.docbook.parser import parse_docbook_xml
 from dicom_kb.parsers.part18_web_services import parse_part18
@@ -22,7 +26,10 @@ def test_parse_part18_classifies_transaction_tables_and_warns_on_gaps() -> None:
 
     result = parse_part18(document, edition="2026b")
 
-    assert [table.table_id for table in result.recognized_tables] == ["table_18-1"]
+    assert [table.table_id for table in result.recognized_tables] == [
+        "table_18-1",
+        "table_18-2",
+    ]
     transaction_table = result.recognized_tables[0]
     assert transaction_table.table_kind == "dicomweb_transaction"
     assert transaction_table.source_ref.part == "PS3.18"
@@ -43,8 +50,23 @@ def test_parse_part18_classifies_transaction_tables_and_warns_on_gaps() -> None:
     assert retrieve_study.status_codes == ("200", "400", "404")
     assert retrieve_study.media_type_refs == ("application/dicom",)
     assert retrieve_study.source_ref.table_id == "table_18-1"
+    media_type_table = result.recognized_tables[1]
+    assert media_type_table.table_kind == "media_type"
+    assert media_type_table.source_ref.table_id == "table_18-2"
+    assert [
+        (record.media_type, record.service_context, record.directions)
+        for record in result.media_types
+    ] == [
+        ("application/dicom", "WADO-RS response", ("response",)),
+        ("multipart/related", "STOW-RS request", ("request",)),
+    ]
+    stow_media_type = result.media_types[1]
+    assert stow_media_type.transfer_syntax_constraints == (
+        "Each part supplies a DICOM instance payload",
+    )
+    assert stow_media_type.source_ref.table_id == "table_18-2"
     assert [(warning.table_id, warning.message) for warning in result.warnings] == [
-        ("table_18-2", "unsupported PS3.18 table shape")
+        ("table_18-3", "unsupported PS3.18 table shape")
     ]
 
 
@@ -128,6 +150,59 @@ def test_import_dicomweb_transactions_persists_rows_with_source_refs(
     ]
 
 
+def test_import_dicom_media_types_persists_ps318_contexts_with_source_refs(
+    tmp_path: Path,
+) -> None:
+    connection = _connection(tmp_path)
+    document = parse_docbook_xml(PS318_WEB_SERVICES_DOCBOOK, part="PS3.18")
+    parsed = parse_part18(document, edition="2026b")
+
+    summary = import_dicom_media_types(
+        connection,
+        edition="2026b",
+        media_types=parsed.media_types,
+    )
+
+    assert summary.dicom_media_types == 2
+    assert summary.source_refs == 1
+    rows = connection.execute(
+        """
+        SELECT media.media_type, media.service_context,
+               media.transfer_syntax_constraints_json, media.directions_json,
+               ref.part, ref.table_id
+        FROM dicom_media_type media
+        JOIN source_ref ref ON ref.id = media.source_ref_id
+        WHERE media.edition_id = ?
+        ORDER BY media.service_context
+        """,
+        ("2026b",),
+    ).fetchall()
+    assert [dict(row) for row in rows] == [
+        {
+            "media_type": "multipart/related",
+            "service_context": "STOW-RS request",
+            "transfer_syntax_constraints_json": json.dumps(
+                ("Each part supplies a DICOM instance payload",),
+                separators=(",", ":"),
+            ),
+            "directions_json": json.dumps(("request",), separators=(",", ":")),
+            "part": "PS3.18",
+            "table_id": "table_18-2",
+        },
+        {
+            "media_type": "application/dicom",
+            "service_context": "WADO-RS response",
+            "transfer_syntax_constraints_json": json.dumps(
+                ("Rendered transfer syntax negotiated by Accept header",),
+                separators=(",", ":"),
+            ),
+            "directions_json": json.dumps(("response",), separators=(",", ":")),
+            "part": "PS3.18",
+            "table_id": "table_18-2",
+        },
+    ]
+
+
 def test_part18_docbook_structure_persists_nodes_refs_and_raw_table_ir(
     tmp_path: Path,
 ) -> None:
@@ -140,8 +215,8 @@ def test_part18_docbook_structure_persists_nodes_refs_and_raw_table_ir(
         document=document,
     )
 
-    assert summary.doc_nodes == 5
-    assert summary.raw_table_irs == 2
+    assert summary.doc_nodes == 6
+    assert summary.raw_table_irs == 3
     section = connection.execute(
         """
         SELECT node.title, ref.part, ref.xml_id

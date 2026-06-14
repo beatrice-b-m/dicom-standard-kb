@@ -146,6 +146,11 @@ def _fixture_db(tmp_path: Path) -> Path:
         edition="2026b",
         transactions=parsed_part18.dicomweb_transactions,
     )
+    import_dicom_media_types(
+        connection,
+        edition="2026b",
+        media_types=parsed_part18.media_types,
+    )
     connection.close()
     return db_path
 
@@ -300,7 +305,7 @@ def test_cli_lookup_media_type_outputs_ps310_constraints(tmp_path: Path) -> None
         tmp_path,
         "lookup",
         "media-type",
-        "application/dicom",
+        "file",
         "--edition",
         "2026b",
     )
@@ -316,6 +321,31 @@ def test_cli_lookup_media_type_outputs_ps310_constraints(tmp_path: Path) -> None
         "directions": ["file"],
     }
     assert payload["refs"][0]["part"] == "PS3.10"
+
+
+def test_cli_lookup_media_type_outputs_ps318_dicomweb_context(
+    tmp_path: Path,
+) -> None:
+    payload = _invoke_json(
+        tmp_path,
+        "lookup",
+        "media-type",
+        "STOW-RS request",
+        "--edition",
+        "2026b",
+    )
+
+    assert payload["tool"] == "lookup_media_type"
+    assert payload["status"] == "ok"
+    assert payload["result"] == {
+        "media_type": "multipart/related",
+        "service_context": "STOW-RS request",
+        "transfer_syntax_constraints": [
+            "Each part supplies a DICOM instance payload",
+        ],
+        "directions": ["request"],
+    }
+    assert payload["refs"][0]["part"] == "PS3.18"
 
 
 def test_cli_lookup_dicomweb_outputs_ps318_transaction(tmp_path: Path) -> None:

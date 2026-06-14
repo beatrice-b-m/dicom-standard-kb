@@ -187,6 +187,11 @@ def _part18_connection(tmp_path: Path) -> sqlite3.Connection:
         edition="2026b",
         transactions=parsed_part18.dicomweb_transactions,
     )
+    import_dicom_media_types(
+        connection,
+        edition="2026b",
+        media_types=parsed_part18.media_types,
+    )
     return connection
 
 
@@ -770,6 +775,27 @@ def test_lookup_media_type_matches_ps310_context(tmp_path: Path) -> None:
     assert response.result is not None
     assert response.result["media_type"] == "application/dicom"
     assert response.result["service_context"] == "PS3.10 file"
+
+
+def test_lookup_media_type_matches_ps318_dicomweb_context(tmp_path: Path) -> None:
+    response = lookup_media_type(
+        _part18_connection(tmp_path),
+        media_type_or_context="STOW-RS request",
+        edition="2026b",
+    )
+
+    assert response.status == "ok"
+    assert response.result == {
+        "media_type": "multipart/related",
+        "service_context": "STOW-RS request",
+        "transfer_syntax_constraints": [
+            "Each part supplies a DICOM instance payload",
+        ],
+        "directions": ["request"],
+    }
+    assert response.refs[0].part == "PS3.18"
+    assert response.refs[0].table == "Synthetic DICOMweb Media Types"
+    assert response.refs[0].anchor == "table_18-2"
 
 
 def test_lookup_media_type_validates_empty_input_and_reports_not_found(

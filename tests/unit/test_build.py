@@ -105,13 +105,17 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
     assert any("PS3.8 table_8-2" in warning for warning in summary.warnings)
     assert any("PS3.10 table_10-3" in warning for warning in summary.warnings)
     assert any("PS3.16 table_16-2" in warning for warning in summary.warnings)
-    assert any("PS3.18 table_18-2" in warning for warning in summary.warnings)
+    assert any("PS3.18 table_18-3" in warning for warning in summary.warnings)
     assert any(
         import_summary.file_meta_requirements == 7
         for import_summary in summary.import_summaries
     )
     assert any(
         import_summary.dicom_media_types == 1
+        for import_summary in summary.import_summaries
+    )
+    assert any(
+        import_summary.dicom_media_types == 2
         for import_summary in summary.import_summaries
     )
     assert any(
@@ -238,7 +242,7 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
         "PS3.16",
         "PS3.18",
     }
-    assert len(v2_tables) == 13
+    assert len(v2_tables) == 14
     assert [dict(row) for row in vr_rows] == [
         {"vr": "OB", "name": "Other Byte", "binary_or_text": "binary"},
         {"vr": "PN", "name": "Person Name", "binary_or_text": "text"},
@@ -331,6 +335,24 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
                 separators=(",", ":"),
             ),
             "directions_json": json.dumps(("file",), separators=(",", ":")),
+        },
+        {
+            "media_type": "application/dicom",
+            "service_context": "WADO-RS response",
+            "transfer_syntax_constraints_json": json.dumps(
+                ("Rendered transfer syntax negotiated by Accept header",),
+                separators=(",", ":"),
+            ),
+            "directions_json": json.dumps(("response",), separators=(",", ":")),
+        },
+        {
+            "media_type": "multipart/related",
+            "service_context": "STOW-RS request",
+            "transfer_syntax_constraints_json": json.dumps(
+                ("Each part supplies a DICOM instance payload",),
+                separators=(",", ":"),
+            ),
+            "directions_json": json.dumps(("request",), separators=(",", ":")),
         },
     ]
     assert [dict(row) for row in dicomweb_rows] == [

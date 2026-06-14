@@ -44,13 +44,40 @@
         </tgroup>
       </table>
       <table xml:id="table_18-2">
+        <title>Synthetic DICOMweb Media Types</title>
+        <tgroup cols="4">
+          <thead>
+            <row>
+              <entry>Media Type</entry>
+              <entry>Service Context</entry>
+              <entry>Transfer Syntax Constraints</entry>
+              <entry>Direction</entry>
+            </row>
+          </thead>
+          <tbody>
+            <row>
+              <entry>application/dicom</entry>
+              <entry>WADO-RS response</entry>
+              <entry>Rendered transfer syntax negotiated by Accept header</entry>
+              <entry>response</entry>
+            </row>
+            <row>
+              <entry>multipart/related</entry>
+              <entry>STOW-RS request</entry>
+              <entry>Each part supplies a DICOM instance payload</entry>
+              <entry>request</entry>
+            </row>
+          </tbody>
+        </tgroup>
+      </table>
+      <table xml:id="table_18-3">
         <title>Synthetic Media Type Notes</title>
         <tgroup cols="2">
           <thead>
-            <row><entry>Media Type</entry><entry>Constraint</entry></row>
+            <row><entry>Topic</entry><entry>Constraint</entry></row>
           </thead>
           <tbody>
-            <row><entry>application/dicom</entry><entry>Prose-only media rule.</entry></row>
+            <row><entry>Accept negotiation</entry><entry>Prose-only media rule.</entry></row>
           </tbody>
         </tgroup>
       </table>

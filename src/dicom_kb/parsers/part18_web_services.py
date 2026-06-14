@@ -8,12 +8,17 @@ from dataclasses import dataclass
 from dicom_kb.docbook.parser import ParsedDocument
 from dicom_kb.docbook.tables import ParsedRow, ParsedTable
 from dicom_kb.docbook.text_chunks import normalize_text
-from dicom_kb.ir.models import DicomwebTransaction, ParserWarning, SourceRef
+from dicom_kb.ir.models import (
+    DicomMediaType,
+    DicomwebTransaction,
+    ParserWarning,
+    SourceRef,
+)
 
 
 @dataclass(frozen=True)
 class Part18TableSummary:
-    """A recognized PS3.18 table awaiting semantic import in Phase 4."""
+    """A recognized PS3.18 table and its source reference."""
 
     table_id: str | None
     title: str | None
@@ -27,13 +32,15 @@ class Part18ParseResult:
 
     recognized_tables: tuple[Part18TableSummary, ...]
     dicomweb_transactions: tuple[DicomwebTransaction, ...]
+    media_types: tuple[DicomMediaType, ...]
     warnings: tuple[ParserWarning, ...]
 
 
 def parse_part18(document: ParsedDocument, *, edition: str) -> Part18ParseResult:
-    """Classify PS3.18 tables without exposing public DICOMweb facts yet."""
+    """Parse supported PS3.18 web-service tables and report parser gaps."""
     recognized: list[Part18TableSummary] = []
     transactions: list[DicomwebTransaction] = []
+    media_types: list[DicomMediaType] = []
     warnings: list[ParserWarning] = []
 
     for table in document.tables:
@@ -50,6 +57,18 @@ def parse_part18(document: ParsedDocument, *, edition: str) -> Part18ParseResult
             transactions.extend(
                 _parse_dicomweb_transaction_table(table, headers, edition, warnings)
             )
+        elif _is_media_type_table(headers):
+            recognized.append(
+                Part18TableSummary(
+                    table_id=table.xml_id,
+                    title=table.title,
+                    table_kind="media_type",
+                    source_ref=_source_ref(edition, table),
+                )
+            )
+            media_types.extend(
+                _parse_media_type_table(table, headers, edition, warnings)
+            )
         else:
             warnings.append(
                 ParserWarning(
@@ -63,6 +82,7 @@ def parse_part18(document: ParsedDocument, *, edition: str) -> Part18ParseResult
     return Part18ParseResult(
         recognized_tables=tuple(recognized),
         dicomweb_transactions=tuple(transactions),
+        media_types=tuple(media_types),
         warnings=tuple(warnings),
     )
 
@@ -80,6 +100,12 @@ def _is_dicomweb_transaction_table(headers: dict[str, int]) -> bool:
     keys = headers.keys()
     return bool(keys & {"transaction", "name", "service"}) and bool(
         keys & {"method", "http method", "route", "resource", "uri"}
+    )
+
+
+def _is_media_type_table(headers: dict[str, int]) -> bool:
+    return "media type" in headers and bool(
+        headers.keys() & {"service context", "context", "transaction"}
     )
 
 
@@ -154,6 +180,60 @@ def _parse_dicomweb_transaction_table(
                 response_constraints=_optional_tuple(row, response_column),
                 status_codes=_optional_tuple(row, status_column),
                 media_type_refs=_optional_tuple(row, media_column),
+                source_ref=_source_ref(edition, table),
+            )
+        )
+    return records
+
+
+def _parse_media_type_table(
+    table: ParsedTable,
+    headers: dict[str, int],
+    edition: str,
+    warnings: list[ParserWarning],
+) -> list[DicomMediaType]:
+    records: list[DicomMediaType] = []
+    media_type_column = headers.get("media type")
+    context_column = _first_header(headers, "service context", "context")
+    if media_type_column is None or context_column is None:
+        warnings.append(
+            ParserWarning(
+                part="PS3.18",
+                table_id=table.xml_id,
+                row_index=None,
+                message="skipped media type table without media type and context",
+            )
+        )
+        return records
+
+    constraints_column = _first_header(
+        headers,
+        "transfer syntax constraints",
+        "transfer syntax constraint",
+        "constraints",
+    )
+    directions_column = _first_header(headers, "direction", "directions")
+    for row in _data_rows(table):
+        media_type = _cell(row, media_type_column)
+        service_context = _cell(row, context_column)
+        if not media_type or not service_context:
+            warnings.append(_warning(table, row, "skipped incomplete media type row"))
+            continue
+
+        records.append(
+            DicomMediaType(
+                id=(
+                    f"{edition}.PS3.18.media_type."
+                    f"{_identifier_fragment(service_context)}."
+                    f"{_identifier_fragment(media_type)}"
+                ),
+                edition_id=edition,
+                media_type=media_type,
+                service_context=service_context,
+                transfer_syntax_constraints=_optional_tuple(row, constraints_column),
+                directions=tuple(
+                    part.lower() for part in _optional_tuple(row, directions_column)
+                ),
                 source_ref=_source_ref(edition, table),
             )
         )

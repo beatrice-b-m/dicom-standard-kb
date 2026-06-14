@@ -211,7 +211,7 @@ def test_execute_mcp_tool_explains_encoding_rule(tmp_path: Path) -> None:
 def test_execute_mcp_tool_returns_media_type_constraints(tmp_path: Path) -> None:
     payload = execute_mcp_tool(
         "dicom_lookup_media_type",
-        {"media_type_or_context": "application/dicom"},
+        {"media_type_or_context": "file"},
         config=MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)),
     )
 
@@ -226,6 +226,28 @@ def test_execute_mcp_tool_returns_media_type_constraints(tmp_path: Path) -> None
         "directions": ["file"],
     }
     assert payload["refs"][0]["part"] == "PS3.10"
+
+
+def test_execute_mcp_tool_returns_ps318_media_type_context(
+    tmp_path: Path,
+) -> None:
+    payload = execute_mcp_tool(
+        "dicom_lookup_media_type",
+        {"media_type_or_context": "STOW-RS request"},
+        config=MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)),
+    )
+
+    assert payload["tool"] == "lookup_media_type"
+    assert payload["status"] == "ok"
+    assert payload["result"] == {
+        "media_type": "multipart/related",
+        "service_context": "STOW-RS request",
+        "transfer_syntax_constraints": [
+            "Each part supplies a DICOM instance payload",
+        ],
+        "directions": ["request"],
+    }
+    assert payload["refs"][0]["part"] == "PS3.18"
 
 
 def test_execute_mcp_tool_returns_dicomweb_transaction(tmp_path: Path) -> None:

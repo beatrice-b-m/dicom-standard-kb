@@ -420,7 +420,7 @@ def lookup_media_type(
     query_id: str | None = None,
     resolved_at: datetime | None = None,
 ) -> ToolResponse:
-    """Resolve a PS3.10 DICOM media-type row by media type or context."""
+    """Resolve a DICOM media-type row by media type or service context."""
     trace = build_trace(
         connection,
         edition=edition,

@@ -98,7 +98,7 @@ def test_mcp_stdio_protocol_with_official_client(tmp_path: Path) -> None:
 
                 media_type_result = await session.call_tool(
                     "dicom_lookup_media_type",
-                    {"media_type_or_context": "application/dicom"},
+                    {"media_type_or_context": "file"},
                 )
                 media_type_payload = _tool_payload(media_type_result)
                 assert media_type_payload["edition"] == "2026b"
@@ -111,6 +111,24 @@ def test_mcp_stdio_protocol_with_official_client(tmp_path: Path) -> None:
                     "PS3.10 file"
                 )
                 assert media_type_payload["refs"][0]["part"] == "PS3.10"
+
+                dicomweb_media_type_result = await session.call_tool(
+                    "dicom_lookup_media_type",
+                    {"media_type_or_context": "STOW-RS request"},
+                )
+                dicomweb_media_type_payload = _tool_payload(
+                    dicomweb_media_type_result
+                )
+                assert dicomweb_media_type_payload["edition"] == "2026b"
+                assert dicomweb_media_type_payload["tool"] == "lookup_media_type"
+                assert dicomweb_media_type_payload["status"] == "ok"
+                assert dicomweb_media_type_payload["result"]["media_type"] == (
+                    "multipart/related"
+                )
+                assert dicomweb_media_type_payload["result"]["service_context"] == (
+                    "STOW-RS request"
+                )
+                assert dicomweb_media_type_payload["refs"][0]["part"] == "PS3.18"
 
                 dicomweb_result = await session.call_tool(
                     "dicom_lookup_dicomweb_transaction",
