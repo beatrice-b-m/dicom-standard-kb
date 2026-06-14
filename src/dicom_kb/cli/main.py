@@ -45,6 +45,7 @@ from dicom_kb.mcp.server import (
 from dicom_kb.metadata import LEGAL_NOTICE, __version__
 from dicom_kb.query.answer_contracts import ToolResponse
 from dicom_kb.query.resolver import (
+    explain_encoding_rule,
     list_attributes_for_module,
     list_modules_for_iod,
     lookup_data_element,
@@ -52,7 +53,9 @@ from dicom_kb.query.resolver import (
     lookup_enumerated_values,
     lookup_iod,
     lookup_sop_class,
+    lookup_transfer_syntax,
     lookup_uid,
+    lookup_vr,
     resolve_attribute_context,
     retrieve_standard_text,
     search_standard_text,
@@ -79,6 +82,7 @@ iod_app = typer.Typer(help="Query PS3.3 IOD graph records.")
 module_app = typer.Typer(help="Query PS3.3 module graph records.")
 resolve_app = typer.Typer(help="Resolve DICOM facts in a usage context.")
 context_app = typer.Typer(help="Resolve documented DICOM context examples.")
+explain_app = typer.Typer(help="Explain cited DICOM rules from a local KB.")
 mcp_app = typer.Typer(help="Run the MCP server adapter.")
 eval_app = typer.Typer(help="Run agent regression scoring utilities.")
 app.add_typer(lookup_app, name="lookup")
@@ -86,6 +90,7 @@ app.add_typer(iod_app, name="iod")
 app.add_typer(module_app, name="module")
 app.add_typer(resolve_app, name="resolve")
 app.add_typer(context_app, name="context")
+app.add_typer(explain_app, name="explain")
 app.add_typer(mcp_app, name="mcp")
 app.add_typer(eval_app, name="eval")
 _ACTIVE_CONFIG = DicomKBConfig()
@@ -816,6 +821,41 @@ def search_text_command(
         )
 
 
+@explain_app.command("encoding")
+def explain_encoding_command(
+    topic: Annotated[
+        str,
+        typer.Argument(help="PS3.5 encoding topic, VR, or transfer syntax name."),
+    ],
+    edition: Annotated[
+        str | None,
+        typer.Option("--edition", help="Concrete DICOM edition label."),
+    ] = None,
+    db: Annotated[
+        Path | None,
+        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
+    ] = None,
+    cache_dir: Annotated[
+        Path | None,
+        typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
+    ] = None,
+) -> None:
+    """Explain a PS3.5 encoding rule with citations."""
+    resolved_edition = _resolve_edition(edition)
+    with _connect_query_db(
+        _resolve_db_path(db),
+        cache_dir=_resolve_cache_dir(cache_dir),
+        edition=resolved_edition,
+    ) as connection:
+        _echo_response(
+            explain_encoding_rule(
+                connection,
+                topic=topic,
+                edition=resolved_edition,
+            )
+        )
+
+
 @lookup_app.command("tag")
 def lookup_tag(
     tag_or_keyword: Annotated[
@@ -879,6 +919,76 @@ def lookup_uid_command(
     ) as connection:
         _echo_response(
             lookup_uid(
+                connection,
+                uid_or_keyword=uid_or_keyword,
+                edition=resolved_edition,
+            )
+        )
+
+
+@lookup_app.command("vr")
+def lookup_vr_command(
+    vr: Annotated[
+        str,
+        typer.Argument(help="Two-letter DICOM Value Representation code."),
+    ],
+    edition: Annotated[
+        str | None,
+        typer.Option("--edition", help="Concrete DICOM edition label."),
+    ] = None,
+    db: Annotated[
+        Path | None,
+        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
+    ] = None,
+    cache_dir: Annotated[
+        Path | None,
+        typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
+    ] = None,
+) -> None:
+    """Look up a PS3.5 Value Representation definition."""
+    resolved_edition = _resolve_edition(edition)
+    with _connect_query_db(
+        _resolve_db_path(db),
+        cache_dir=_resolve_cache_dir(cache_dir),
+        edition=resolved_edition,
+    ) as connection:
+        _echo_response(
+            lookup_vr(
+                connection,
+                vr=vr,
+                edition=resolved_edition,
+            )
+        )
+
+
+@lookup_app.command("transfer-syntax")
+def lookup_transfer_syntax_command(
+    uid_or_keyword: Annotated[
+        str,
+        typer.Argument(help="DICOM Transfer Syntax UID value, name, or keyword."),
+    ],
+    edition: Annotated[
+        str | None,
+        typer.Option("--edition", help="Concrete DICOM edition label."),
+    ] = None,
+    db: Annotated[
+        Path | None,
+        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
+    ] = None,
+    cache_dir: Annotated[
+        Path | None,
+        typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
+    ] = None,
+) -> None:
+    """Look up transfer syntax UID metadata and encoding details."""
+    resolved_edition = _resolve_edition(edition)
+    with _connect_query_db(
+        _resolve_db_path(db),
+        cache_dir=_resolve_cache_dir(cache_dir),
+        edition=resolved_edition,
+    ) as connection:
+        _echo_response(
+            lookup_transfer_syntax(
                 connection,
                 uid_or_keyword=uid_or_keyword,
                 edition=resolved_edition,

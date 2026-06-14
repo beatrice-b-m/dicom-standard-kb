@@ -30,7 +30,7 @@ Status values:
 | V1 baseline | Complete | See `IMPLEMENTATION_REVIEW.md`; v1 acceptance criteria are documented as met. |
 | Phase 0 - V2 contract baseline | Complete | V2 result payload builders, JSON schema coverage, canonical migration table names, and empty-database migration smoke coverage are in place. |
 | Phase 1 - New part acquisition/parser foundation | Complete | Default official DocBook fetch, synthetic build-fixture loading, parser scaffolds, raw table IR, source refs, and unsupported-table warning aggregation now cover PS3.5, PS3.7, PS3.8, PS3.10, PS3.16, and PS3.18. |
-| Phase 2 - PS3.5 VR and transfer syntax semantics | In progress | `vr_definition` and `transfer_syntax_detail` import paths plus Python resolver functions are in place; CLI/MCP public surfaces remain pending. |
+| Phase 2 - PS3.5 VR and transfer syntax semantics | In progress | `vr_definition` and `transfer_syntax_detail` import paths plus Python resolver functions and CLI commands are in place; MCP public surface and official-edition goldens remain pending. |
 | Phase 3 - PS3.10 file meta and media foundation | Not started | Prepares shared media-type model. |
 | Phase 4 - PS3.18 DICOMweb transactions | Not started | Satisfies v2 acceptance criterion 2. |
 | Phase 5 - PS3.16 SR templates, CIDs, and codes | Not started | Satisfies v2 acceptance criterion 3. |
@@ -57,11 +57,11 @@ Status values:
 | Current phase | Phase 2 - PS3.5 VR and Transfer Syntax Semantics |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed commit | 094ab61 |
-| Last verification | `uv run --dev pytest tests/unit/test_query_resolver.py` passed with 41 passed; sandboxed `make lint` and `make typecheck` failed because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` initially found import-order and line-length issues and passed after the fix; escalated `make typecheck` passed; escalated `make test` passed with 242 passed and 4 skipped. |
+| Last completed commit | 56e2592 |
+| Last verification | `uv run --dev pytest tests/unit/test_cli_lookup.py` passed with 25 passed; sandboxed `make lint`, `make typecheck`, and `make test` failed because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed; escalated `make test` passed with 245 passed and 4 skipped. |
 | Current blocker | None |
-| Commit-ready summary | Added Python resolver functions for `lookup_vr`, `lookup_transfer_syntax`, and `explain_encoding_rule`, backed by imported `vr_definition` and `transfer_syntax_detail` rows plus cited PS3.5 text fallback. |
-| Next recommended action | Continue Phase 2 with CLI commands for `dicom-kb lookup vr <vr>`, `dicom-kb lookup transfer-syntax <uid-or-keyword>`, and `dicom-kb explain encoding <topic>`, using the new Python resolvers and focused snapshot tests. |
+| Commit-ready summary | Added CLI commands for `dicom-kb lookup vr <vr>`, `dicom-kb lookup transfer-syntax <uid-or-keyword>`, and `dicom-kb explain encoding <topic>`, using the existing Python resolvers and synthetic fixture coverage. |
+| Next recommended action | Continue Phase 2 with MCP tools for `dicom_lookup_vr`, `dicom_lookup_transfer_syntax`, and `dicom_explain_encoding_rule`, using the existing Python resolvers and focused schema/protocol tests. |
 
 ## Phase 0 - V2 Contract Baseline
 
@@ -186,7 +186,7 @@ Completion checklist:
 - [x] `vr_definition` import path exists.
 - [x] `transfer_syntax_detail` import path exists.
 - [x] Python resolver functions exist and are tested.
-- [ ] CLI commands exist and have snapshot tests.
+- [x] CLI commands exist and have snapshot tests.
 - [ ] MCP tools exist and have schema tests.
 - [ ] Official-edition integration goldens cover representative transfer syntaxes.
 - [ ] V2 acceptance criterion 1 is marked complete.
@@ -197,14 +197,16 @@ Commits:
 |---|---|---|
 | fc1d732 | Added PS3.5 VR definition records, row parsing, SQLite import/build wiring, and synthetic fixture coverage for PN, OB, SQ, and UN. | `uv run --dev pytest tests/unit/test_part05_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
 | 094ab61 | Added `transfer_syntax_detail` records derived from PS3.6 transfer syntax UID rows, SQLite import/build wiring, and synthetic coverage for explicit, implicit, deflated, retired big-endian, and encapsulated JPEG transfer syntaxes. | `uv run --dev pytest tests/unit/test_part05_parser.py tests/unit/test_part06_parser.py tests/unit/test_build.py`; `uv run --dev pytest tests/unit/test_part05_parser.py tests/unit/test_part06_parser.py tests/unit/test_db_importers.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
-| Pending current commit | Added Python resolver functions for `lookup_vr`, `lookup_transfer_syntax`, and `explain_encoding_rule`, backed by imported PS3.5 VR rows, PS3.6 transfer syntax UID rows, and cited PS3.5 text fallback. | `uv run --dev pytest tests/unit/test_query_resolver.py`; `make lint`; `make typecheck`; `make test` |
+| 56e2592 | Added Python resolver functions for `lookup_vr`, `lookup_transfer_syntax`, and `explain_encoding_rule`, backed by imported PS3.5 VR rows, PS3.6 transfer syntax UID rows, and cited PS3.5 text fallback. | `uv run --dev pytest tests/unit/test_query_resolver.py`; `make lint`; `make typecheck`; `make test` |
+| Pending current commit | Added CLI commands for `lookup vr`, `lookup transfer-syntax`, and `explain encoding`, wired to the existing PS3.5 resolver functions with focused CLI coverage. | `uv run --dev pytest tests/unit/test_cli_lookup.py`; `make lint`; `make typecheck`; `make test` |
 
 Notes:
 
 - Retired status continues to come from PS3.6 UID registry rows.
 - The transfer syntax detail slice imported transfer syntax details only.
-- The current slice adds Python resolver functions only. CLI commands, MCP
-  tools, and official-edition goldens remain pending.
+- The resolver slice added Python resolver functions only.
+- The current slice adds CLI commands only. MCP tools and official-edition
+  goldens remain pending.
 
 ## Phase 3 - PS3.10 File Meta and Media Foundation
 

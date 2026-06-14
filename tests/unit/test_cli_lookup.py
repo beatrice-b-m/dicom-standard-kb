@@ -15,11 +15,17 @@ from dicom_kb.db.importers import (
     import_part03,
     import_part04,
     import_part06,
+    import_transfer_syntax_details,
+    import_vr_definitions,
 )
 from dicom_kb.db.models import apply_migrations, connect_sqlite
 from dicom_kb.docbook.parser import parse_docbook_xml
 from dicom_kb.parsers.part03_iods import parse_part03
 from dicom_kb.parsers.part04_sop_classes import parse_part04
+from dicom_kb.parsers.part05_encoding import (
+    parse_part05,
+    transfer_syntax_details_from_uid_registry,
+)
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
 from dicom_kb.sources.downloader import (
     DEFAULT_DOCBOOK_PARTS,
@@ -32,6 +38,7 @@ from tests.fixtures_synthetic import (
     FIXTURE_DIR,
     PS33_CT_IMAGE_DOCBOOK,
     PS34_SOP_CLASSES_DOCBOOK,
+    PS35_ENCODING_DOCBOOK,
     PS36_REGISTRY_DOCBOOK,
 )
 
@@ -57,6 +64,26 @@ def _fixture_db(tmp_path: Path) -> Path:
         edition="2026b",
         data_elements=parsed.data_elements,
         uid_registry_entries=parsed.uid_registry_entries,
+    )
+    part05_document = parse_docbook_xml(PS35_ENCODING_DOCBOOK, part="PS3.5")
+    import_docbook_structure(
+        connection,
+        edition="2026b",
+        document=part05_document,
+    )
+    parsed_part05 = parse_part05(part05_document, edition="2026b")
+    import_vr_definitions(
+        connection,
+        edition="2026b",
+        vr_definitions=parsed_part05.vr_definitions,
+    )
+    import_transfer_syntax_details(
+        connection,
+        edition="2026b",
+        transfer_syntax_details=transfer_syntax_details_from_uid_registry(
+            edition="2026b",
+            uid_registry_entries=parsed.uid_registry_entries,
+        ),
     )
     part03_document = parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3")
     import_docbook_structure(
@@ -184,6 +211,83 @@ def test_cli_lookup_uid_outputs_retired_entry(tmp_path: Path) -> None:
     assert payload["result"]["uid_value"] == "1.2.840.10008.1.2.2"
     assert payload["result"]["retired"] is True
     assert payload["refs"][0]["part"] == "PS3.6"
+
+
+def test_cli_lookup_vr_outputs_ps35_definition(tmp_path: Path) -> None:
+    payload = _invoke_json(
+        tmp_path,
+        "lookup",
+        "vr",
+        "pn",
+        "--edition",
+        "2026b",
+    )
+
+    assert payload["tool"] == "lookup_vr"
+    assert payload["status"] == "ok"
+    assert payload["result"] == {
+        "binary_or_text": "text",
+        "character_repertoire_notes": [
+            "uses the default character repertoire",
+        ],
+        "length_notes": ["variable length"],
+        "name": "Person Name",
+        "padding_behavior": "space padded",
+        "value_representation_class": "character string",
+        "vr": "PN",
+    }
+    assert payload["refs"][0]["part"] == "PS3.5"
+
+
+def test_cli_lookup_transfer_syntax_outputs_encoding_details(
+    tmp_path: Path,
+) -> None:
+    payload = _invoke_json(
+        tmp_path,
+        "lookup",
+        "transfer-syntax",
+        "ExplicitVRLittleEndian",
+        "--edition",
+        "2026b",
+    )
+
+    assert payload["tool"] == "lookup_transfer_syntax"
+    assert payload["status"] == "ok"
+    assert payload["result"] == {
+        "compression_family": None,
+        "encapsulated": False,
+        "encoding_notes": [],
+        "endian": "little",
+        "explicit_vr": True,
+        "retired": False,
+        "uid_keyword": "ExplicitVRLittleEndian",
+        "uid_name": "Explicit VR Little Endian",
+        "uid_value": "1.2.840.10008.1.2.1",
+    }
+    assert {ref["part"] for ref in payload["refs"]} == {"PS3.6"}
+
+
+def test_cli_explain_encoding_outputs_structured_rule(tmp_path: Path) -> None:
+    payload = _invoke_json(
+        tmp_path,
+        "explain",
+        "encoding",
+        "OB",
+        "--edition",
+        "2026b",
+    )
+
+    assert payload["tool"] == "explain_encoding_rule"
+    assert payload["status"] == "ok"
+    assert payload["result"]["summary"] == "OB is the Other Byte VR."
+    assert payload["result"]["structured_facts"] == [
+        "name: Other Byte",
+        "value representation class: byte string",
+        "binary or text: binary",
+        "padding behavior: null padded",
+        "length note: variable length",
+    ]
+    assert payload["refs"][0]["part"] == "PS3.5"
 
 
 def test_cli_lookup_defined_terms_outputs_value_terms(tmp_path: Path) -> None:
