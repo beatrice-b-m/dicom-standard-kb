@@ -33,6 +33,7 @@ def test_attribute_value_term_coverage_audit_is_documented() -> None:
     architecture = (repo_root / "docs" / "architecture.md").read_text(
         encoding="utf-8"
     )
+    architecture_words = " ".join(architecture.split())
 
     assert "attribute_value_term" in architecture
     assert "Enumerated Values" in architecture
@@ -40,9 +41,43 @@ def test_attribute_value_term_coverage_audit_is_documented() -> None:
     assert "term_kind" in architecture
     assert "data_element" in architecture
     assert "attribute_use" in architecture
-    assert "module or macro names" in architecture
-    assert "IOD, SOP Class, TID, CID, and DICOMweb" in architecture
-    assert "contexts are not yet resolved" in architecture
+    assert "PS3.3 module names" in architecture
+    assert "PS3.3 macro names" in architecture
+    assert "PS3.3 IOD names or keywords" in architecture
+    assert "PS3.4 SOP Class names, keywords, or UIDs" in architecture
+    assert "returns candidates rather than merging" in architecture
+    assert (
+        "TID, CID, and DICOMweb contexts are not attribute-use contexts"
+        in architecture_words
+    )
+
+
+def test_architecture_documents_v2_entities() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+
+    architecture = (repo_root / "docs" / "architecture.md").read_text(
+        encoding="utf-8"
+    )
+    architecture_words = " ".join(architecture.split())
+
+    for entity in (
+        "vr_definition",
+        "transfer_syntax_detail",
+        "file_meta_requirement",
+        "dicom_media_type",
+        "dicomweb_transaction",
+        "sr_template",
+        "sr_template_row",
+        "context_group",
+        "context_group_row",
+        "coded_concept",
+    ):
+        assert entity in architecture
+
+    assert "edition_id" in architecture
+    assert "source_ref_id" in architecture
+    assert "standalone terminology export" in architecture
+    assert "ambiguous route matches return candidates" in architecture_words
 
 
 def test_phase8_eval_harness_progress_is_recorded() -> None:
@@ -73,10 +108,7 @@ def test_phase8_eval_harness_progress_is_recorded() -> None:
         "deterministic tool calls before answer synthesis. | Complete |"
         in progress
     )
-    assert (
-        "| Next recommended action | Continue Phase 9 by updating "
-        "`docs/architecture.md`" in progress
-    )
+    assert "`docs/release_checklist.md`" in progress
     assert "101 prompt cases" in progress
     assert "Unsupported normative claim checks cover v2 topics." in progress
     assert "final Phase 8 v2 workflow prompt batch" in progress

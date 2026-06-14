@@ -37,7 +37,7 @@ Status values:
 | Phase 6 - Contextual enumerated values and defined terms | Complete | Existing `attribute_value_term` coverage is documented; deterministic IOD/SOP/module/macro context resolution works through the shared PS3.3/PS3.4 graph, and ambiguous contextual value-term matches now return candidates instead of a merged answer. |
 | Phase 7 - Selected PS3.7/PS3.8 semantics | Complete | Selected PS3.7 DIMSE service-behavior and PS3.8 association-PDU parser slices are in place for synthetic fixtures, with cited PS3.7/PS3.8 retrieval fallback coverage and agent regression traces through `retrieve_standard_text`. |
 | Phase 8 - Evaluation harness expansion | Complete | The final v2 workflow prompt batch raises the suite to 101 prompt cases; every implemented v2 public tool appears in deterministic expected traces, unsupported normative-claim checks cover the major v2 domains, and the full agent regression suite passes. |
-| Phase 9 - V2 release hardening | In progress | README and agent-tool docs now cover v2 build defaults, CLI commands, and MCP tool names. Architecture docs, release checklist, integration goldens, metrics, and final gates remain. |
+| Phase 9 - V2 release hardening | In progress | README, agent-tool docs, and architecture docs now cover v2 build defaults, CLI commands, MCP tool names, v2 storage entities, and contextual value-term resolution. Release checklist, integration goldens, metrics, and final gates remain. |
 
 ## Acceptance Criteria Tracker
 
@@ -57,11 +57,11 @@ Status values:
 | Current phase | Phase 9 - V2 Release Hardening |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed commit | Pending current commit. Previous completed Phase 8 commit: b5ee0e2. |
-| Last verification | `uv run --dev pytest tests/unit/test_metadata.py` initially failed because the existing Phase 8 metadata guard still expected the old Phase 9 next action; after updating that assertion, `uv run --dev pytest tests/unit/test_metadata.py` passed with 5 passed. Sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
+| Last completed commit | Pending current commit. Previous completed Phase 9 commit: def0980. |
+| Last verification | `uv run --dev pytest tests/unit/test_metadata.py` initially failed on line-wrapped architecture wording assertions and passed after the wording was made explicit, with 6 passed. Sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
 | Current blocker | None |
-| Commit-ready summary | Updated README and `docs/agent_tools.md` so user-facing docs describe the v2 default build parts, CLI query commands, and MCP tool names, with metadata coverage guarding the documented v2 surfaces. |
-| Next recommended action | Continue Phase 9 by updating `docs/architecture.md` with the v2 entities and current contextual value-term resolution behavior. |
+| Commit-ready summary | Updated `docs/architecture.md` so it documents the v2 storage entities and current contextual value-term resolution behavior, with metadata coverage guarding the documented architecture state. |
+| Next recommended action | Continue Phase 9 by updating `docs/release_checklist.md` with the v2 release gates and required verification commands. |
 
 ## Phase 0 - V2 Contract Baseline
 
@@ -516,7 +516,7 @@ Commits:
 |---|---|---|
 | d1615de | Added the first focused v2 public-tool prompt batch with deterministic expected traces and reference-agent routing for `lookup_vr`, `lookup_transfer_syntax`, `explain_encoding_rule`, `lookup_media_type`, `lookup_dicomweb_transaction`, `lookup_sr_template`, `lookup_context_group`, and `lookup_code_meaning`. | `uv run --dev pytest tests/unit/test_metadata.py tests/agent_regression/test_prompt_cases.py tests/agent_regression/test_runner.py -k 'metadata or phase8 or prompt_cases or v2_public_tool_batch'` passed with 10 passed and 5 deselected; `uv run --dev pytest tests/agent_regression` passed with 16 passed; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
 | b5ee0e2 | Added the second focused v2 prompt batch for unsupported normative-claim checks across transfer syntax, DICOMweb, media type, TID, CID, and code lookup topics, with deterministic traces, reference-runner routes, and focused scoring coverage. | `uv run --dev pytest tests/agent_regression/test_prompt_cases.py tests/agent_regression/test_runner.py tests/agent_regression/test_scoring.py -k 'prompt_cases or v2_unsupported or unsupported_normative'` passed with 8 passed and 11 deselected; `uv run --dev ruff check src/dicom_kb/eval/prompt_cases.py src/dicom_kb/eval/expected_tool_traces.py src/dicom_kb/eval/runner.py tests/agent_regression/test_prompt_cases.py tests/agent_regression/test_runner.py tests/agent_regression/test_scoring.py` passed; `uv run --dev pytest tests/agent_regression` passed with 19 passed; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
-| Pending current commit | Added the final Phase 8 v2 workflow prompt batch with composed public-tool scenarios, deterministic expected traces, focused reference-runner coverage, and metadata/tracker updates. | `uv run --dev pytest tests/agent_regression/test_prompt_cases.py tests/agent_regression/test_runner.py -k 'prompt_cases or v2_workflow'` passed with 8 passed and 7 deselected; `uv run --dev pytest tests/agent_regression` passed with 21 passed; `uv run --dev python - <<'PY' ...` confirmed 101 prompt cases; `uv run --dev pytest tests/unit/test_metadata.py tests/agent_regression/test_prompt_cases.py tests/agent_regression/test_runner.py -k 'phase8 or prompt_cases or v2_workflow'` passed with 9 passed and 10 deselected; `uv run --dev ruff check src/dicom_kb/eval/prompt_cases.py src/dicom_kb/eval/expected_tool_traces.py src/dicom_kb/eval/runner.py tests/agent_regression/test_prompt_cases.py tests/agent_regression/test_runner.py tests/unit/test_metadata.py` passed; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
+| d13365e | Added the final Phase 8 v2 workflow prompt batch with composed public-tool scenarios, deterministic expected traces, focused reference-runner coverage, and metadata/tracker updates. | `uv run --dev pytest tests/agent_regression/test_prompt_cases.py tests/agent_regression/test_runner.py -k 'prompt_cases or v2_workflow'` passed with 8 passed and 7 deselected; `uv run --dev pytest tests/agent_regression` passed with 21 passed; `uv run --dev python - <<'PY' ...` confirmed 101 prompt cases; `uv run --dev pytest tests/unit/test_metadata.py tests/agent_regression/test_prompt_cases.py tests/agent_regression/test_runner.py -k 'phase8 or prompt_cases or v2_workflow'` passed with 9 passed and 10 deselected; `uv run --dev ruff check src/dicom_kb/eval/prompt_cases.py src/dicom_kb/eval/expected_tool_traces.py src/dicom_kb/eval/runner.py tests/agent_regression/test_prompt_cases.py tests/agent_regression/test_runner.py tests/unit/test_metadata.py` passed; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
 
 Notes:
 
@@ -547,7 +547,7 @@ Completion checklist:
 
 - [x] README documents v2 build and query commands.
 - [x] `docs/agent_tools.md` documents all v2 tools.
-- [ ] `docs/architecture.md` documents v2 entities.
+- [x] `docs/architecture.md` documents v2 entities.
 - [ ] `docs/release_checklist.md` includes v2 gates.
 - [ ] Official-edition integration tests cover representative v2 queries.
 - [ ] Build metrics report v2 parser warning counts by part.
@@ -562,7 +562,8 @@ Commits:
 
 | Commit | Summary | Verification |
 |---|---|---|
-| Pending current commit | Documented the v2 default build parts, CLI query commands, and MCP tool names in README and `docs/agent_tools.md`, with focused metadata coverage. | `uv run --dev pytest tests/unit/test_metadata.py` passed with 5 passed after refreshing the stale Phase 8 next-action assertion; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
+| def0980 | Documented the v2 default build parts, CLI query commands, and MCP tool names in README and `docs/agent_tools.md`, with focused metadata coverage. | `uv run --dev pytest tests/unit/test_metadata.py` passed with 5 passed after refreshing the stale Phase 8 next-action assertion; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
+| Pending current commit | Documented the v2 storage entities and current contextual value-term resolution behavior in `docs/architecture.md`, with focused metadata coverage. | `uv run --dev pytest tests/unit/test_metadata.py` initially failed on line-wrapped architecture wording assertions and passed after the wording was made explicit, with 6 passed. Sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
 
 Notes:
 
