@@ -57,11 +57,11 @@ Status values:
 | Current phase | Phase 1 - New Part Acquisition and Parser Foundation |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed commit | 0bbb0fe |
-| Last verification | `uv run --dev pytest tests/unit/test_sources.py tests/unit/test_build.py tests/unit/test_cli_lookup.py` passed with 43 passed; `make lint` passed; `make typecheck` passed with no issues in 51 source files; `make test` passed with 219 passed, 4 skipped. |
+| Last completed commit | Pending current commit |
+| Last verification | `uv run --dev pytest tests/unit/test_part05_parser.py tests/unit/test_build.py` passed with 6 passed; sandboxed `make lint`, `make typecheck`, and `make test` failed because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed with no issues in 52 source files; escalated `make test` passed with 221 passed, 4 skipped. |
 | Current blocker | None |
-| Commit-ready summary | Extended the default official DocBook acquisition set and offline build fixture registration to include PS3.5, PS3.7, PS3.8, PS3.10, PS3.16, and PS3.18 without advertising v2 public tools. |
-| Next recommended action | Add the PS3.5 parser module scaffold with synthetic fixture coverage for document nodes, source refs, raw table IR, and unsupported-table warnings, without exposing PS3.5 query tools yet. |
+| Commit-ready summary | Added the PS3.5 parser scaffold, direct fixture coverage for recognized VR tables and unsupported-table warnings, generic PS3.5 document-node/source-ref/raw-table persistence coverage, and build warning aggregation for PS3.5 parser gaps without exposing query tools. |
+| Next recommended action | Add the PS3.7 parser module scaffold with synthetic fixture coverage for document nodes, source refs, raw table IR, and unsupported-table warnings, without exposing PS3.7 query tools yet. |
 
 ## Phase 0 - V2 Contract Baseline
 
@@ -119,7 +119,7 @@ Scope:
 Completion checklist:
 
 - [x] Official artifact configuration supports all v2 parts.
-- [ ] Parser module for PS3.5 exists and has fixture coverage.
+- [x] Parser module for PS3.5 exists and has fixture coverage.
 - [ ] Parser module for PS3.7 exists and has fixture coverage.
 - [ ] Parser module for PS3.8 exists and has fixture coverage.
 - [ ] Parser module for PS3.10 exists and has fixture coverage.
@@ -132,7 +132,7 @@ Commits:
 
 | Commit | Summary | Verification |
 |---|---|---|
-| Pending current commit | Default DocBook acquisition and fixture builds include all v2 parts while preserving source refs and raw table IR through the generic DocBook importer. | `uv run --dev pytest tests/unit/test_sources.py tests/unit/test_build.py tests/unit/test_cli_lookup.py`; `make lint`; `make typecheck`; `make test` |
+| Pending current commit | Added the PS3.5 parser scaffold and fixture coverage for recognized VR tables, unsupported-table warnings, source refs, document nodes, and raw table IR. | `uv run --dev pytest tests/unit/test_part05_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
 
 Notes:
 
@@ -140,6 +140,10 @@ Notes:
 - The current slice added tiny synthetic DocBook fixtures for the new v2 parts
   only to exercise generic ingestion; dedicated semantic parser modules are
   still pending.
+- The PS3.5 parser scaffold classifies VR behavior tables and reports
+  unsupported PS3.5 table shapes as parser warnings. It intentionally does
+  not import `vr_definition` or expose encoding query behavior; that remains
+  Phase 2 work.
 
 ## Phase 2 - PS3.5 VR and Transfer Syntax Semantics
 

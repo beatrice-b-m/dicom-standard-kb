@@ -16,6 +16,17 @@
           </tbody>
         </tgroup>
       </table>
+      <table xml:id="table_5-2">
+        <title>Synthetic Encoding Notes</title>
+        <tgroup cols="2">
+          <thead>
+            <row><entry>Topic</entry><entry>Rule</entry></row>
+          </thead>
+          <tbody>
+            <row><entry>Byte Ordering</entry><entry>Prose-only rule.</entry></row>
+          </tbody>
+        </tgroup>
+      </table>
     </section>
   </chapter>
 </book>

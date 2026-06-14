@@ -23,6 +23,7 @@ from dicom_kb.ir.models import IOD, ParserWarning
 from dicom_kb.metadata import __version__
 from dicom_kb.parsers.part03_iods import parse_part03
 from dicom_kb.parsers.part04_sop_classes import parse_part04
+from dicom_kb.parsers.part05_encoding import parse_part05
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
 from dicom_kb.sources.downloader import DEFAULT_CACHE_DIR
 from dicom_kb.sources.manifest import (
@@ -309,6 +310,11 @@ def build_sqlite_database(
                     sop_class_iods=parsed_part04.sop_class_iods,
                 )
             )
+        if "PS3.5" in documents:
+            parsed_part05 = parse_part05(
+                documents["PS3.5"], edition=manifest.edition
+            )
+            warnings.extend(_warning_messages(parsed_part05.warnings))
 
         metrics = BuildMetrics.from_imports(
             edition=manifest.edition,

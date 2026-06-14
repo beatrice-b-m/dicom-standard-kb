@@ -1,0 +1,92 @@
+"""Parser scaffold for PS3.5 encoding tables."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from dicom_kb.docbook.parser import ParsedDocument
+from dicom_kb.docbook.tables import ParsedTable
+from dicom_kb.docbook.text_chunks import normalize_text
+from dicom_kb.ir.models import ParserWarning, SourceRef
+
+
+@dataclass(frozen=True)
+class Part05TableSummary:
+    """A recognized PS3.5 table awaiting semantic import in Phase 2."""
+
+    table_id: str | None
+    title: str | None
+    table_kind: str
+    source_ref: SourceRef
+
+
+@dataclass(frozen=True)
+class Part05ParseResult:
+    """Parsed PS3.5 scaffold metadata and parser gap warnings."""
+
+    recognized_tables: tuple[Part05TableSummary, ...]
+    warnings: tuple[ParserWarning, ...]
+
+
+def parse_part05(document: ParsedDocument, *, edition: str) -> Part05ParseResult:
+    """Classify PS3.5 tables without exposing public encoding facts yet."""
+    recognized: list[Part05TableSummary] = []
+    warnings: list[ParserWarning] = []
+
+    for table in document.tables:
+        headers = _headers(table)
+        if _is_vr_behavior_table(headers):
+            recognized.append(
+                Part05TableSummary(
+                    table_id=table.xml_id,
+                    title=table.title,
+                    table_kind="vr_behavior",
+                    source_ref=_source_ref(edition, table),
+                )
+            )
+        else:
+            warnings.append(
+                ParserWarning(
+                    part="PS3.5",
+                    table_id=table.xml_id,
+                    row_index=None,
+                    message="unsupported PS3.5 table shape",
+                )
+            )
+
+    return Part05ParseResult(
+        recognized_tables=tuple(recognized),
+        warnings=tuple(warnings),
+    )
+
+
+def _headers(table: ParsedTable) -> set[str]:
+    for row in table.rows:
+        if row.section == "thead":
+            return {_key(cell.text) for cell in row.cells}
+    if not table.rows:
+        return set()
+    return {_key(cell.text) for cell in table.rows[0].cells}
+
+
+def _is_vr_behavior_table(headers: set[str]) -> bool:
+    return "vr" in headers and bool(
+        headers & {"behavior", "description", "name", "value representation"}
+    )
+
+
+def _key(value: str) -> str:
+    return normalize_text(value).lower()
+
+
+def _source_ref(edition: str, table: ParsedTable) -> SourceRef:
+    table_id = table.xml_id or "unknown"
+    return SourceRef(
+        id=f"{edition}.PS3.5.{table_id}",
+        edition_id=edition,
+        part="PS3.5",
+        section=table.parent_xml_id,
+        table_id=table_id,
+        xml_id=table.xml_id,
+        title=table.title,
+    )

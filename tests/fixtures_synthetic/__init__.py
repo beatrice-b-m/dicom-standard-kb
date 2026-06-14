@@ -8,6 +8,9 @@ PS33_CT_IMAGE_DOCBOOK = (
 PS34_SOP_CLASSES_DOCBOOK = (
     FIXTURE_DIR / "synthetic_ps3_4_sop_classes_docbook.xml"
 ).read_text(encoding="utf-8")
+PS35_ENCODING_DOCBOOK = (
+    FIXTURE_DIR / "synthetic_ps3_5_encoding_docbook.xml"
+).read_text(encoding="utf-8")
 PS36_REGISTRY_DOCBOOK = (
     FIXTURE_DIR / "synthetic_ps3_6_registry_docbook.xml"
 ).read_text(encoding="utf-8")
