@@ -70,6 +70,7 @@ def test_mcp_tool_names_match_supported_spec() -> None:
         "dicom_lookup_transfer_syntax",
         "dicom_explain_encoding_rule",
         "dicom_lookup_media_type",
+        "dicom_lookup_dicomweb_transaction",
         "dicom_list_modules_for_iod",
         "dicom_list_attributes_for_module",
         "dicom_resolve_attribute_context",
@@ -225,6 +226,28 @@ def test_execute_mcp_tool_returns_media_type_constraints(tmp_path: Path) -> None
         "directions": ["file"],
     }
     assert payload["refs"][0]["part"] == "PS3.10"
+
+
+def test_execute_mcp_tool_returns_dicomweb_transaction(tmp_path: Path) -> None:
+    payload = execute_mcp_tool(
+        "dicom_lookup_dicomweb_transaction",
+        {"name_or_route": "RetrieveStudy"},
+        config=MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)),
+    )
+
+    assert payload["tool"] == "lookup_dicomweb_transaction"
+    assert payload["status"] == "ok"
+    assert payload["result"] == {
+        "transaction_name": "RetrieveStudy",
+        "resource_category": "study",
+        "http_method": "GET",
+        "route_template": "/studies/{studyInstanceUID}",
+        "request_constraints": ["Study Instance UID required"],
+        "response_constraints": ["DICOM instances returned"],
+        "status_codes": ["200", "400", "404"],
+        "media_type_refs": ["application/dicom"],
+    }
+    assert payload["refs"][0]["part"] == "PS3.18"
 
 
 def test_execute_mcp_tool_returns_defined_terms(tmp_path: Path) -> None:

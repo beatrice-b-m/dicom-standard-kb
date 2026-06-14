@@ -13,6 +13,7 @@ from dicom_kb.query.resolver import (
     list_modules_for_iod,
     lookup_data_element,
     lookup_defined_terms,
+    lookup_dicomweb_transaction,
     lookup_enumerated_values,
     lookup_iod,
     lookup_media_type,
@@ -91,6 +92,11 @@ def dispatch_mcp_tool(
         "dicom_lookup_media_type": lambda: lookup_media_type(
             connection,
             media_type_or_context=str(arguments["media_type_or_context"]),
+            edition=edition,
+        ),
+        "dicom_lookup_dicomweb_transaction": lambda: lookup_dicomweb_transaction(
+            connection,
+            name_or_route=str(arguments["name_or_route"]),
             edition=edition,
         ),
         "dicom_list_modules_for_iod": lambda: list_modules_for_iod(
@@ -208,6 +214,16 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
                 return executor(
                     "dicom_lookup_media_type",
                     {"media_type_or_context": media_type_or_context},
+                )
+
+        elif spec["name"] == "dicom_lookup_dicomweb_transaction":
+            @_tool(server, name=spec["name"], description=spec["description"])
+            def dicom_lookup_dicomweb_transaction(
+                name_or_route: str,
+            ) -> dict[str, Any]:
+                return executor(
+                    "dicom_lookup_dicomweb_transaction",
+                    {"name_or_route": name_or_route},
                 )
 
         elif spec["name"] == "dicom_list_modules_for_iod":

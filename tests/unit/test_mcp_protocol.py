@@ -112,6 +112,23 @@ def test_mcp_stdio_protocol_with_official_client(tmp_path: Path) -> None:
                 )
                 assert media_type_payload["refs"][0]["part"] == "PS3.10"
 
+                dicomweb_result = await session.call_tool(
+                    "dicom_lookup_dicomweb_transaction",
+                    {"name_or_route": "RetrieveStudy"},
+                )
+                dicomweb_payload = _tool_payload(dicomweb_result)
+                assert dicomweb_payload["edition"] == "2026b"
+                assert dicomweb_payload["tool"] == "lookup_dicomweb_transaction"
+                assert dicomweb_payload["status"] == "ok"
+                assert dicomweb_payload["result"]["transaction_name"] == (
+                    "RetrieveStudy"
+                )
+                assert dicomweb_payload["result"]["http_method"] == "GET"
+                assert dicomweb_payload["result"]["route_template"] == (
+                    "/studies/{studyInstanceUID}"
+                )
+                assert dicomweb_payload["refs"][0]["part"] == "PS3.18"
+
     anyio.run(run_client)
 
 
