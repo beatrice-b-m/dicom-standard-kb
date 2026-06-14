@@ -31,7 +31,7 @@ Status values:
 | Phase 0 - V2 contract baseline | Complete | V2 result payload builders, JSON schema coverage, canonical migration table names, and empty-database migration smoke coverage are in place. |
 | Phase 1 - New part acquisition/parser foundation | Complete | Default official DocBook fetch, synthetic build-fixture loading, parser scaffolds, raw table IR, source refs, and unsupported-table warning aggregation now cover PS3.5, PS3.7, PS3.8, PS3.10, PS3.16, and PS3.18. |
 | Phase 2 - PS3.5 VR and transfer syntax semantics | Complete | `vr_definition` and `transfer_syntax_detail` import paths plus Python resolver functions, CLI commands, MCP tools, and official-edition golden test coverage are in place. The local 2026b official KB was rebuilt with Phase 2 rows and the transfer-syntax goldens execute and pass. |
-| Phase 3 - PS3.10 file meta and media foundation | In progress | `file_meta_requirement` and PS3.10-derived `dicom_media_type` parser/import/build wiring are in place for synthetic PS3.10 rows. The Python `lookup_media_type` resolver covers the PS3.10 baseline; CLI, MCP, and prose fallback remain pending. |
+| Phase 3 - PS3.10 file meta and media foundation | In progress | `file_meta_requirement` and PS3.10-derived `dicom_media_type` parser/import/build wiring are in place for synthetic PS3.10 rows. The Python resolver and CLI command cover the PS3.10 `lookup_media_type` baseline; MCP and prose fallback remain pending. |
 | Phase 4 - PS3.18 DICOMweb transactions | Not started | Satisfies v2 acceptance criterion 2. |
 | Phase 5 - PS3.16 SR templates, CIDs, and codes | Not started | Satisfies v2 acceptance criterion 3. |
 | Phase 6 - Contextual enumerated values and defined terms | Not started | Satisfies v2 acceptance criterion 4. |
@@ -57,11 +57,11 @@ Status values:
 | Current phase | Phase 3 - PS3.10 File Meta and Media Foundation |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed commit | Pending current commit; previous completed commit was ecf2047. |
-| Last verification | `uv run --dev pytest tests/unit/test_query_resolver.py -k media_type` passed with 4 passed and 41 deselected; `uv run --dev pytest tests/unit/test_query_resolver.py` passed with 45 passed. Sandboxed `make lint`, `make typecheck`, and `make test` failed because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed; escalated `make test` passed with 259 passed and 4 skipped. |
+| Last completed commit | Pending current commit; previous completed commit was dd09e86. |
+| Last verification | `uv run --dev pytest tests/unit/test_cli_lookup.py -k media_type` passed with 1 passed and 25 deselected; `uv run --dev pytest tests/unit/test_cli_lookup.py` passed with 26 passed. Sandboxed `make lint` and `make typecheck` failed because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed; escalated `make test` passed with 260 passed and 4 skipped. |
 | Current blocker | None |
-| Commit-ready summary | Added the Python `lookup_media_type(media_type_or_context)` resolver path for PS3.10-derived `dicom_media_type` rows, including context lookup, not-found/validation responses, and multiple-context candidates without exposing CLI or MCP behavior yet. |
-| Next recommended action | Continue Phase 3 with the next smallest public surface slice: add the CLI `dicom-kb lookup media-type <media-type-or-context>` command wired to `lookup_media_type`, with focused CLI tests and no MCP exposure yet. |
+| Commit-ready summary | Added the CLI `dicom-kb lookup media-type <media-type-or-context>` command wired to the existing PS3.10 `lookup_media_type` resolver, with focused CLI coverage already present in `tests/unit/test_cli_lookup.py`. |
+| Next recommended action | Continue Phase 3 with the next smallest public surface slice: add the MCP `dicom_lookup_media_type` tool wired to `lookup_media_type`, with focused MCP server/protocol tests and no prose fallback yet. |
 
 ## Phase 0 - V2 Contract Baseline
 
@@ -231,7 +231,7 @@ Completion checklist:
 - [x] File meta requirements are imported with type designations and refs.
 - [x] Media-type model has PS3.10 coverage.
 - [x] Python lookup path exists.
-- [ ] CLI command exists.
+- [x] CLI command exists.
 - [ ] MCP tool exists.
 - [ ] Prose-only file format rules fall back to text retrieval.
 
@@ -241,7 +241,8 @@ Commits:
 |---|---|---|
 | 83a20d3 | Added PS3.10 file meta requirement parsing, SQLite import/build wiring, and synthetic fixture coverage for required and optional file meta rows. | `uv run --dev pytest tests/unit/test_part10_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
 | ecf2047 | Added PS3.10-derived media type parsing, SQLite import/build wiring, and synthetic fixture coverage for `dicom_media_type` rows. | `uv run --dev pytest tests/unit/test_part10_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
-| Pending current commit | Added the Python `lookup_media_type` resolver for PS3.10-derived media-type rows, including exact media-type lookup, context lookup, not-found/validation responses, and candidate reporting for ambiguous media-type contexts. | `uv run --dev pytest tests/unit/test_query_resolver.py -k media_type`; `uv run --dev pytest tests/unit/test_query_resolver.py`; `make lint`; `make typecheck`; `make test` |
+| 8109941 | Added the Python `lookup_media_type` resolver for PS3.10-derived media-type rows, including exact media-type lookup, context lookup, not-found/validation responses, and candidate reporting for ambiguous media-type contexts. | `uv run --dev pytest tests/unit/test_query_resolver.py -k media_type`; `uv run --dev pytest tests/unit/test_query_resolver.py`; `make lint`; `make typecheck`; `make test` |
+| Pending current commit | Added the CLI `lookup media-type` command for the existing PS3.10 media-type resolver, returning the same structured tool envelope as the Python API. | `uv run --dev pytest tests/unit/test_cli_lookup.py -k media_type`; `uv run --dev pytest tests/unit/test_cli_lookup.py`; `make lint`; `make typecheck`; `make test` |
 
 Notes:
 
@@ -253,6 +254,9 @@ Notes:
 - The Python media-type resolver slice reads imported `dicom_media_type` rows
   only. It intentionally does not add the CLI command, MCP tool, PS3.18 media
   contexts, or prose-only file format fallback.
+- The CLI media-type slice exposes only the existing PS3.10 resolver through
+  `dicom-kb lookup media-type`; it intentionally does not add the MCP tool,
+  PS3.18 media contexts, or prose-only file format fallback.
 
 ## Phase 4 - PS3.18 DICOMweb Transactions
 
