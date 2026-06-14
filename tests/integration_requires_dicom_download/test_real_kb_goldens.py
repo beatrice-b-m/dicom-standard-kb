@@ -12,6 +12,7 @@ from dicom_kb.query.resolver import (
     lookup_data_element,
     lookup_iod,
     lookup_sop_class,
+    lookup_transfer_syntax,
     lookup_uid,
     resolve_attribute_context,
 )
@@ -99,6 +100,52 @@ UID_GOLDENS = {
     ),
 }
 
+TRANSFER_SYNTAX_GOLDENS = {
+    "1.2.840.10008.1.2": {
+        "uid_name": "Implicit VR Little Endian: Default Transfer Syntax for DICOM",
+        "uid_keyword": "ImplicitVRLittleEndian",
+        "explicit_vr": False,
+        "endian": "little",
+        "encapsulated": False,
+        "compression_family": None,
+        "retired": False,
+        "encoding_notes": [],
+    },
+    "1.2.840.10008.1.2.1": {
+        "uid_name": "Explicit VR Little Endian",
+        "uid_keyword": "ExplicitVRLittleEndian",
+        "explicit_vr": True,
+        "endian": "little",
+        "encapsulated": False,
+        "compression_family": None,
+        "retired": False,
+        "encoding_notes": [],
+    },
+    "1.2.840.10008.1.2.1.99": {
+        "uid_name": "Deflated Explicit VR Little Endian",
+        "uid_keyword": "DeflatedExplicitVRLittleEndian",
+        "explicit_vr": True,
+        "endian": "little",
+        "encapsulated": False,
+        "compression_family": "deflated",
+        "retired": False,
+        "encoding_notes": ["deflated dataset encoding"],
+    },
+    "1.2.840.10008.1.2.4.50": {
+        "uid_name": "JPEG Baseline (Process 1)",
+        "uid_keyword": "JPEGBaseline8Bit",
+        "explicit_vr": None,
+        "endian": None,
+        "encapsulated": True,
+        "compression_family": "jpeg",
+        "retired": False,
+        "encoding_notes": [
+            "jpeg compressed transfer syntax",
+            "encapsulated pixel data",
+        ],
+    },
+}
+
 IOD_GOLDENS = [
     "CT Image",
     "MR Image",
@@ -163,6 +210,28 @@ def test_real_kb_uid_goldens(
     assert result["uid_keyword"] == keyword
     assert result["uid_type"] == uid_type
     assert result["retired"] is retired
+    _assert_ref(response.refs, part="PS3.6", anchor="table_A-1")
+
+
+@pytest.mark.parametrize(
+    ("uid", "expected"),
+    TRANSFER_SYNTAX_GOLDENS.items(),
+    ids=TRANSFER_SYNTAX_GOLDENS.keys(),
+)
+def test_real_kb_transfer_syntax_encoding_goldens(
+    connection: sqlite3.Connection,
+    edition: str,
+    uid: str,
+    expected: dict[str, object],
+) -> None:
+    _require_phase2_encoding_rows(connection, edition)
+
+    response = lookup_transfer_syntax(
+        connection, uid_or_keyword=uid, edition=edition
+    )
+    result = _ok_result(response)
+
+    assert result == {"uid_value": uid, **expected}
     _assert_ref(response.refs, part="PS3.6", anchor="table_A-1")
 
 
@@ -320,6 +389,24 @@ def _assert_ref(
     ]
     assert matches
     assert all(ref.official_url for ref in matches if ref.anchor is not None)
+
+
+def _require_phase2_encoding_rows(
+    connection: sqlite3.Connection, edition: str
+) -> None:
+    try:
+        row = connection.execute(
+            """
+            SELECT COUNT(*) AS count
+            FROM transfer_syntax_detail
+            WHERE edition_id = ?
+            """,
+            (edition,),
+        ).fetchone()
+    except sqlite3.OperationalError as exc:
+        pytest.skip(f"real KB must be rebuilt with Phase 2 schema: {exc}")
+    if row is None or int(row["count"]) == 0:
+        pytest.skip("real KB must be rebuilt with Phase 2 transfer syntax rows")
 
 
 def _attribute_by_tag(
