@@ -16,6 +16,16 @@ V1_AGENT_TOOL_NAMES = {
     "retrieve_standard_text",
     "search_standard_text",
 }
+V2_AGENT_TOOL_NAMES = {
+    "lookup_vr",
+    "lookup_transfer_syntax",
+    "explain_encoding_rule",
+    "lookup_media_type",
+    "lookup_dicomweb_transaction",
+    "lookup_sr_template",
+    "lookup_context_group",
+    "lookup_code_meaning",
+}
 
 
 def test_agent_prompt_case_floor_ids_and_edition_pins() -> None:
@@ -35,6 +45,23 @@ def test_agent_prompt_cases_cover_all_v1_tools() -> None:
     }
 
     assert covered_tool_names >= V1_AGENT_TOOL_NAMES
+
+
+def test_agent_prompt_cases_cover_v2_public_tools() -> None:
+    covered_tool_names = {
+        tool
+        for case in AGENT_REGRESSION_CASES
+        for tool in case.expected_tools
+    }
+    v2_case_ids = {
+        case.id
+        for case in AGENT_REGRESSION_CASES
+        if case.id.startswith("agent.v2.")
+    }
+
+    assert covered_tool_names >= V2_AGENT_TOOL_NAMES
+    assert len(v2_case_ids) >= len(V2_AGENT_TOOL_NAMES)
+    assert all(case_id in EXPECTED_TOOL_TRACES for case_id in v2_case_ids)
 
 
 def test_agent_prompt_cases_include_error_and_ambiguity_floor() -> None:

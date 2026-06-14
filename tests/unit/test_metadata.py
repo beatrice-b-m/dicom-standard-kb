@@ -45,7 +45,7 @@ def test_attribute_value_term_coverage_audit_is_documented() -> None:
     assert "contexts are not yet resolved" in architecture
 
 
-def test_phase7_fallback_audit_is_recorded_in_progress() -> None:
+def test_phase8_eval_harness_progress_is_recorded() -> None:
     repo_root = Path(__file__).resolve().parents[2]
 
     progress = (repo_root / "IMPLEMENTATION_PROGRESS.md").read_text(
@@ -63,7 +63,8 @@ def test_phase7_fallback_audit_is_recorded_in_progress() -> None:
         "| c9fd4d8 | Added focused agent regression cases and expected tool traces"
         in progress
     )
+    assert "| Phase 8 - Evaluation harness expansion | In progress |" in progress
     assert (
-        "| Next recommended action | Begin Phase 8 evaluation harness expansion"
+        "| Next recommended action | Continue Phase 8 by adding a second focused"
         in progress
     )

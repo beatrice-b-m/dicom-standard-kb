@@ -26,14 +26,22 @@ from dicom_kb.eval.prompt_cases import (
 from dicom_kb.eval.scoring import AgentRun, ObservedToolCall
 from dicom_kb.query.answer_contracts import ToolResponse
 from dicom_kb.query.resolver import (
+    explain_encoding_rule,
     list_attributes_for_module,
     list_modules_for_iod,
+    lookup_code_meaning,
+    lookup_context_group,
     lookup_data_element,
     lookup_defined_terms,
+    lookup_dicomweb_transaction,
     lookup_enumerated_values,
     lookup_iod,
+    lookup_media_type,
     lookup_sop_class,
+    lookup_sr_template,
+    lookup_transfer_syntax,
     lookup_uid,
+    lookup_vr,
     resolve_attribute_context,
     retrieve_standard_text,
     search_standard_text,
@@ -314,6 +322,8 @@ def _run_case_route(case: AgentRegressionCase, invoke: ToolInvoker) -> None:
         )
     elif case_id.startswith("agent.workflow."):
         _run_workflow(case_id, invoke)
+    elif case_id.startswith("agent.v2."):
+        _run_v2_tool_case(case_id, invoke)
     elif case_id.startswith("agent.error."):
         _run_error_case(case_id, invoke)
     else:
@@ -379,6 +389,31 @@ def _run_workflow(case_id: str, invoke: ToolInvoker) -> None:
         raise ValueError(f"no reference workflow route for case: {case_id}")
 
 
+def _run_v2_tool_case(case_id: str, invoke: ToolInvoker) -> None:
+    case_key = case_id.removeprefix("agent.v2.")
+    if case_key == "vr.person_name":
+        invoke("lookup_vr", {"vr": "PN"})
+    elif case_key == "transfer_syntax.explicit_little":
+        invoke(
+            "lookup_transfer_syntax",
+            {"uid_or_keyword": _uid_value("explicit_vr_little_endian")},
+        )
+    elif case_key == "encoding_rule.sequence":
+        invoke("explain_encoding_rule", {"topic": "SQ"})
+    elif case_key == "media_type.dicom_file":
+        invoke("lookup_media_type", {"media_type_or_context": "application/dicom"})
+    elif case_key == "dicomweb.retrieve_study":
+        invoke("lookup_dicomweb_transaction", {"name_or_route": "RetrieveStudy"})
+    elif case_key == "sr_template.measurement_report":
+        invoke("lookup_sr_template", {"tid_or_name": "1500"})
+    elif case_key == "context_group.acquisition_modality":
+        invoke("lookup_context_group", {"cid_or_name": "29"})
+    elif case_key == "code_meaning.ct":
+        invoke("lookup_code_meaning", {"code_value": "CT", "scheme": "DCM"})
+    else:
+        raise ValueError(f"no reference v2 route for case: {case_id}")
+
+
 def _run_error_case(case_id: str, invoke: ToolInvoker) -> None:
     case_key = case_id.removeprefix("agent.error.")
     if case_key == "malformed_tag":
@@ -426,6 +461,51 @@ def _invoke_tool(
             connection,
             uid_or_keyword=arguments["uid_or_keyword"],
             edition=edition,
+        )
+    if tool == "lookup_vr":
+        return lookup_vr(connection, vr=arguments["vr"], edition=edition)
+    if tool == "lookup_transfer_syntax":
+        return lookup_transfer_syntax(
+            connection,
+            uid_or_keyword=arguments["uid_or_keyword"],
+            edition=edition,
+        )
+    if tool == "explain_encoding_rule":
+        return explain_encoding_rule(
+            connection,
+            topic=arguments["topic"],
+            edition=edition,
+        )
+    if tool == "lookup_media_type":
+        return lookup_media_type(
+            connection,
+            media_type_or_context=arguments["media_type_or_context"],
+            edition=edition,
+        )
+    if tool == "lookup_dicomweb_transaction":
+        return lookup_dicomweb_transaction(
+            connection,
+            name_or_route=arguments["name_or_route"],
+            edition=edition,
+        )
+    if tool == "lookup_sr_template":
+        return lookup_sr_template(
+            connection,
+            tid_or_name=arguments["tid_or_name"],
+            edition=edition,
+        )
+    if tool == "lookup_context_group":
+        return lookup_context_group(
+            connection,
+            cid_or_name=arguments["cid_or_name"],
+            edition=edition,
+        )
+    if tool == "lookup_code_meaning":
+        return lookup_code_meaning(
+            connection,
+            code_value=arguments["code_value"],
+            edition=edition,
+            scheme=arguments.get("scheme"),
         )
     if tool == "lookup_iod":
         return lookup_iod(connection, iod_name=arguments["iod_name"], edition=edition)

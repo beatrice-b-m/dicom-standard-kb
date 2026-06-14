@@ -66,6 +66,35 @@ def test_reference_agent_scores_phase7_prose_retrieval_cases(tmp_path: Path) -> 
     assert [run.case_id for run in runs] == [case.id for case in selected_cases]
 
 
+def test_reference_agent_scores_v2_public_tool_batch(tmp_path: Path) -> None:
+    cache_dir = _build_fixture_cache(tmp_path)
+    selected_cases = select_agent_regression_cases(
+        (
+            "agent.v2.vr.person_name",
+            "agent.v2.transfer_syntax.explicit_little",
+            "agent.v2.encoding_rule.sequence",
+            "agent.v2.media_type.dicom_file",
+            "agent.v2.dicomweb.retrieve_study",
+            "agent.v2.sr_template.measurement_report",
+            "agent.v2.context_group.acquisition_modality",
+            "agent.v2.code_meaning.ct",
+        )
+    )
+
+    with _connect_fixture_db(cache_dir) as connection:
+        runs = run_reference_agent_cases(
+            connection,
+            edition="2026b",
+            cases=selected_cases,
+        )
+
+    report = score_agent_runs(runs)
+
+    assert report.total_runs == 8
+    assert report.failed_runs == 0
+    assert [run.case_id for run in runs] == [case.id for case in selected_cases]
+
+
 def test_cli_eval_run_writes_scoreable_reference_transcripts(tmp_path: Path) -> None:
     cache_dir = _build_fixture_cache(tmp_path)
     transcript = tmp_path / "reference-runs.json"

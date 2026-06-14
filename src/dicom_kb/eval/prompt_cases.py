@@ -168,6 +168,59 @@ ERROR_CASES = (
         ("validation",),
     ),
 )
+V2_TOOL_CASES = (
+    (
+        "vr.person_name",
+        "Look up the PN Value Representation and cite PS3.5.",
+        ("lookup_vr",),
+        ("PN", "Person Name", "PS3.5"),
+    ),
+    (
+        "transfer_syntax.explicit_little",
+        (
+            "Look up Explicit VR Little Endian with parsed encoding details "
+            "and citations."
+        ),
+        ("lookup_transfer_syntax",),
+        ("Explicit VR Little Endian", "encoding", "PS3.6"),
+    ),
+    (
+        "encoding_rule.sequence",
+        "Explain the SQ encoding rule with deterministic PS3.5 evidence.",
+        ("explain_encoding_rule",),
+        ("SQ", "Sequence of Items", "PS3.5"),
+    ),
+    (
+        "media_type.dicom_file",
+        "Look up application/dicom media type constraints and cite the source.",
+        ("lookup_media_type",),
+        ("application/dicom", "PS3.10"),
+    ),
+    (
+        "dicomweb.retrieve_study",
+        "Look up the RetrieveStudy DICOMweb transaction and cite PS3.18.",
+        ("lookup_dicomweb_transaction",),
+        ("RetrieveStudy", "GET", "PS3.18"),
+    ),
+    (
+        "sr_template.measurement_report",
+        "Look up TID 1500 and summarize its SR template rows with citations.",
+        ("lookup_sr_template",),
+        ("TID 1500", "Measurement Report", "PS3.16"),
+    ),
+    (
+        "context_group.acquisition_modality",
+        "Look up CID 29 and summarize its coded rows with citations.",
+        ("lookup_context_group",),
+        ("CID 29", "Acquisition Modality", "PS3.16"),
+    ),
+    (
+        "code_meaning.ct",
+        "Look up code value CT in scheme DCM and cite its code meaning.",
+        ("lookup_code_meaning",),
+        ("CT", "Computed Tomography", "PS3.16"),
+    ),
+)
 
 def get_agent_regression_case(case_id: str) -> AgentRegressionCase:
     """Return a committed agent regression case by id."""
@@ -392,6 +445,18 @@ def _workflow_cases() -> tuple[AgentRegressionCase, ...]:
     )
 
 
+def _v2_tool_cases() -> tuple[AgentRegressionCase, ...]:
+    return tuple(
+        _case(
+            f"agent.v2.{case_id}",
+            prompt,
+            tools,
+            must_include,
+        )
+        for case_id, prompt, tools, must_include in V2_TOOL_CASES
+    )
+
+
 def _error_cases() -> tuple[AgentRegressionCase, ...]:
     return tuple(
         _case(
@@ -440,6 +505,7 @@ def _agent_regression_cases() -> tuple[AgentRegressionCase, ...]:
         *_text_retrieval_cases(),
         *_search_cases(),
         *_workflow_cases(),
+        *_v2_tool_cases(),
         *_error_cases(),
     )
 
