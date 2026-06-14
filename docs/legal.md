@@ -14,3 +14,9 @@ content referenced by the DICOM Standard.
 Do not publish official artifacts, generated full standard JSON, generated
 full-text indexes, or generated full knowledge-base databases from this
 project. Build those artifacts locally from official sources.
+
+PS3.16 content mapping resources, including SR templates, context groups, and
+coded concepts, are parsed only into a user's local knowledge base for
+citation-preserving lookup. Do not redistribute generated PS3.16 terminology
+dumps, standalone terminology databases, or bulk exports of locally built
+context-group or coded-concept rows.

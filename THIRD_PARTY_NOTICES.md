@@ -15,6 +15,10 @@ artifacts from:
 Locally downloaded standard artifacts and generated knowledge bases are
 outside the scope of this repository's Apache-2.0 license.
 
+PS3.16 content mapping resources may reference third-party terminology
+systems. This repository does not vendor those terminology systems, generated
+PS3.16 terminology dumps, or standalone context-group/code databases.
+
 ## Differential Testing References
 
 The following projects may be used for parser comparison only and are not
