@@ -57,11 +57,11 @@ Status values:
 | Current phase | Phase 5 - PS3.16 SR Templates, Context Groups, and Codes |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed commit | Pending current commit; previous completed commit was 00fc28e. |
-| Last verification | `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py` passed with 10 passed. Initial sandboxed `make lint`, `make typecheck`, and `make test` each failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make typecheck` passed before lint import fixes; escalated `make test` passed with 276 passed and 4 skipped; escalated `make lint` passed after ruff fixed import ordering; final escalated `make typecheck` passed. |
+| Last completed commit | Pending current commit; previous completed commit was 6d7c53f. |
+| Last verification | `uv run --dev pytest tests/unit/test_query_resolver.py -k code_meaning` passed with 3 passed and 51 deselected; `uv run --dev pytest tests/unit/test_query_resolver.py` passed with 54 passed; initial sandboxed `make lint`, `make typecheck`, and `make test` each failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make typecheck` passed before import-order fixes; escalated `uv run --dev ruff check src/dicom_kb/db/repositories.py tests/unit/test_query_resolver.py --fix` fixed import ordering; final escalated `make lint` passed; final escalated `make typecheck` passed; escalated `make test` passed with 279 passed and 4 skipped. |
 | Current blocker | None |
-| Commit-ready summary | Derived PS3.16 coded concepts from complete context group coded rows, added SQLite import/build wiring for `coded_concept`, and covered the path with focused parser/import/build tests. |
-| Next recommended action | Continue Phase 5 with the next smallest lookup slice: add Python resolver coverage for PS3.16 lookups, starting with `lookup_code_meaning` against imported `coded_concept` rows and ambiguous code-value candidates; do not add CLI or MCP exposure in that slice. |
+| Commit-ready summary | Added Python resolver coverage for `lookup_code_meaning` against imported PS3.16 `coded_concept` rows, including optional scheme filtering, cited context-group labels, validation, not-found handling, and ambiguous code-value candidates. |
+| Next recommended action | Continue Phase 5 with the next smallest lookup slice: add Python resolver coverage for `lookup_context_group` against imported `context_group` and `context_group_row` rows, including include-row preservation; do not add CLI or MCP exposure in that slice. |
 
 ## Phase 0 - V2 Contract Baseline
 
@@ -335,7 +335,7 @@ Completion checklist:
 - [x] TID rows import with relationship/value/cardinality fields.
 - [x] CID metadata imports with extensibility.
 - [x] CID rows import with code value, scheme, and meaning.
-- [ ] Code lookup handles ambiguous code values.
+- [x] Code lookup handles ambiguous code values.
 - [ ] Python resolver functions exist and are tested.
 - [ ] CLI commands exist and have snapshot tests.
 - [ ] MCP tools exist and have schema tests.
@@ -348,7 +348,8 @@ Commits:
 |---|---|---|
 | 453ab0f | Added PS3.16 SR template metadata and row parsing/import/build wiring from the synthetic fixture. | `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
 | 00fc28e | Added PS3.16 context group metadata and row parsing/import/build wiring from the synthetic fixture. | `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
-| Pending current commit | Derived PS3.16 coded concepts from parsed context group coded rows, with SQLite import/build wiring and focused coverage. | `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
+| 6d7c53f | Derived PS3.16 coded concepts from parsed context group coded rows, with SQLite import/build wiring and focused coverage. | `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
+| Pending current commit | Added the Python `lookup_code_meaning` resolver for imported PS3.16 coded concepts, with optional scheme filtering and ambiguous code-value candidates. | `uv run --dev pytest tests/unit/test_query_resolver.py -k code_meaning`; `uv run --dev pytest tests/unit/test_query_resolver.py`; `make lint`; `make typecheck`; `make test` |
 
 Notes:
 
@@ -369,6 +370,11 @@ Notes:
   `coded_concept` rows only from complete context group coded rows and skips
   CID include rows so later lookup slices can handle code-value ambiguity
   against stable table data.
+- The code-meaning resolver slice exposes `lookup_code_meaning` from the
+  Python query layer only. It intentionally does not add CLI/MCP behavior or
+  the TID/CID lookup resolvers. Ambiguous code values return candidates rather
+  than a guessed meaning, and exact scheme filtering can select a single
+  coded concept.
 
 ## Phase 6 - Contextual Enumerated Values and Defined Terms
 

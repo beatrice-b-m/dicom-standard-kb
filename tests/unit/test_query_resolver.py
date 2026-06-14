@@ -7,6 +7,8 @@ from pathlib import Path
 
 from dicom_kb.db.importers import (
     import_attribute_value_terms,
+    import_coded_concepts,
+    import_context_groups,
     import_dicom_media_types,
     import_dicomweb_transactions,
     import_docbook_structure,
@@ -27,11 +29,13 @@ from dicom_kb.parsers.part05_encoding import (
 )
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
 from dicom_kb.parsers.part10_media_storage import parse_part10
+from dicom_kb.parsers.part16_content_mapping import parse_part16
 from dicom_kb.parsers.part18_web_services import parse_part18
 from dicom_kb.query.resolver import (
     explain_encoding_rule,
     list_attributes_for_module,
     list_modules_for_iod,
+    lookup_code_meaning,
     lookup_data_element,
     lookup_defined_terms,
     lookup_dicomweb_transaction,
@@ -52,6 +56,7 @@ from tests.fixtures_synthetic import (
     PS35_ENCODING_DOCBOOK,
     PS36_REGISTRY_DOCBOOK,
     PS310_MEDIA_STORAGE_DOCBOOK,
+    PS316_CONTENT_MAPPING_DOCBOOK,
     PS318_WEB_SERVICES_DOCBOOK,
 )
 
@@ -191,6 +196,25 @@ def _part18_connection(tmp_path: Path) -> sqlite3.Connection:
         connection,
         edition="2026b",
         media_types=parsed_part18.media_types,
+    )
+    return connection
+
+
+def _part16_connection(tmp_path: Path) -> sqlite3.Connection:
+    connection = connect_sqlite(tmp_path / "kb.sqlite")
+    apply_migrations(connection)
+    document = parse_docbook_xml(PS316_CONTENT_MAPPING_DOCBOOK, part="PS3.16")
+    parsed_part16 = parse_part16(document, edition="2026b")
+    import_context_groups(
+        connection,
+        edition="2026b",
+        context_groups=parsed_part16.context_groups,
+        rows=parsed_part16.context_group_rows,
+    )
+    import_coded_concepts(
+        connection,
+        edition="2026b",
+        coded_concepts=parsed_part16.coded_concepts,
     )
     return connection
 
@@ -1018,6 +1042,109 @@ def test_lookup_dicomweb_transaction_validates_empty_input_and_reports_not_found
     assert missing.result == {
         "message": "No DICOMweb transaction matched the input."
     }
+
+
+def test_lookup_code_meaning_returns_ps316_coded_concept(tmp_path: Path) -> None:
+    response = lookup_code_meaning(
+        _part16_connection(tmp_path),
+        code_value="CT",
+        scheme="DCM",
+        edition="2026b",
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert response.status == "ok"
+    assert response.result == {
+        "code_value": "CT",
+        "coding_scheme_designator": "DCM",
+        "coding_scheme_version": None,
+        "code_meaning": "Computed Tomography",
+        "context_groups": ["CID 29"],
+    }
+    assert response.refs[0].part == "PS3.16"
+    assert response.refs[0].table == "Synthetic Context Group Rows"
+    assert response.classification.evidence_level == "parsed_table"
+    assert response.trace.query_id == "query-1"
+
+
+def test_lookup_code_meaning_returns_candidates_for_ambiguous_code_value(
+    tmp_path: Path,
+) -> None:
+    connection = _part16_connection(tmp_path)
+    connection.execute(
+        """
+        INSERT INTO coded_concept (
+          id, edition_id, code_value, coding_scheme_designator,
+          coding_scheme_version, code_meaning, source_ref_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "2026b.PS3.16.coded_concept.sct.ct",
+            "2026b",
+            "CT",
+            "SCT",
+            "",
+            "Computed tomography procedure",
+            "2026b.PS3.16.table_16-3",
+        ),
+    )
+
+    response = lookup_code_meaning(
+        connection,
+        code_value="CT",
+        edition="2026b",
+    )
+
+    assert response.status == "validation_error"
+    assert response.result is not None
+    assert response.result["message"] == (
+        "Code value input matched multiple coded concepts."
+    )
+    assert response.result["candidates"] == [
+        {
+            "code_value": "CT",
+            "coding_scheme_designator": "DCM",
+            "coding_scheme_version": None,
+            "code_meaning": "Computed Tomography",
+            "context_groups": ["CID 29"],
+        },
+        {
+            "code_value": "CT",
+            "coding_scheme_designator": "SCT",
+            "coding_scheme_version": None,
+            "code_meaning": "Computed tomography procedure",
+            "context_groups": [],
+        },
+    ]
+    assert {ref.part for ref in response.refs} == {"PS3.16"}
+
+
+def test_lookup_code_meaning_validates_input_and_reports_not_found(
+    tmp_path: Path,
+) -> None:
+    connection = _part16_connection(tmp_path)
+
+    empty_code = lookup_code_meaning(connection, code_value="  ", edition="2026b")
+    empty_scheme = lookup_code_meaning(
+        connection,
+        code_value="CT",
+        scheme=" ",
+        edition="2026b",
+    )
+    missing = lookup_code_meaning(
+        connection,
+        code_value="MR",
+        scheme="DCM",
+        edition="2026b",
+    )
+
+    assert empty_code.status == "validation_error"
+    assert empty_code.result == {"message": "code_value must not be empty."}
+    assert empty_scheme.status == "validation_error"
+    assert empty_scheme.result == {"message": "scheme must not be empty when provided."}
+    assert missing.status == "not_found"
+    assert missing.result == {"message": "No PS3.16 coded concept matched the input."}
 
 
 def test_retrieve_standard_text_returns_capped_excerpt_and_tables(

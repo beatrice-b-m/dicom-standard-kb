@@ -11,6 +11,7 @@ from dicom_kb.ir.models import (
     IOD,
     AttributeUse,
     AttributeValueTerm,
+    CodedConcept,
     Condition,
     DataElement,
     DicomMediaType,
@@ -92,6 +93,81 @@ class TransferSyntaxDetailRecord:
 
     detail: TransferSyntaxDetail
     uid: UIDRegistryEntry
+
+
+@dataclass(frozen=True)
+class CodeMeaningRecord:
+    """A coded concept with context groups that cite the same code."""
+
+    concept: CodedConcept
+    context_groups: tuple[str, ...] = ()
+
+
+class Part16Repository:
+    """Lookup imported PS3.16 content mapping semantics."""
+
+    def __init__(self, connection: sqlite3.Connection) -> None:
+        self.connection = connection
+
+    def list_code_meanings(
+        self, code_value: str, *, edition: str, scheme: str | None = None
+    ) -> list[CodeMeaningRecord]:
+        """Return coded concepts matching a code value and optional scheme."""
+        normalized_scheme = scheme.strip() if scheme is not None else None
+        rows = self.connection.execute(
+            """
+            SELECT concept.*, sr.part AS source_part,
+                   sr.section AS source_section,
+                   sr.table_id AS source_table_id,
+                   sr.xml_id AS source_xml_id,
+                   sr.title AS source_title, sr.canonical_url AS source_url
+            FROM coded_concept concept
+            JOIN source_ref sr ON sr.id = concept.source_ref_id
+            WHERE concept.edition_id = ?
+              AND concept.code_value = ?
+              AND (
+                ? IS NULL
+                OR lower(concept.coding_scheme_designator) = lower(?)
+              )
+            ORDER BY concept.coding_scheme_designator,
+                     concept.coding_scheme_version,
+                     concept.code_meaning,
+                     concept.id
+            """,
+            (edition, code_value.strip(), normalized_scheme, normalized_scheme),
+        ).fetchall()
+        return [
+            CodeMeaningRecord(
+                concept=_coded_concept_from_row(row),
+                context_groups=self._context_groups_for_code(row, edition=edition),
+            )
+            for row in rows
+        ]
+
+    def _context_groups_for_code(
+        self, row: sqlite3.Row, *, edition: str
+    ) -> tuple[str, ...]:
+        groups = self.connection.execute(
+            """
+            SELECT DISTINCT context_group.cid
+            FROM context_group_row row
+            JOIN context_group ON context_group.id = row.context_group_id
+            WHERE row.edition_id = ?
+              AND row.code_value = ?
+              AND row.coding_scheme_designator = ?
+              AND COALESCE(row.coding_scheme_version, '') = ?
+              AND row.code_meaning = ?
+            ORDER BY context_group.cid
+            """,
+            (
+                edition,
+                row["code_value"],
+                row["coding_scheme_designator"],
+                row["coding_scheme_version"],
+                row["code_meaning"],
+            ),
+        ).fetchall()
+        return tuple(_context_group_label(str(group["cid"])) for group in groups)
 
 
 class Part10Repository:
@@ -1093,10 +1169,26 @@ def _dicomweb_transaction_from_row(row: sqlite3.Row) -> DicomwebTransaction:
     )
 
 
+def _coded_concept_from_row(row: sqlite3.Row) -> CodedConcept:
+    return CodedConcept(
+        id=str(row["id"]),
+        edition_id=str(row["edition_id"]),
+        code_value=str(row["code_value"]),
+        coding_scheme_designator=str(row["coding_scheme_designator"]),
+        coding_scheme_version=str(row["coding_scheme_version"]),
+        code_meaning=str(row["code_meaning"]),
+        source_ref=_source_ref_from_row(row),
+    )
+
+
 def _media_context_matches(record: DicomMediaType, normalized: str) -> bool:
     context = record.service_context.casefold() if record.service_context else ""
     directions = {direction.casefold() for direction in record.directions}
     return normalized == context or normalized in directions
+
+
+def _context_group_label(cid: str) -> str:
+    return cid if cid.casefold().startswith("cid ") else f"CID {cid}"
 
 
 def _id_order(value: str) -> int:

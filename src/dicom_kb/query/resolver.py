@@ -7,12 +7,14 @@ from datetime import datetime
 
 from dicom_kb.db.repositories import (
     AttributeValueTermRepository,
+    CodeMeaningRecord,
     DataElementRepository,
     DocumentRepository,
     Part03Repository,
     Part04Repository,
     Part05Repository,
     Part10Repository,
+    Part16Repository,
     Part18Repository,
     UIDRepository,
 )
@@ -34,6 +36,7 @@ from dicom_kb.query.answer_contracts import (
     ToolResponse,
     attribute_context_result,
     attribute_value_terms_result,
+    code_meaning_result,
     data_element_result,
     dicom_media_type_result,
     dicomweb_transaction_result,
@@ -551,6 +554,86 @@ def lookup_dicomweb_transaction(
         status="ok",
         result=_dicomweb_transaction_result(record),
         refs=[standard_ref(record.source_ref)],
+        trace=trace,
+    )
+
+
+def lookup_code_meaning(
+    connection: sqlite3.Connection,
+    *,
+    code_value: str,
+    edition: str,
+    scheme: str | None = None,
+    query_id: str | None = None,
+    resolved_at: datetime | None = None,
+) -> ToolResponse:
+    """Resolve an imported PS3.16 coded concept by value and optional scheme."""
+    trace = build_trace(
+        connection,
+        edition=edition,
+        query_id=query_id,
+        resolved_at=resolved_at,
+    )
+    response_input = {"code_value": code_value}
+    if scheme is not None:
+        response_input["scheme"] = scheme
+    normalized_code_value = code_value.strip()
+    normalized_scheme = scheme.strip() if scheme is not None else None
+    if not normalized_code_value:
+        return tool_response(
+            edition=edition,
+            tool="lookup_code_meaning",
+            input=response_input,
+            status="validation_error",
+            result={"message": "code_value must not be empty."},
+            trace=trace,
+        )
+    if normalized_scheme == "":
+        return tool_response(
+            edition=edition,
+            tool="lookup_code_meaning",
+            input=response_input,
+            status="validation_error",
+            result={"message": "scheme must not be empty when provided."},
+            trace=trace,
+        )
+
+    records = Part16Repository(connection).list_code_meanings(
+        normalized_code_value,
+        edition=edition,
+        scheme=normalized_scheme,
+    )
+    if not records:
+        return tool_response(
+            edition=edition,
+            tool="lookup_code_meaning",
+            input=response_input,
+            status="not_found",
+            result={"message": "No PS3.16 coded concept matched the input."},
+            trace=trace,
+        )
+    if len(records) > 1:
+        return tool_response(
+            edition=edition,
+            tool="lookup_code_meaning",
+            input=response_input,
+            status="validation_error",
+            result={
+                "message": "Code value input matched multiple coded concepts.",
+                "candidates": [_code_meaning_result(record) for record in records],
+            },
+            refs=[standard_ref(record.concept.source_ref) for record in records],
+            trace=trace,
+        )
+
+    record = records[0]
+    return tool_response(
+        edition=edition,
+        tool="lookup_code_meaning",
+        input=response_input,
+        status="ok",
+        result=_code_meaning_result(record),
+        refs=[standard_ref(record.concept.source_ref)],
         trace=trace,
     )
 
@@ -1299,6 +1382,17 @@ def _dicomweb_transaction_result(record: DicomwebTransaction) -> dict[str, objec
         response_constraints=list(record.response_constraints),
         status_codes=list(record.status_codes),
         media_type_refs=list(record.media_type_refs),
+    )
+
+
+def _code_meaning_result(record: CodeMeaningRecord) -> dict[str, object]:
+    concept = record.concept
+    return code_meaning_result(
+        code_value=concept.code_value,
+        coding_scheme_designator=concept.coding_scheme_designator,
+        coding_scheme_version=concept.coding_scheme_version or None,
+        code_meaning=concept.code_meaning,
+        context_groups=list(record.context_groups),
     )
 
 
