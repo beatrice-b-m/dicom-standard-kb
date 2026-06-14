@@ -30,7 +30,7 @@ Status values:
 | V1 baseline | Complete | See `IMPLEMENTATION_REVIEW.md`; v1 acceptance criteria are documented as met. |
 | Phase 0 - V2 contract baseline | Complete | V2 result payload builders, JSON schema coverage, canonical migration table names, and empty-database migration smoke coverage are in place. |
 | Phase 1 - New part acquisition/parser foundation | Complete | Default official DocBook fetch, synthetic build-fixture loading, parser scaffolds, raw table IR, source refs, and unsupported-table warning aggregation now cover PS3.5, PS3.7, PS3.8, PS3.10, PS3.16, and PS3.18. |
-| Phase 2 - PS3.5 VR and transfer syntax semantics | In progress | `vr_definition` and `transfer_syntax_detail` import paths plus Python resolver functions, CLI commands, MCP tools, and official-edition golden test coverage are in place; the goldens still need to run against a rebuilt official KB before marking the acceptance criterion complete. |
+| Phase 2 - PS3.5 VR and transfer syntax semantics | Complete | `vr_definition` and `transfer_syntax_detail` import paths plus Python resolver functions, CLI commands, MCP tools, and official-edition golden test coverage are in place. The local 2026b official KB was rebuilt with Phase 2 rows and the transfer-syntax goldens execute and pass. |
 | Phase 3 - PS3.10 file meta and media foundation | Not started | Prepares shared media-type model. |
 | Phase 4 - PS3.18 DICOMweb transactions | Not started | Satisfies v2 acceptance criterion 2. |
 | Phase 5 - PS3.16 SR templates, CIDs, and codes | Not started | Satisfies v2 acceptance criterion 3. |
@@ -43,7 +43,7 @@ Status values:
 
 | # | V2 acceptance criterion | Status | Evidence |
 |---|---|---|---|
-| 1 | Transfer syntax UID lookups return UID metadata plus encoding refs. | In progress | Python, CLI, and MCP surfaces exist with synthetic coverage; representative official-edition golden tests exist but skipped locally until the official KB is rebuilt with Phase 2 rows. |
+| 1 | Transfer syntax UID lookups return UID metadata plus encoding refs. | Complete | Python, CLI, and MCP surfaces exist with synthetic coverage; representative official-edition transfer-syntax goldens execute against the rebuilt local 2026b official KB and pass. |
 | 2 | DICOMweb transaction lookups return route, method, resource type, request/response constraints, and standard references. | Not started | Pending Phase 4. |
 | 3 | TID and CID lookups return structured rows and extensibility metadata. | Not started | Pending Phase 5. |
 | 4 | Enumerated values and defined terms link to their attribute context. | Not started | Pending Phase 6. |
@@ -54,14 +54,14 @@ Status values:
 
 | Field | Value |
 |---|---|
-| Current phase | Phase 2 - PS3.5 VR and Transfer Syntax Semantics |
+| Current phase | Phase 3 - PS3.10 File Meta and Media Foundation |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed commit | Pending current commit; previous completed commit was 6669d99. |
-| Last verification | `uv run --dev pytest tests/integration_requires_dicom_download/test_real_kb_goldens.py` passed with 34 passed and 4 skipped; skips were the new Phase 2 transfer-syntax goldens because the local official KB has not been rebuilt with `transfer_syntax_detail` rows. `uv run --dev pytest tests/unit/test_query_resolver.py -k 'lookup_transfer_syntax or explain_encoding_rule_uses_transfer_syntax_details'` passed with 3 passed and 38 deselected. Sandboxed `make lint` and `make typecheck` failed because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
+| Last completed commit | Pending current commit; previous completed commit was 97f40ce. |
+| Last verification | `uv run --dev pytest tests/unit/test_build.py` passed with 5 passed. `uv run --dev dicom-kb build --edition 2026b --force` rebuilt the local official KB with 63 `transfer_syntax_detail` rows. `uv run --dev pytest tests/integration_requires_dicom_download/test_real_kb_goldens.py -rs` passed with 38 passed. Sandboxed `make test-dicom-integration`, `make lint`, `make typecheck`, and `make test` failed because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make test-dicom-integration` passed with 44 passed and 4 skipped; escalated `make lint` passed; escalated `make typecheck` passed; escalated `make test` passed with 253 passed and 4 skipped. |
 | Current blocker | None |
-| Commit-ready summary | Added representative official-edition integration goldens for `lookup_transfer_syntax` covering implicit VR little endian, explicit VR little endian, deflated explicit VR little endian, and encapsulated JPEG Baseline transfer syntax behavior. The test records the required rebuild prerequisite when the local official KB predates Phase 2 rows. |
-| Next recommended action | Rebuild the local official KB with the current Phase 2 schema/importers and run `make test-dicom-integration`; if the transfer-syntax goldens execute instead of skipping, mark V2 acceptance criterion 1 and Phase 2 complete. |
+| Commit-ready summary | Fixed the build pipeline so `transfer_syntax_detail` rows are derived whenever PS3.6 UID registry rows are imported, even when the local official cache predates the v2 default PS3.5 artifact. Added a PS3.6-only build regression and corrected the official JPEG Baseline transfer-syntax golden name to match the 2026b UID registry. |
+| Next recommended action | Start Phase 3 with the smallest storage/import slice: parse PS3.10 file meta information rows into `file_meta_requirement` from the synthetic PS3.10 fixture, persist them through the SQLite importer, and add focused parser/build tests. |
 
 ## Phase 0 - V2 Contract Baseline
 
@@ -172,7 +172,7 @@ Notes:
 
 ## Phase 2 - PS3.5 VR and Transfer Syntax Semantics
 
-Status: `In progress`
+Status: `Complete`
 
 Scope:
 
@@ -189,7 +189,7 @@ Completion checklist:
 - [x] CLI commands exist and have snapshot tests.
 - [x] MCP tools exist and have schema tests.
 - [x] Official-edition integration goldens cover representative transfer syntaxes.
-- [ ] V2 acceptance criterion 1 is marked complete.
+- [x] V2 acceptance criterion 1 is marked complete.
 
 Commits:
 
@@ -200,7 +200,8 @@ Commits:
 | 56e2592 | Added Python resolver functions for `lookup_vr`, `lookup_transfer_syntax`, and `explain_encoding_rule`, backed by imported PS3.5 VR rows, PS3.6 transfer syntax UID rows, and cited PS3.5 text fallback. | `uv run --dev pytest tests/unit/test_query_resolver.py`; `make lint`; `make typecheck`; `make test` |
 | 17124b4 | Added CLI commands for `lookup vr`, `lookup transfer-syntax`, and `explain encoding`, wired to the existing PS3.5 resolver functions with focused CLI coverage. | `uv run --dev pytest tests/unit/test_cli_lookup.py`; `make lint`; `make typecheck`; `make test` |
 | 6669d99 | Added MCP tools for `dicom_lookup_vr`, `dicom_lookup_transfer_syntax`, and `dicom_explain_encoding_rule`, wired to the existing PS3.5 resolver functions with focused MCP server and protocol coverage. | `uv run --dev pytest tests/unit/test_mcp_server.py tests/unit/test_mcp_protocol.py tests/agent_regression/test_prompt_cases.py`; `uv run --dev pytest tests/unit/test_mcp_server.py tests/unit/test_mcp_protocol.py tests/agent_regression/test_prompt_cases.py tests/integration_requires_dicom_download/test_eval_runner.py`; `make lint`; `make typecheck`; `make test` |
-| Pending current commit | Added representative official-edition integration goldens for `lookup_transfer_syntax` covering implicit, explicit, deflated, and encapsulated transfer syntaxes, with an explicit skip prerequisite for local official KBs that predate Phase 2 rows. | `uv run --dev pytest tests/integration_requires_dicom_download/test_real_kb_goldens.py`; `uv run --dev pytest tests/unit/test_query_resolver.py -k 'lookup_transfer_syntax or explain_encoding_rule_uses_transfer_syntax_details'`; `make lint`; `make typecheck` |
+| 97f40ce | Added representative official-edition integration goldens for `lookup_transfer_syntax` covering implicit, explicit, deflated, and encapsulated transfer syntaxes, with an explicit skip prerequisite for local official KBs that predate Phase 2 rows. | `uv run --dev pytest tests/integration_requires_dicom_download/test_real_kb_goldens.py`; `uv run --dev pytest tests/unit/test_query_resolver.py -k 'lookup_transfer_syntax or explain_encoding_rule_uses_transfer_syntax_details'`; `make lint`; `make typecheck` |
+| Pending current commit | Derived transfer syntax details during PS3.6 build import so rebuilt official KBs with legacy PS3.3/4/6 manifests still populate Phase 2 rows; corrected the official JPEG Baseline transfer-syntax golden name after the rebuilt KB exercised the test. | `uv run --dev pytest tests/unit/test_build.py`; `uv run --dev dicom-kb build --edition 2026b --force`; `uv run --dev pytest tests/integration_requires_dicom_download/test_real_kb_goldens.py -rs`; `make test-dicom-integration`; `make lint`; `make typecheck`; `make test` |
 
 Notes:
 
@@ -208,10 +209,12 @@ Notes:
 - The transfer syntax detail slice imported transfer syntax details only.
 - The resolver slice added Python resolver functions only.
 - The CLI slice added CLI commands only.
-- The current slice adds representative official-edition transfer syntax
-  goldens only. They skipped locally because the available official KB
-  predates Phase 2 `transfer_syntax_detail` rows; rebuild the official KB
-  before using them to close acceptance criterion 1.
+- The transfer syntax detail import now runs immediately after PS3.6 UID
+  registry import, not only when PS3.5 is present, because the detail rows are
+  derived from UID registry entries. This lets legacy official caches rebuild
+  into the Phase 2 schema and execute the transfer-syntax goldens.
+- The local 2026b official KB was rebuilt after this fix and the Phase 2
+  official transfer-syntax goldens now execute instead of skipping.
 
 ## Phase 3 - PS3.10 File Meta and Media Foundation
 

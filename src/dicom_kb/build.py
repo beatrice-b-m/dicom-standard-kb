@@ -274,6 +274,18 @@ def build_sqlite_database(
                     uid_registry_entries=parsed_part06.uid_registry_entries,
                 )
             )
+            summaries.append(
+                import_transfer_syntax_details(
+                    connection,
+                    edition=manifest.edition,
+                    transfer_syntax_details=(
+                        transfer_syntax_details_from_uid_registry(
+                            edition=manifest.edition,
+                            uid_registry_entries=parsed_part06.uid_registry_entries,
+                        )
+                    ),
+                )
+            )
         iod_id_by_ref: dict[str, str] = {}
         if "PS3.3" in documents:
             parsed_part03 = parse_part03(
@@ -333,21 +345,6 @@ def build_sqlite_database(
                     vr_definitions=parsed_part05.vr_definitions,
                 )
             )
-            if parsed_part06 is not None:
-                summaries.append(
-                    import_transfer_syntax_details(
-                        connection,
-                        edition=manifest.edition,
-                        transfer_syntax_details=(
-                            transfer_syntax_details_from_uid_registry(
-                                edition=manifest.edition,
-                                uid_registry_entries=(
-                                    parsed_part06.uid_registry_entries
-                                ),
-                            )
-                        ),
-                    )
-                )
         if "PS3.7" in documents:
             parsed_part07 = parse_part07(
                 documents["PS3.7"], edition=manifest.edition

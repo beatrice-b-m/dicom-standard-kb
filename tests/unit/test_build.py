@@ -61,6 +61,26 @@ def _register_synthetic_artifacts(cache_dir: Path) -> None:
     )
 
 
+def _register_synthetic_parts(cache_dir: Path, fixtures: dict[str, str]) -> None:
+    register_local_artifacts(
+        edition="2026b",
+        cache_dir=cache_dir,
+        artifacts=[
+            ArtifactRequest(
+                part=part,
+                format=DOCBOOK_XML_FORMAT,
+                source=FIXTURE_DIR / filename,
+                destination=official_artifact_destination(
+                    "2026b",
+                    part=part,
+                    artifact_format=DOCBOOK_XML_FORMAT,
+                ),
+            )
+            for part, filename in fixtures.items()
+        ],
+    )
+
+
 def _connect(path: Path) -> sqlite3.Connection:
     connection = sqlite3.connect(path)
     connection.row_factory = sqlite3.Row
@@ -229,6 +249,36 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
         for part in DEFAULT_DOCBOOK_PARTS
     }
     assert payload["metrics"] == metrics
+
+
+def test_build_sqlite_database_derives_transfer_syntax_details_from_part06_only(
+    tmp_path: Path,
+) -> None:
+    cache_dir = tmp_path / "cache"
+    _register_synthetic_parts(
+        cache_dir,
+        {"PS3.6": "synthetic_ps3_6_registry_docbook.xml"},
+    )
+
+    summary = build_sqlite_database(edition="2026b", cache_dir=cache_dir)
+
+    assert summary.metrics.parts_loaded == ("PS3.6",)
+    assert any(
+        import_summary.transfer_syntax_details == 5
+        for import_summary in summary.import_summaries
+    )
+    with _connect(summary.db_path) as connection:
+        row = connection.execute(
+            """
+            SELECT explicit_vr, endian
+            FROM transfer_syntax_detail
+            WHERE edition_id = ? AND uid_value = ?
+            """,
+            ("2026b", "1.2.840.10008.1.2.1"),
+        ).fetchone()
+
+    assert row is not None
+    assert dict(row) == {"explicit_vr": 1, "endian": "little"}
 
 
 def test_build_sqlite_database_refuses_existing_db_without_force(

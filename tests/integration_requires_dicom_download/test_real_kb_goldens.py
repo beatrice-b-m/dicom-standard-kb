@@ -132,7 +132,10 @@ TRANSFER_SYNTAX_GOLDENS = {
         "encoding_notes": ["deflated dataset encoding"],
     },
     "1.2.840.10008.1.2.4.50": {
-        "uid_name": "JPEG Baseline (Process 1)",
+        "uid_name": (
+            "JPEG Baseline (Process 1): Default Transfer Syntax for Lossy JPEG "
+            "8 Bit Image Compression"
+        ),
         "uid_keyword": "JPEGBaseline8Bit",
         "explicit_vr": None,
         "endian": None,
