@@ -12,9 +12,10 @@ from dicom_kb.db.repositories import (
     Part03Repository,
     Part04Repository,
     Part05Repository,
+    Part10Repository,
     UIDRepository,
 )
-from dicom_kb.ir.models import TransferSyntaxDetail, VRDefinition
+from dicom_kb.ir.models import DicomMediaType, TransferSyntaxDetail, VRDefinition
 from dicom_kb.ir.validators import (
     IdentifierValidationError,
     normalize_tag,
@@ -25,6 +26,7 @@ from dicom_kb.query.answer_contracts import (
     attribute_context_result,
     attribute_value_terms_result,
     data_element_result,
+    dicom_media_type_result,
     encoding_rule_explanation_result,
     iod_modules_result,
     iod_result,
@@ -396,6 +398,72 @@ def explain_encoding_rule(
             text_excerpt=excerpt,
         ),
         refs=[standard_ref(match.node.source_ref)],
+        trace=trace,
+    )
+
+
+def lookup_media_type(
+    connection: sqlite3.Connection,
+    *,
+    media_type_or_context: str,
+    edition: str,
+    query_id: str | None = None,
+    resolved_at: datetime | None = None,
+) -> ToolResponse:
+    """Resolve a PS3.10 DICOM media-type row by media type or context."""
+    trace = build_trace(
+        connection,
+        edition=edition,
+        query_id=query_id,
+        resolved_at=resolved_at,
+    )
+    response_input = {"media_type_or_context": media_type_or_context}
+    normalized_input = media_type_or_context.strip()
+    if not normalized_input:
+        return tool_response(
+            edition=edition,
+            tool="lookup_media_type",
+            input=response_input,
+            status="validation_error",
+            result={"message": "media_type_or_context must not be empty."},
+            trace=trace,
+        )
+
+    records = Part10Repository(connection).list_media_types(
+        normalized_input,
+        edition=edition,
+    )
+    if not records:
+        return tool_response(
+            edition=edition,
+            tool="lookup_media_type",
+            input=response_input,
+            status="not_found",
+            result={"message": "No DICOM media type matched the input."},
+            trace=trace,
+        )
+    if len(records) > 1:
+        return tool_response(
+            edition=edition,
+            tool="lookup_media_type",
+            input=response_input,
+            status="validation_error",
+            result={
+                "message": "Media type input matched multiple contexts.",
+                "candidates": [_media_type_result(record) for record in records],
+            },
+            refs=[standard_ref(record.source_ref) for record in records],
+            trace=trace,
+        )
+
+    record = records[0]
+    return tool_response(
+        edition=edition,
+        tool="lookup_media_type",
+        input=response_input,
+        status="ok",
+        result=_media_type_result(record),
+        refs=[standard_ref(record.source_ref)],
         trace=trace,
     )
 
@@ -1123,6 +1191,15 @@ def _transfer_syntax_structured_facts(
         facts.append(f"compression family: {detail.compression_family}")
     facts.extend(f"encoding note: {note}" for note in detail.encoding_notes)
     return facts
+
+
+def _media_type_result(record: DicomMediaType) -> dict[str, object]:
+    return dicom_media_type_result(
+        media_type=record.media_type,
+        service_context=record.service_context,
+        transfer_syntax_constraints=list(record.transfer_syntax_constraints),
+        directions=list(record.directions),
+    )
 
 
 def _context_input(

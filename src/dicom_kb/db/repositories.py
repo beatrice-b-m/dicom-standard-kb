@@ -13,6 +13,7 @@ from dicom_kb.ir.models import (
     AttributeValueTerm,
     Condition,
     DataElement,
+    DicomMediaType,
     DocNode,
     IODFunctionalGroupUse,
     IODModuleUse,
@@ -90,6 +91,44 @@ class TransferSyntaxDetailRecord:
 
     detail: TransferSyntaxDetail
     uid: UIDRegistryEntry
+
+
+class Part10Repository:
+    """Lookup imported PS3.10 media storage semantics."""
+
+    def __init__(self, connection: sqlite3.Connection) -> None:
+        self.connection = connection
+
+    def list_media_types(
+        self, media_type_or_context: str, *, edition: str
+    ) -> list[DicomMediaType]:
+        """Return media-type rows matching an exact type or context."""
+        normalized = media_type_or_context.strip().casefold()
+        rows = self.connection.execute(
+            """
+            SELECT media.*, sr.part AS source_part, sr.section AS source_section,
+                   sr.table_id AS source_table_id, sr.xml_id AS source_xml_id,
+                   sr.title AS source_title, sr.canonical_url AS source_url
+            FROM dicom_media_type media
+            JOIN source_ref sr ON sr.id = media.source_ref_id
+            WHERE media.edition_id = ?
+            ORDER BY media.media_type, media.service_context, media.id
+            """,
+            (edition,),
+        ).fetchall()
+        records = [_dicom_media_type_from_row(row) for row in rows]
+        exact_media_type = [
+            record
+            for record in records
+            if record.media_type.casefold() == normalized
+        ]
+        if exact_media_type:
+            return exact_media_type
+        return [
+            record
+            for record in records
+            if _media_context_matches(record, normalized)
+        ]
 
 
 class DocumentRepository:
@@ -987,6 +1026,26 @@ def _vr_definition_from_row(row: sqlite3.Row) -> VRDefinition:
         binary_or_text=row["binary_or_text"],
         source_ref=_source_ref_from_row(row),
     )
+
+
+def _dicom_media_type_from_row(row: sqlite3.Row) -> DicomMediaType:
+    return DicomMediaType(
+        id=str(row["id"]),
+        edition_id=str(row["edition_id"]),
+        media_type=str(row["media_type"]),
+        service_context=row["service_context"],
+        transfer_syntax_constraints=tuple(
+            json.loads(str(row["transfer_syntax_constraints_json"]))
+        ),
+        directions=tuple(json.loads(str(row["directions_json"]))),
+        source_ref=_source_ref_from_row(row),
+    )
+
+
+def _media_context_matches(record: DicomMediaType, normalized: str) -> bool:
+    context = record.service_context.casefold() if record.service_context else ""
+    directions = {direction.casefold() for direction in record.directions}
+    return normalized == context or normalized in directions
 
 
 def _id_order(value: str) -> int:

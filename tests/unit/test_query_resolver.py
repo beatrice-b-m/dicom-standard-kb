@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 
 from dicom_kb.db.importers import (
     import_attribute_value_terms,
+    import_dicom_media_types,
     import_docbook_structure,
     import_part03,
     import_part04,
@@ -23,6 +25,7 @@ from dicom_kb.parsers.part05_encoding import (
     transfer_syntax_details_from_uid_registry,
 )
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
+from dicom_kb.parsers.part10_media_storage import parse_part10
 from dicom_kb.query.resolver import (
     explain_encoding_rule,
     list_attributes_for_module,
@@ -31,6 +34,7 @@ from dicom_kb.query.resolver import (
     lookup_defined_terms,
     lookup_enumerated_values,
     lookup_iod,
+    lookup_media_type,
     lookup_sop_class,
     lookup_transfer_syntax,
     lookup_uid,
@@ -44,6 +48,7 @@ from tests.fixtures_synthetic import (
     PS34_SOP_CLASSES_DOCBOOK,
     PS35_ENCODING_DOCBOOK,
     PS36_REGISTRY_DOCBOOK,
+    PS310_MEDIA_STORAGE_DOCBOOK,
 )
 
 RESOLVED_AT = datetime(2026, 6, 11, tzinfo=UTC)
@@ -141,6 +146,21 @@ def _part05_connection(tmp_path: Path) -> sqlite3.Connection:
             edition="2026b",
             uid_registry_entries=parsed_part06.uid_registry_entries,
         ),
+    )
+    return connection
+
+
+def _part10_connection(tmp_path: Path) -> sqlite3.Connection:
+    connection = connect_sqlite(tmp_path / "kb.sqlite")
+    apply_migrations(connection)
+    parsed_part10 = parse_part10(
+        parse_docbook_xml(PS310_MEDIA_STORAGE_DOCBOOK, part="PS3.10"),
+        edition="2026b",
+    )
+    import_dicom_media_types(
+        connection,
+        edition="2026b",
+        media_types=parsed_part10.media_types,
     )
     return connection
 
@@ -688,6 +708,127 @@ def test_explain_encoding_rule_validates_empty_topic(tmp_path: Path) -> None:
 
     assert response.status == "validation_error"
     assert response.result == {"message": "topic must not be empty."}
+
+
+def test_lookup_media_type_returns_ps310_media_type_row(tmp_path: Path) -> None:
+    response = lookup_media_type(
+        _part10_connection(tmp_path),
+        media_type_or_context="application/dicom",
+        edition="2026b",
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert response.status == "ok"
+    assert response.result == {
+        "media_type": "application/dicom",
+        "service_context": "PS3.10 file",
+        "transfer_syntax_constraints": [
+            "Encoded using the Transfer Syntax UID in the File Meta Information",
+        ],
+        "directions": ["file"],
+    }
+    assert response.refs[0].part == "PS3.10"
+    assert response.refs[0].table == "Synthetic Media Types"
+    assert response.classification.evidence_level == "parsed_table"
+    assert response.trace.query_id == "query-1"
+
+
+def test_lookup_media_type_matches_ps310_context(tmp_path: Path) -> None:
+    response = lookup_media_type(
+        _part10_connection(tmp_path),
+        media_type_or_context="file",
+        edition="2026b",
+    )
+
+    assert response.status == "ok"
+    assert response.result is not None
+    assert response.result["media_type"] == "application/dicom"
+    assert response.result["service_context"] == "PS3.10 file"
+
+
+def test_lookup_media_type_validates_empty_input_and_reports_not_found(
+    tmp_path: Path,
+) -> None:
+    connection = _part10_connection(tmp_path)
+
+    empty = lookup_media_type(
+        connection,
+        media_type_or_context="  ",
+        edition="2026b",
+    )
+    missing = lookup_media_type(
+        connection,
+        media_type_or_context="application/not-dicom",
+        edition="2026b",
+    )
+
+    assert empty.status == "validation_error"
+    assert empty.result == {"message": "media_type_or_context must not be empty."}
+    assert missing.status == "not_found"
+    assert missing.result == {"message": "No DICOM media type matched the input."}
+
+
+def test_lookup_media_type_returns_candidates_for_multiple_contexts(
+    tmp_path: Path,
+) -> None:
+    connection = _part10_connection(tmp_path)
+    connection.execute(
+        """
+        INSERT INTO source_ref (id, edition_id, part, title)
+        VALUES (?, ?, ?, ?)
+        """,
+        (
+            "2026b.PS3.18.table_8.7-1",
+            "2026b",
+            "PS3.18",
+            "Synthetic PS3.18 Media Types",
+        ),
+    )
+    connection.execute(
+        """
+        INSERT INTO dicom_media_type (
+          id, edition_id, media_type, service_context,
+          transfer_syntax_constraints_json, directions_json, source_ref_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "2026b.PS3.18.media_type.application_dicom",
+            "2026b",
+            "application/dicom",
+            "PS3.18 rendered request",
+            json.dumps(("Explicit transfer syntax only",), separators=(",", ":")),
+            json.dumps(("request",), separators=(",", ":")),
+            "2026b.PS3.18.table_8.7-1",
+        ),
+    )
+
+    response = lookup_media_type(
+        connection,
+        media_type_or_context="application/dicom",
+        edition="2026b",
+    )
+
+    assert response.status == "validation_error"
+    assert response.result is not None
+    assert response.result["message"] == "Media type input matched multiple contexts."
+    assert response.result["candidates"] == [
+        {
+            "media_type": "application/dicom",
+            "service_context": "PS3.10 file",
+            "transfer_syntax_constraints": [
+                "Encoded using the Transfer Syntax UID in the File Meta Information",
+            ],
+            "directions": ["file"],
+        },
+        {
+            "media_type": "application/dicom",
+            "service_context": "PS3.18 rendered request",
+            "transfer_syntax_constraints": ["Explicit transfer syntax only"],
+            "directions": ["request"],
+        },
+    ]
+    assert {ref.part for ref in response.refs} == {"PS3.10", "PS3.18"}
 
 
 def test_retrieve_standard_text_returns_capped_excerpt_and_tables(
