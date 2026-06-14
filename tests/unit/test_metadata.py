@@ -156,3 +156,53 @@ def test_v2_public_docs_cover_build_and_tool_surfaces() -> None:
     ):
         assert tool in readme
         assert tool in agent_tools
+
+
+def test_release_checklist_documents_v2_gates() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+
+    checklist = (repo_root / "docs" / "release_checklist.md").read_text(
+        encoding="utf-8"
+    )
+    checklist_words = " ".join(checklist.split())
+
+    for command in (
+        "make lint",
+        "make typecheck",
+        "make test",
+        "make test-dicom-integration",
+        "make test-dicom-current",
+    ):
+        assert command in checklist
+
+    for tool in (
+        "lookup_vr",
+        "lookup_transfer_syntax",
+        "explain_encoding_rule",
+        "lookup_media_type",
+        "lookup_dicomweb_transaction",
+        "lookup_sr_template",
+        "lookup_context_group",
+        "lookup_code_meaning",
+        "lookup_enumerated_values",
+        "lookup_defined_terms",
+        "retrieve_standard_text",
+    ):
+        assert tool in checklist
+
+    for part in (
+        "PS3.5",
+        "PS3.7",
+        "PS3.8",
+        "PS3.10",
+        "PS3.16",
+        "PS3.18",
+    ):
+        assert part in checklist
+
+    assert "at least 100 prompt cases" in checklist
+    assert "V2 Official-Edition Goldens" in checklist
+    assert "Distribution Audit" in checklist
+    assert "parser-warning and unresolved-reference metrics" in checklist_words
+    assert "No standalone PS3.16 terminology dump" in checklist
+    assert "Docker and PyPI artifacts require users to fetch and build" in checklist
