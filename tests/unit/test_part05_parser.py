@@ -4,11 +4,20 @@ import json
 import sqlite3
 from pathlib import Path
 
-from dicom_kb.db.importers import import_docbook_structure, import_vr_definitions
+from dicom_kb.db.importers import (
+    import_docbook_structure,
+    import_part06,
+    import_transfer_syntax_details,
+    import_vr_definitions,
+)
 from dicom_kb.db.models import apply_migrations, connect_sqlite
 from dicom_kb.docbook.parser import parse_docbook_xml
-from dicom_kb.parsers.part05_encoding import parse_part05
-from tests.fixtures_synthetic import PS35_ENCODING_DOCBOOK
+from dicom_kb.parsers.part05_encoding import (
+    parse_part05,
+    transfer_syntax_details_from_uid_registry,
+)
+from dicom_kb.parsers.part06_data_dictionary import parse_part06
+from tests.fixtures_synthetic import PS35_ENCODING_DOCBOOK, PS36_REGISTRY_DOCBOOK
 
 
 def _connection(tmp_path: Path) -> sqlite3.Connection:
@@ -92,6 +101,145 @@ def test_import_vr_definitions_persists_ps35_rows_with_source_refs(
         "part": "PS3.5",
         "table_id": "table_5-1",
     }
+
+
+def test_transfer_syntax_details_derive_deterministic_encoding_fields() -> None:
+    parsed = parse_part06(
+        parse_docbook_xml(PS36_REGISTRY_DOCBOOK, part="PS3.6"),
+        edition="2026b",
+    )
+
+    details = transfer_syntax_details_from_uid_registry(
+        edition="2026b",
+        uid_registry_entries=parsed.uid_registry_entries,
+    )
+
+    by_uid = {detail.uid_value: detail for detail in details}
+    assert set(by_uid) == {
+        "1.2.840.10008.1.2",
+        "1.2.840.10008.1.2.1",
+        "1.2.840.10008.1.2.1.99",
+        "1.2.840.10008.1.2.2",
+        "1.2.840.10008.1.2.4.50",
+    }
+    assert by_uid["1.2.840.10008.1.2"].explicit_vr is False
+    assert by_uid["1.2.840.10008.1.2"].endian == "little"
+    assert by_uid["1.2.840.10008.1.2"].encapsulated is False
+    assert by_uid["1.2.840.10008.1.2.1"].explicit_vr is True
+    assert by_uid["1.2.840.10008.1.2.1"].endian == "little"
+    assert by_uid["1.2.840.10008.1.2.1"].encapsulated is False
+    assert by_uid["1.2.840.10008.1.2.1.99"].compression_family == "deflated"
+    assert by_uid["1.2.840.10008.1.2.1.99"].encapsulated is False
+    assert by_uid["1.2.840.10008.1.2.2"].endian == "big"
+    assert by_uid["1.2.840.10008.1.2.4.50"].compression_family == "jpeg"
+    assert by_uid["1.2.840.10008.1.2.4.50"].encapsulated is True
+    assert by_uid["1.2.840.10008.1.2.4.50"].encoding_notes == (
+        "jpeg compressed transfer syntax",
+        "encapsulated pixel data",
+    )
+
+
+def test_import_transfer_syntax_details_persists_joined_uid_rows(
+    tmp_path: Path,
+) -> None:
+    connection = _connection(tmp_path)
+    parsed = parse_part06(
+        parse_docbook_xml(PS36_REGISTRY_DOCBOOK, part="PS3.6"),
+        edition="2026b",
+    )
+    import_part06(
+        connection,
+        edition="2026b",
+        data_elements=parsed.data_elements,
+        uid_registry_entries=parsed.uid_registry_entries,
+    )
+    details = transfer_syntax_details_from_uid_registry(
+        edition="2026b",
+        uid_registry_entries=parsed.uid_registry_entries,
+    )
+
+    summary = import_transfer_syntax_details(
+        connection,
+        edition="2026b",
+        transfer_syntax_details=details,
+    )
+
+    assert summary.transfer_syntax_details == 5
+    rows = connection.execute(
+        """
+        SELECT
+          uid.uid_name,
+          detail.explicit_vr,
+          detail.endian,
+          detail.encapsulated,
+          detail.compression_family,
+          detail.encoding_notes_json,
+          ref.part,
+          ref.table_id
+        FROM transfer_syntax_detail detail
+        JOIN uid_registry_entry uid ON uid.id = detail.uid_registry_entry_id
+        JOIN source_ref ref ON ref.id = detail.source_ref_id
+        WHERE detail.edition_id = ?
+        ORDER BY detail.uid_value
+        """,
+        ("2026b",),
+    ).fetchall()
+    assert [dict(row) for row in rows] == [
+        {
+            "uid_name": (
+                "Implicit VR Little Endian: Default Transfer Syntax for DICOM"
+            ),
+            "explicit_vr": 0,
+            "endian": "little",
+            "encapsulated": 0,
+            "compression_family": None,
+            "encoding_notes_json": "[]",
+            "part": "PS3.6",
+            "table_id": "table_A-1",
+        },
+        {
+            "uid_name": "Explicit VR Little Endian",
+            "explicit_vr": 1,
+            "endian": "little",
+            "encapsulated": 0,
+            "compression_family": None,
+            "encoding_notes_json": "[]",
+            "part": "PS3.6",
+            "table_id": "table_A-1",
+        },
+        {
+            "uid_name": "Deflated Explicit VR Little Endian",
+            "explicit_vr": 1,
+            "endian": "little",
+            "encapsulated": 0,
+            "compression_family": "deflated",
+            "encoding_notes_json": '["deflated dataset encoding"]',
+            "part": "PS3.6",
+            "table_id": "table_A-1",
+        },
+        {
+            "uid_name": "Explicit VR Big Endian",
+            "explicit_vr": 1,
+            "endian": "big",
+            "encapsulated": 0,
+            "compression_family": None,
+            "encoding_notes_json": "[]",
+            "part": "PS3.6",
+            "table_id": "table_A-1",
+        },
+        {
+            "uid_name": "JPEG Baseline (Process 1)",
+            "explicit_vr": None,
+            "endian": None,
+            "encapsulated": 1,
+            "compression_family": "jpeg",
+            "encoding_notes_json": (
+                '["jpeg compressed transfer syntax","encapsulated pixel data"]'
+            ),
+            "part": "PS3.6",
+            "table_id": "table_A-1",
+        },
+    ]
 
 
 def test_part05_docbook_structure_persists_nodes_refs_and_raw_table_ir(

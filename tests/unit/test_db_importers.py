@@ -49,7 +49,7 @@ def test_import_part06_and_lookup_tag_uid(tmp_path: Path) -> None:
     )
 
     assert summary.data_elements == 8
-    assert summary.uid_registry_entries == 2
+    assert summary.uid_registry_entries == 5
     element, warning = DataElementRepository(connection).find_by_tag_or_keyword(
         "Modality", edition="2026b"
     )

@@ -16,6 +16,7 @@ from dicom_kb.db.importers import (
     import_part03,
     import_part04,
     import_part06,
+    import_transfer_syntax_details,
     import_vr_definitions,
 )
 from dicom_kb.db.models import apply_migrations, connect_sqlite
@@ -24,8 +25,11 @@ from dicom_kb.ir.models import IOD, ParserWarning
 from dicom_kb.metadata import __version__
 from dicom_kb.parsers.part03_iods import parse_part03
 from dicom_kb.parsers.part04_sop_classes import parse_part04
-from dicom_kb.parsers.part05_encoding import parse_part05
-from dicom_kb.parsers.part06_data_dictionary import parse_part06
+from dicom_kb.parsers.part05_encoding import (
+    parse_part05,
+    transfer_syntax_details_from_uid_registry,
+)
+from dicom_kb.parsers.part06_data_dictionary import Part06ParseResult, parse_part06
 from dicom_kb.parsers.part07_messages import parse_part07
 from dicom_kb.parsers.part08_network import parse_part08
 from dicom_kb.parsers.part10_media_storage import parse_part10
@@ -256,6 +260,7 @@ def build_sqlite_database(
                 )
             )
 
+        parsed_part06: Part06ParseResult | None = None
         if "PS3.6" in documents:
             parsed_part06 = parse_part06(
                 documents["PS3.6"], edition=manifest.edition
@@ -328,6 +333,21 @@ def build_sqlite_database(
                     vr_definitions=parsed_part05.vr_definitions,
                 )
             )
+            if parsed_part06 is not None:
+                summaries.append(
+                    import_transfer_syntax_details(
+                        connection,
+                        edition=manifest.edition,
+                        transfer_syntax_details=(
+                            transfer_syntax_details_from_uid_registry(
+                                edition=manifest.edition,
+                                uid_registry_entries=(
+                                    parsed_part06.uid_registry_entries
+                                ),
+                            )
+                        ),
+                    )
+                )
         if "PS3.7" in documents:
             parsed_part07 = parse_part07(
                 documents["PS3.7"], edition=manifest.edition

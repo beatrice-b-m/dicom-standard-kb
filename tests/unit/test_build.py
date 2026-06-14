@@ -150,6 +150,15 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
             "WHERE edition_id = ? ORDER BY vr",
             ("2026b",),
         ).fetchall()
+        transfer_syntax_rows = connection.execute(
+            """
+            SELECT uid_value, explicit_vr, endian, encapsulated, compression_family
+            FROM transfer_syntax_detail
+            WHERE edition_id = ?
+            ORDER BY uid_value
+            """,
+            ("2026b",),
+        ).fetchall()
 
     assert tag_response.status == "ok"
     assert sop_response.status == "ok"
@@ -173,6 +182,43 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
         {"vr": "PN", "name": "Person Name", "binary_or_text": "text"},
         {"vr": "SQ", "name": "Sequence of Items", "binary_or_text": "binary"},
         {"vr": "UN", "name": "Unknown", "binary_or_text": "binary"},
+    ]
+    assert [dict(row) for row in transfer_syntax_rows] == [
+        {
+            "uid_value": "1.2.840.10008.1.2",
+            "explicit_vr": 0,
+            "endian": "little",
+            "encapsulated": 0,
+            "compression_family": None,
+        },
+        {
+            "uid_value": "1.2.840.10008.1.2.1",
+            "explicit_vr": 1,
+            "endian": "little",
+            "encapsulated": 0,
+            "compression_family": None,
+        },
+        {
+            "uid_value": "1.2.840.10008.1.2.1.99",
+            "explicit_vr": 1,
+            "endian": "little",
+            "encapsulated": 0,
+            "compression_family": "deflated",
+        },
+        {
+            "uid_value": "1.2.840.10008.1.2.2",
+            "explicit_vr": 1,
+            "endian": "big",
+            "encapsulated": 0,
+            "compression_family": None,
+        },
+        {
+            "uid_value": "1.2.840.10008.1.2.4.50",
+            "explicit_vr": None,
+            "endian": None,
+            "encapsulated": 1,
+            "compression_family": "jpeg",
+        },
     ]
     assert set(payload["source_sha256"]) == {
         official_artifact_destination(

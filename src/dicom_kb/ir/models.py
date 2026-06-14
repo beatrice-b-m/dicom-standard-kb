@@ -187,6 +187,23 @@ class VRDefinition(BaseModel):
     source_ref: SourceRef
 
 
+class TransferSyntaxDetail(BaseModel):
+    """Deterministic encoding details for a PS3.6 transfer syntax UID."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    edition_id: str
+    uid_registry_entry_id: str
+    uid_value: str
+    explicit_vr: bool | None = None
+    endian: str | None = None
+    encapsulated: bool | None = None
+    compression_family: str | None = None
+    encoding_notes: tuple[str, ...] = ()
+    source_ref: SourceRef
+
+
 class Condition(BaseModel):
     """A preserved raw condition with machine-readability metadata."""
 
