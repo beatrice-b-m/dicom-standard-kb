@@ -68,8 +68,8 @@ location.
 
 `build` and `build-fixture` emit a `metrics` object with aggregate ingestion
 quality counters, including resolved and unresolved include rows, resolved and
-unresolved cross references, parse warnings, and source-ref counts. The same
-metrics are persisted in build metadata.
+unresolved cross references, parse warnings, per-part parser warning counts,
+and source-ref counts. The same metrics are persisted in build metadata.
 
 Use quality gates to fail a build when a local threshold is exceeded:
 

@@ -161,11 +161,23 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
         "xrefs_total",
         "xrefs_unresolved",
         "parse_warnings",
+        "parse_warnings_by_part",
         "source_refs",
     }
     assert metrics["edition"] == "2026b"
     assert metrics["parts_loaded"] == sorted(DEFAULT_DOCBOOK_PARTS)
     assert metrics["parse_warnings"] == len(summary.warnings)
+    assert metrics["parse_warnings_by_part"] == {
+        "PS3.3": 0,
+        "PS3.4": 1,
+        "PS3.5": 1,
+        "PS3.6": 2,
+        "PS3.7": 1,
+        "PS3.8": 1,
+        "PS3.10": 1,
+        "PS3.16": 1,
+        "PS3.18": 1,
+    }
     assert metrics["include_rows_resolved"] == 1
     assert metrics["include_rows_unresolved"] == 0
     assert metrics["xrefs_total"] >= metrics["xrefs_unresolved"]
@@ -594,6 +606,7 @@ def test_build_metrics_aggregate_import_summaries() -> None:
             ),
         ),
         parse_warnings=2,
+        parse_warnings_by_part={"PS3.6": 2},
     )
 
     assert metrics.as_jsonable() == {
@@ -614,6 +627,7 @@ def test_build_metrics_aggregate_import_summaries() -> None:
         "xrefs_total": 4,
         "xrefs_unresolved": 1,
         "parse_warnings": 2,
+        "parse_warnings_by_part": {"PS3.3": 0, "PS3.6": 2},
         "source_refs": 8,
     }
 

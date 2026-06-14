@@ -74,6 +74,7 @@ class BuildMetrics:
     xrefs_total: int = 0
     xrefs_unresolved: int = 0
     parse_warnings: int = 0
+    parse_warnings_by_part: dict[str, int] | None = None
     source_refs: int = 0
 
     @classmethod
@@ -84,9 +85,13 @@ class BuildMetrics:
         parts_loaded: tuple[str, ...],
         import_summaries: tuple[ImportSummary, ...],
         parse_warnings: int,
+        parse_warnings_by_part: dict[str, int] | None = None,
         source_refs: int | None = None,
     ) -> BuildMetrics:
         """Aggregate import summaries into the public Section 16 shape."""
+        warning_counts = dict(parse_warnings_by_part or {})
+        for part in parts_loaded:
+            warning_counts.setdefault(part, 0)
         return cls(
             edition=edition,
             parts_loaded=parts_loaded,
@@ -115,6 +120,7 @@ class BuildMetrics:
                 summary.xrefs_unresolved for summary in import_summaries
             ),
             parse_warnings=parse_warnings,
+            parse_warnings_by_part=warning_counts,
             source_refs=(
                 source_refs
                 if source_refs is not None
@@ -126,6 +132,9 @@ class BuildMetrics:
         """Return a JSON-serializable metrics object."""
         payload = asdict(self)
         payload["parts_loaded"] = list(self.parts_loaded)
+        payload["parse_warnings_by_part"] = dict(
+            sorted((self.parse_warnings_by_part or {}).items())
+        )
         return payload
 
 
@@ -250,6 +259,7 @@ def build_sqlite_database(
     documents = _load_docbook_documents(cache_dir=cache_dir, manifest=manifest)
     connection = connect_sqlite(target_path)
     warnings: list[str] = []
+    parse_warnings_by_part: dict[str, int] = {}
     summaries: list[ImportSummary] = []
     metrics: BuildMetrics | None = None
     gate_failures: tuple[str, ...] = ()
@@ -271,7 +281,11 @@ def build_sqlite_database(
             parsed_part06 = parse_part06(
                 documents["PS3.6"], edition=manifest.edition
             )
-            warnings.extend(_warning_messages(parsed_part06.warnings))
+            warnings.extend(
+                _record_warning_messages(
+                    parsed_part06.warnings, parse_warnings_by_part
+                )
+            )
             summaries.append(
                 import_part06(
                     connection,
@@ -302,7 +316,11 @@ def build_sqlite_database(
                 for iod in parsed_part03.iods
                 for ref in _iod_ref_keys(iod)
             }
-            warnings.extend(_warning_messages(parsed_part03.warnings))
+            warnings.extend(
+                _record_warning_messages(
+                    parsed_part03.warnings, parse_warnings_by_part
+                )
+            )
             summaries.append(
                 import_part03(
                     connection,
@@ -329,7 +347,11 @@ def build_sqlite_database(
                 edition=manifest.edition,
                 iod_id_by_ref=iod_id_by_ref,
             )
-            warnings.extend(_warning_messages(parsed_part04.warnings))
+            warnings.extend(
+                _record_warning_messages(
+                    parsed_part04.warnings, parse_warnings_by_part
+                )
+            )
             summaries.append(
                 import_part04(
                     connection,
@@ -343,7 +365,11 @@ def build_sqlite_database(
             parsed_part05 = parse_part05(
                 documents["PS3.5"], edition=manifest.edition
             )
-            warnings.extend(_warning_messages(parsed_part05.warnings))
+            warnings.extend(
+                _record_warning_messages(
+                    parsed_part05.warnings, parse_warnings_by_part
+                )
+            )
             summaries.append(
                 import_vr_definitions(
                     connection,
@@ -355,17 +381,29 @@ def build_sqlite_database(
             parsed_part07 = parse_part07(
                 documents["PS3.7"], edition=manifest.edition
             )
-            warnings.extend(_warning_messages(parsed_part07.warnings))
+            warnings.extend(
+                _record_warning_messages(
+                    parsed_part07.warnings, parse_warnings_by_part
+                )
+            )
         if "PS3.8" in documents:
             parsed_part08 = parse_part08(
                 documents["PS3.8"], edition=manifest.edition
             )
-            warnings.extend(_warning_messages(parsed_part08.warnings))
+            warnings.extend(
+                _record_warning_messages(
+                    parsed_part08.warnings, parse_warnings_by_part
+                )
+            )
         if "PS3.10" in documents:
             parsed_part10 = parse_part10(
                 documents["PS3.10"], edition=manifest.edition
             )
-            warnings.extend(_warning_messages(parsed_part10.warnings))
+            warnings.extend(
+                _record_warning_messages(
+                    parsed_part10.warnings, parse_warnings_by_part
+                )
+            )
             summaries.append(
                 import_file_meta_requirements(
                     connection,
@@ -384,7 +422,11 @@ def build_sqlite_database(
             parsed_part16 = parse_part16(
                 documents["PS3.16"], edition=manifest.edition
             )
-            warnings.extend(_warning_messages(parsed_part16.warnings))
+            warnings.extend(
+                _record_warning_messages(
+                    parsed_part16.warnings, parse_warnings_by_part
+                )
+            )
             summaries.append(
                 import_sr_templates(
                     connection,
@@ -412,7 +454,11 @@ def build_sqlite_database(
             parsed_part18 = parse_part18(
                 documents["PS3.18"], edition=manifest.edition
             )
-            warnings.extend(_warning_messages(parsed_part18.warnings))
+            warnings.extend(
+                _record_warning_messages(
+                    parsed_part18.warnings, parse_warnings_by_part
+                )
+            )
             summaries.append(
                 import_dicomweb_transactions(
                     connection,
@@ -433,6 +479,7 @@ def build_sqlite_database(
             parts_loaded=tuple(sorted(documents)),
             import_summaries=tuple(summaries),
             parse_warnings=len(warnings),
+            parse_warnings_by_part=parse_warnings_by_part,
             source_refs=_source_ref_count(connection),
         )
         gate_failures = evaluate_quality_gates(metrics, gate_settings)
@@ -490,6 +537,14 @@ def _load_docbook_documents(
         path = cache_dir / artifact.local_path
         documents[artifact.part] = parse_docbook_file(path, part=artifact.part)
     return documents
+
+
+def _record_warning_messages(
+    warnings: tuple[ParserWarning, ...], counts_by_part: dict[str, int]
+) -> tuple[str, ...]:
+    for warning in warnings:
+        counts_by_part[warning.part] = counts_by_part.get(warning.part, 0) + 1
+    return _warning_messages(warnings)
 
 
 def _warning_messages(warnings: tuple[ParserWarning, ...]) -> tuple[str, ...]:
