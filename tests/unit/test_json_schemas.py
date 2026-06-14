@@ -9,10 +9,20 @@ from pydantic import ValidationError
 
 from dicom_kb.query.answer_contracts import (
     NOTICE,
+    ContextGroupRowResult,
     ResponseStatus,
+    SRTemplateRowResult,
     StandardRef,
     ToolResponse,
+    code_meaning_result,
+    context_group_result,
+    dicom_media_type_result,
+    dicomweb_transaction_result,
+    encoding_rule_explanation_result,
+    sr_template_result,
     tool_response,
+    transfer_syntax_detail_result,
+    vr_definition_result,
 )
 from dicom_kb.sources.manifest import SourceArtifact, SourceManifest
 
@@ -84,6 +94,223 @@ def test_tool_response_factory_adds_deterministic_metadata() -> None:
     assert response.parse_confidence.model_dump(exclude_none=True) == {
         "level": "high",
         "source": "parsed_registry",
+    }
+
+
+def test_v2_tool_response_classification_metadata() -> None:
+    responses = [
+        tool_response(
+            edition="2026b",
+            tool="lookup_vr",
+            input={"vr": "PN"},
+            status="ok",
+            result=vr_definition_result(vr="PN", name="Person Name"),
+        ),
+        tool_response(
+            edition="2026b",
+            tool="lookup_transfer_syntax",
+            input={"uid_or_keyword": "ExplicitVRLittleEndian"},
+            status="ok",
+            result=transfer_syntax_detail_result(
+                uid_value="1.2.840.10008.1.2.1",
+                uid_name="Explicit VR Little Endian",
+                retired=False,
+            ),
+        ),
+        tool_response(
+            edition="2026b",
+            tool="explain_encoding_rule",
+            input={"topic": "padding"},
+            status="ok",
+            result=encoding_rule_explanation_result(
+                topic="padding",
+                summary="Padding is returned as cited explanatory text.",
+            ),
+        ),
+    ]
+
+    expected = {
+        "lookup_vr": ("normative", "parsed_table", "decidable", "high"),
+        "lookup_transfer_syntax": (
+            "normative",
+            "parsed_cross_reference",
+            "decidable",
+            "high",
+        ),
+        "explain_encoding_rule": (
+            "explanatory",
+            "retrieved_text",
+            "not_applicable",
+            "low",
+        ),
+    }
+    for response in responses:
+        normativity, evidence_level, machine_decidability, confidence = expected[
+            response.tool
+        ]
+        assert response.classification.normativity == normativity
+        assert response.classification.evidence_level == evidence_level
+        assert response.classification.machine_decidability == machine_decidability
+        assert response.parse_confidence.level == confidence
+        assert response.parse_confidence.source == evidence_level
+
+
+def test_v2_result_builders_return_concrete_payload_contracts() -> None:
+    assert vr_definition_result(
+        vr="PN",
+        name="Person Name",
+        value_representation_class="text",
+        length_notes=["64 chars maximum per component group"],
+        padding_behavior="space padded",
+        character_repertoire_notes=["affected by Specific Character Set"],
+        binary_or_text="text",
+    ) == {
+        "vr": "PN",
+        "name": "Person Name",
+        "value_representation_class": "text",
+        "length_notes": ["64 chars maximum per component group"],
+        "padding_behavior": "space padded",
+        "character_repertoire_notes": ["affected by Specific Character Set"],
+        "binary_or_text": "text",
+    }
+    assert transfer_syntax_detail_result(
+        uid_value="1.2.840.10008.1.2.1",
+        uid_name="Explicit VR Little Endian",
+        uid_keyword="ExplicitVRLittleEndian",
+        explicit_vr=True,
+        endian="little",
+        encapsulated=False,
+        compression_family=None,
+        retired=False,
+        encoding_notes=["native pixel encoding"],
+    ) == {
+        "uid_value": "1.2.840.10008.1.2.1",
+        "uid_name": "Explicit VR Little Endian",
+        "uid_keyword": "ExplicitVRLittleEndian",
+        "explicit_vr": True,
+        "endian": "little",
+        "encapsulated": False,
+        "compression_family": None,
+        "retired": False,
+        "encoding_notes": ["native pixel encoding"],
+    }
+    assert encoding_rule_explanation_result(
+        topic="undefined length sequence",
+        summary="Sequences may use delimiter items when encoded with undefined length.",
+        structured_facts=["SQ supports undefined length"],
+        text_excerpt="Bounded cited excerpt.",
+    ) == {
+        "topic": "undefined length sequence",
+        "summary": (
+            "Sequences may use delimiter items when encoded with undefined length."
+        ),
+        "structured_facts": ["SQ supports undefined length"],
+        "text_excerpt": "Bounded cited excerpt.",
+    }
+    assert dicomweb_transaction_result(
+        transaction_name="RetrieveStudy",
+        resource_category="study",
+        http_method="GET",
+        route_template="/studies/{studyInstanceUID}",
+        request_constraints=["studyInstanceUID is required"],
+        response_constraints=["returns matching instances"],
+        status_codes=["200", "404"],
+        media_type_refs=["multipart/related; type=application/dicom"],
+    ) == {
+        "transaction_name": "RetrieveStudy",
+        "resource_category": "study",
+        "http_method": "GET",
+        "route_template": "/studies/{studyInstanceUID}",
+        "request_constraints": ["studyInstanceUID is required"],
+        "response_constraints": ["returns matching instances"],
+        "status_codes": ["200", "404"],
+        "media_type_refs": ["multipart/related; type=application/dicom"],
+    }
+    assert dicom_media_type_result(
+        media_type="application/dicom",
+        service_context="PS3.10 file",
+        transfer_syntax_constraints=["single transfer syntax parameter"],
+        directions=["request", "response"],
+    ) == {
+        "media_type": "application/dicom",
+        "service_context": "PS3.10 file",
+        "transfer_syntax_constraints": ["single transfer syntax parameter"],
+        "directions": ["request", "response"],
+    }
+    assert sr_template_result(
+        tid="TID 1500",
+        name="Measurement Report",
+        extensibility="EXTENSIBLE",
+        rows=[
+            SRTemplateRowResult(
+                order=1,
+                relationship_type="CONTAINS",
+                value_type="CONTAINER",
+                concept_name="Imaging Measurement Report",
+                cardinality="1",
+                condition=None,
+                include_tid=None,
+            )
+        ],
+    ) == {
+        "tid": "TID 1500",
+        "name": "Measurement Report",
+        "extensibility": "EXTENSIBLE",
+        "rows": [
+            {
+                "order": 1,
+                "relationship_type": "CONTAINS",
+                "value_type": "CONTAINER",
+                "concept_name": "Imaging Measurement Report",
+                "cardinality": "1",
+                "condition": None,
+                "include_tid": None,
+            }
+        ],
+    }
+    assert context_group_result(
+        cid="CID 29",
+        name="Acquisition Modality",
+        extensibility="EXTENSIBLE",
+        version="20260614",
+        rows=[
+            ContextGroupRowResult(
+                order=1,
+                coding_scheme_designator="DCM",
+                coding_scheme_version=None,
+                code_value="CT",
+                code_meaning="Computed Tomography",
+                include_cid=None,
+            )
+        ],
+    ) == {
+        "cid": "CID 29",
+        "name": "Acquisition Modality",
+        "extensibility": "EXTENSIBLE",
+        "version": "20260614",
+        "rows": [
+            {
+                "order": 1,
+                "coding_scheme_designator": "DCM",
+                "coding_scheme_version": None,
+                "code_value": "CT",
+                "code_meaning": "Computed Tomography",
+                "include_cid": None,
+            }
+        ],
+    }
+    assert code_meaning_result(
+        code_value="CT",
+        coding_scheme_designator="DCM",
+        coding_scheme_version=None,
+        code_meaning="Computed Tomography",
+        context_groups=["CID 29"],
+    ) == {
+        "code_value": "CT",
+        "coding_scheme_designator": "DCM",
+        "coding_scheme_version": None,
+        "code_meaning": "Computed Tomography",
+        "context_groups": ["CID 29"],
     }
 
 
