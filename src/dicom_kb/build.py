@@ -26,6 +26,7 @@ from dicom_kb.parsers.part04_sop_classes import parse_part04
 from dicom_kb.parsers.part05_encoding import parse_part05
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
 from dicom_kb.parsers.part07_messages import parse_part07
+from dicom_kb.parsers.part08_network import parse_part08
 from dicom_kb.sources.downloader import DEFAULT_CACHE_DIR
 from dicom_kb.sources.manifest import (
     SourceManifest,
@@ -321,6 +322,11 @@ def build_sqlite_database(
                 documents["PS3.7"], edition=manifest.edition
             )
             warnings.extend(_warning_messages(parsed_part07.warnings))
+        if "PS3.8" in documents:
+            parsed_part08 = parse_part08(
+                documents["PS3.8"], edition=manifest.edition
+            )
+            warnings.extend(_warning_messages(parsed_part08.warnings))
 
         metrics = BuildMetrics.from_imports(
             edition=manifest.edition,

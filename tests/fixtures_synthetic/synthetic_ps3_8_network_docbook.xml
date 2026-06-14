@@ -5,13 +5,25 @@
       <title>Network Overview</title>
       <para>Synthetic PS3.8 fixture for generic DocBook ingestion.</para>
       <table xml:id="table_8-1">
-        <title>Synthetic Network Topics</title>
+        <title>Synthetic Association PDUs</title>
         <tgroup cols="2">
           <thead>
-            <row><entry>Topic</entry><entry>Scope</entry></row>
+            <row><entry>PDU</entry><entry>Direction</entry></row>
           </thead>
           <tbody>
-            <row><entry>Association</entry><entry>connection setup</entry></row>
+            <row><entry>A-ASSOCIATE-RQ</entry><entry>request</entry></row>
+            <row><entry>A-ASSOCIATE-AC</entry><entry>response</entry></row>
+          </tbody>
+        </tgroup>
+      </table>
+      <table xml:id="table_8-2">
+        <title>Synthetic Network Notes</title>
+        <tgroup cols="2">
+          <thead>
+            <row><entry>Topic</entry><entry>Rule</entry></row>
+          </thead>
+          <tbody>
+            <row><entry>Connection Establishment</entry><entry>Prose-only rule.</entry></row>
           </tbody>
         </tgroup>
       </table>
