@@ -31,7 +31,7 @@ Status values:
 | Phase 0 - V2 contract baseline | Complete | V2 result payload builders, JSON schema coverage, canonical migration table names, and empty-database migration smoke coverage are in place. |
 | Phase 1 - New part acquisition/parser foundation | Complete | Default official DocBook fetch, synthetic build-fixture loading, parser scaffolds, raw table IR, source refs, and unsupported-table warning aggregation now cover PS3.5, PS3.7, PS3.8, PS3.10, PS3.16, and PS3.18. |
 | Phase 2 - PS3.5 VR and transfer syntax semantics | Complete | `vr_definition` and `transfer_syntax_detail` import paths plus Python resolver functions, CLI commands, MCP tools, and official-edition golden test coverage are in place. The local 2026b official KB was rebuilt with Phase 2 rows and the transfer-syntax goldens execute and pass. |
-| Phase 3 - PS3.10 file meta and media foundation | Not started | Prepares shared media-type model. |
+| Phase 3 - PS3.10 file meta and media foundation | In progress | `file_meta_requirement` parser/import/build wiring is in place for synthetic PS3.10 file meta rows. Media-type rows and public lookup surfaces remain pending. |
 | Phase 4 - PS3.18 DICOMweb transactions | Not started | Satisfies v2 acceptance criterion 2. |
 | Phase 5 - PS3.16 SR templates, CIDs, and codes | Not started | Satisfies v2 acceptance criterion 3. |
 | Phase 6 - Contextual enumerated values and defined terms | Not started | Satisfies v2 acceptance criterion 4. |
@@ -57,11 +57,11 @@ Status values:
 | Current phase | Phase 3 - PS3.10 File Meta and Media Foundation |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed commit | Pending current commit; previous completed commit was 97f40ce. |
-| Last verification | `uv run --dev pytest tests/unit/test_build.py` passed with 5 passed. `uv run --dev dicom-kb build --edition 2026b --force` rebuilt the local official KB with 63 `transfer_syntax_detail` rows. `uv run --dev pytest tests/integration_requires_dicom_download/test_real_kb_goldens.py -rs` passed with 38 passed. Sandboxed `make test-dicom-integration`, `make lint`, `make typecheck`, and `make test` failed because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make test-dicom-integration` passed with 44 passed and 4 skipped; escalated `make lint` passed; escalated `make typecheck` passed; escalated `make test` passed with 253 passed and 4 skipped. |
+| Last completed commit | Pending current commit; previous completed commit was 899c73c. |
+| Last verification | `uv run --dev pytest tests/unit/test_part10_parser.py tests/unit/test_build.py` passed with 8 passed. Sandboxed `make lint`, `make typecheck`, and `make test` failed because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed after fixing one E501 line-length finding; escalated `make typecheck` passed; escalated `make test` passed with 254 passed and 4 skipped. |
 | Current blocker | None |
-| Commit-ready summary | Fixed the build pipeline so `transfer_syntax_detail` rows are derived whenever PS3.6 UID registry rows are imported, even when the local official cache predates the v2 default PS3.5 artifact. Added a PS3.6-only build regression and corrected the official JPEG Baseline transfer-syntax golden name to match the 2026b UID registry. |
-| Next recommended action | Start Phase 3 with the smallest storage/import slice: parse PS3.10 file meta information rows into `file_meta_requirement` from the synthetic PS3.10 fixture, persist them through the SQLite importer, and add focused parser/build tests. |
+| Commit-ready summary | Parsed PS3.10 file meta information rows into `FileMetaRequirement`, persisted them through `file_meta_requirement`, opportunistically linked rows to PS3.6 data elements by tag, and added parser/import/build coverage using the expanded synthetic PS3.10 fixture. |
+| Next recommended action | Continue Phase 3 with the smallest media foundation slice: parse PS3.10-derived `dicom_media_type` rows from the synthetic PS3.10 fixture, persist them through the SQLite importer, and add focused parser/build tests without exposing public lookup behavior yet. |
 
 ## Phase 0 - V2 Contract Baseline
 
@@ -201,7 +201,7 @@ Commits:
 | 17124b4 | Added CLI commands for `lookup vr`, `lookup transfer-syntax`, and `explain encoding`, wired to the existing PS3.5 resolver functions with focused CLI coverage. | `uv run --dev pytest tests/unit/test_cli_lookup.py`; `make lint`; `make typecheck`; `make test` |
 | 6669d99 | Added MCP tools for `dicom_lookup_vr`, `dicom_lookup_transfer_syntax`, and `dicom_explain_encoding_rule`, wired to the existing PS3.5 resolver functions with focused MCP server and protocol coverage. | `uv run --dev pytest tests/unit/test_mcp_server.py tests/unit/test_mcp_protocol.py tests/agent_regression/test_prompt_cases.py`; `uv run --dev pytest tests/unit/test_mcp_server.py tests/unit/test_mcp_protocol.py tests/agent_regression/test_prompt_cases.py tests/integration_requires_dicom_download/test_eval_runner.py`; `make lint`; `make typecheck`; `make test` |
 | 97f40ce | Added representative official-edition integration goldens for `lookup_transfer_syntax` covering implicit, explicit, deflated, and encapsulated transfer syntaxes, with an explicit skip prerequisite for local official KBs that predate Phase 2 rows. | `uv run --dev pytest tests/integration_requires_dicom_download/test_real_kb_goldens.py`; `uv run --dev pytest tests/unit/test_query_resolver.py -k 'lookup_transfer_syntax or explain_encoding_rule_uses_transfer_syntax_details'`; `make lint`; `make typecheck` |
-| Pending current commit | Derived transfer syntax details during PS3.6 build import so rebuilt official KBs with legacy PS3.3/4/6 manifests still populate Phase 2 rows; corrected the official JPEG Baseline transfer-syntax golden name after the rebuilt KB exercised the test. | `uv run --dev pytest tests/unit/test_build.py`; `uv run --dev dicom-kb build --edition 2026b --force`; `uv run --dev pytest tests/integration_requires_dicom_download/test_real_kb_goldens.py -rs`; `make test-dicom-integration`; `make lint`; `make typecheck`; `make test` |
+| 899c73c | Derived transfer syntax details during PS3.6 build import so rebuilt official KBs with legacy PS3.3/4/6 manifests still populate Phase 2 rows; corrected the official JPEG Baseline transfer-syntax golden name after the rebuilt KB exercised the test. | `uv run --dev pytest tests/unit/test_build.py`; `uv run --dev dicom-kb build --edition 2026b --force`; `uv run --dev pytest tests/integration_requires_dicom_download/test_real_kb_goldens.py -rs`; `make test-dicom-integration`; `make lint`; `make typecheck`; `make test` |
 
 Notes:
 
@@ -218,7 +218,7 @@ Notes:
 
 ## Phase 3 - PS3.10 File Meta and Media Foundation
 
-Status: `Not started`
+Status: `In progress`
 
 Scope:
 
@@ -228,7 +228,7 @@ Scope:
 
 Completion checklist:
 
-- [ ] File meta requirements are imported with type designations and refs.
+- [x] File meta requirements are imported with type designations and refs.
 - [ ] Media-type model has PS3.10 coverage.
 - [ ] Python lookup path exists.
 - [ ] CLI command exists.
@@ -239,11 +239,13 @@ Commits:
 
 | Commit | Summary | Verification |
 |---|---|---|
-| None | Not started. | None. |
+| Pending current commit | Added PS3.10 file meta requirement parsing, SQLite import/build wiring, and synthetic fixture coverage for required and optional file meta rows. | `uv run --dev pytest tests/unit/test_part10_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
 
 Notes:
 
 - Keep PS3.10 file meta lookup separate from full dataset validation.
+- The file meta requirement slice imports table rows only. It intentionally
+  does not add the `lookup_media_type` resolver, CLI command, or MCP tool.
 
 ## Phase 4 - PS3.18 DICOMweb Transactions
 

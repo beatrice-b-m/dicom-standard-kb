@@ -21,6 +21,7 @@ from dicom_kb.ir.models import (
     Condition,
     DataElement,
     DocNode,
+    FileMetaRequirement,
     IODFunctionalGroupUse,
     IODModuleUse,
     Macro,
@@ -64,6 +65,7 @@ class ImportSummary:
     attribute_value_terms: int = 0
     vr_definitions: int = 0
     transfer_syntax_details: int = 0
+    file_meta_requirements: int = 0
     include_rows_resolved: int = 0
     include_rows_unresolved: int = 0
 
@@ -428,6 +430,37 @@ def import_transfer_syntax_details(
         edition=edition,
         source_refs=len(source_refs),
         transfer_syntax_details=len(records),
+    )
+
+
+def import_file_meta_requirements(
+    connection: sqlite3.Connection,
+    *,
+    edition: str,
+    file_meta_requirements: Iterable[FileMetaRequirement],
+) -> ImportSummary:
+    """Import parsed PS3.10 file meta information requirements."""
+    records = tuple(file_meta_requirements)
+    source_refs = _unique_source_refs(record.source_ref for record in records)
+
+    try:
+        with connection:
+            for source_ref in source_refs:
+                _insert_source_ref(connection, source_ref)
+            for record in records:
+                _insert_file_meta_requirement(
+                    connection,
+                    _with_resolved_data_element_id(connection, record),
+                )
+    except sqlite3.IntegrityError as exc:
+        raise ImportError(
+            f"failed to import PS3.10 file meta requirements for {edition}"
+        ) from exc
+
+    return ImportSummary(
+        edition=edition,
+        source_refs=len(source_refs),
+        file_meta_requirements=len(records),
     )
 
 
@@ -1009,6 +1042,52 @@ def _insert_transfer_syntax_detail(
             json.dumps(record.encoding_notes, sort_keys=True, separators=(",", ":")),
             record.source_ref.id,
         ),
+    )
+
+
+def _insert_file_meta_requirement(
+    connection: sqlite3.Connection, record: FileMetaRequirement
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO file_meta_requirement (
+          id, edition_id, data_element_id, attribute_tag, attribute_keyword,
+          type_designation, rule_context, source_ref_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            record.id,
+            record.edition_id,
+            record.data_element_id,
+            record.attribute_tag,
+            record.attribute_keyword,
+            record.type_designation,
+            record.rule_context,
+            record.source_ref.id,
+        ),
+    )
+
+
+def _with_resolved_data_element_id(
+    connection: sqlite3.Connection, record: FileMetaRequirement
+) -> FileMetaRequirement:
+    if record.data_element_id is not None and record.attribute_keyword is not None:
+        return record
+    row = connection.execute(
+        """
+        SELECT id, keyword
+        FROM data_element
+        WHERE edition_id = ? AND tag = ?
+        """,
+        (record.edition_id, record.attribute_tag),
+    ).fetchone()
+    if row is None:
+        return record
+    return record.model_copy(
+        update={
+            "data_element_id": record.data_element_id or row["id"],
+            "attribute_keyword": record.attribute_keyword or row["keyword"],
+        }
     )
 
 

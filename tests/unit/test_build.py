@@ -106,6 +106,10 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
     assert any("PS3.10 table_10-2" in warning for warning in summary.warnings)
     assert any("PS3.16 table_16-2" in warning for warning in summary.warnings)
     assert any("PS3.18 table_18-2" in warning for warning in summary.warnings)
+    assert any(
+        import_summary.file_meta_requirements == 7
+        for import_summary in summary.import_summaries
+    )
     metrics = summary.metrics.as_jsonable()
     assert set(metrics) == {
         "edition",
@@ -179,6 +183,15 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
             """,
             ("2026b",),
         ).fetchall()
+        file_meta_rows = connection.execute(
+            """
+            SELECT attribute_tag, type_designation, rule_context
+            FROM file_meta_requirement
+            WHERE edition_id = ?
+            ORDER BY attribute_tag
+            """,
+            ("2026b",),
+        ).fetchall()
 
     assert tag_response.status == "ok"
     assert sop_response.status == "ok"
@@ -238,6 +251,43 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
             "endian": None,
             "encapsulated": 1,
             "compression_family": "jpeg",
+        },
+    ]
+    assert [dict(row) for row in file_meta_rows] == [
+        {
+            "attribute_tag": "(0002,0000)",
+            "type_designation": "1",
+            "rule_context": "file_meta_information",
+        },
+        {
+            "attribute_tag": "(0002,0002)",
+            "type_designation": "1",
+            "rule_context": "file_meta_information",
+        },
+        {
+            "attribute_tag": "(0002,0003)",
+            "type_designation": "1",
+            "rule_context": "file_meta_information",
+        },
+        {
+            "attribute_tag": "(0002,0010)",
+            "type_designation": "1",
+            "rule_context": "file_meta_information",
+        },
+        {
+            "attribute_tag": "(0002,0012)",
+            "type_designation": "1",
+            "rule_context": "file_meta_information",
+        },
+        {
+            "attribute_tag": "(0002,0013)",
+            "type_designation": "3",
+            "rule_context": "file_meta_information",
+        },
+        {
+            "attribute_tag": "(0002,0016)",
+            "type_designation": "3",
+            "rule_context": "file_meta_information",
         },
     ]
     assert set(payload["source_sha256"]) == {

@@ -204,6 +204,21 @@ class TransferSyntaxDetail(BaseModel):
     source_ref: SourceRef
 
 
+class FileMetaRequirement(BaseModel):
+    """PS3.10 file meta information attribute requirement row."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    edition_id: str
+    data_element_id: str | None = None
+    attribute_tag: str
+    attribute_keyword: str | None = None
+    type_designation: str
+    rule_context: str | None = None
+    source_ref: SourceRef
+
+
 class Condition(BaseModel):
     """A preserved raw condition with machine-readability metadata."""
 
