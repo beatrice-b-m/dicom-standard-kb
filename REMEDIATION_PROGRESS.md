@@ -39,7 +39,7 @@ Status values:
 | Phase R0 - Reproduce and inventory the gap | Complete | Local 2026b official cache contains only PS3.3/PS3.4/PS3.6; named v2 semantic lookups return `not_found`, while current official goldens pass with skips and agent regression passes. |
 | Phase R1 - Separate smoke tests from release gates | Complete | Strict release requirement helper checks required DocBook parts, semantic rows, and citation-preserving DocBook structure; `make test-dicom-release` now runs the strict opt-in gate and rejects the current PS3.3/PS3.4/PS3.6-only local official KB while smoke integration remains separate. |
 | Phase R2 - Repair official-shape PS3.16 ingestion | Complete | Official-shape parser, build/import, and resolver coverage now proves TID 1500, CID 29, and CT/DCM fixture rows persist with PS3.16 citations and return `ok`. |
-| Phase R3 - Pin strict official goldens | Not started | Strict official positive tests must cover PN, application/dicom, RetrieveStudy, TID 1500, CID 29, and CT/DCM. |
+| Phase R3 - Pin strict official goldens | Complete | Strict release-only positive tests now pin PN, application/dicom, RetrieveStudy, TID 1500, CID 29, and CT/DCM and fail on `not_found`, missing fields, or missing required-part citations. |
 | Phase R4 - Harden agent regression scoring | Not started | Positive v2 prompt cases must require `ok` tool results with required-part citations. |
 | Phase R5 - Reconcile completion state and final gates | Not started | Final docs and progress must reflect the repaired release evidence and final verification. |
 
@@ -47,14 +47,14 @@ Status values:
 
 | Field | Value |
 |---|---|
-| Current phase | Phase R3 - Pin strict official goldens |
+| Current phase | Phase R4 - Harden agent regression scoring |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed remediation commit | Pending current commit. Previous completed R2 parser commit: 507d1cd. |
-| Last verification | `uv run --dev pytest tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'official_shape or part16 or sr_template or context_group or code_meaning' -q` passed with 11 passed; `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'official_shape or part16 or sr_template or context_group or code_meaning' -q` passed with 17 passed; sandboxed `make lint` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; sandboxed `make typecheck` failed before running for the same uv cache permission reason; escalated `make typecheck` passed. |
+| Last completed remediation commit | Pending current R3 commit. Previous completed R2 coverage commit: 0571440. |
+| Last verification | `uv run --dev pytest tests/unit/test_makefile.py tests/unit/test_metadata.py tests/integration_requires_dicom_download/test_release_gate.py tests/integration_requires_dicom_download/test_release_goldens.py -rs` passed with 8 passed and 7 skipped; `uv run --dev ruff check tests/integration_requires_dicom_download/test_release_goldens.py tests/unit/test_makefile.py tests/unit/test_metadata.py` passed; sandboxed `make test` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make test` passed with 321 passed and 17 skipped; sandboxed `make test-dicom-release` failed before running for the same uv cache reason; escalated `make test-dicom-release` failed as expected against the reduced local 2026b KB with 7 release-gate failures; sandboxed `make lint` failed before running for the same uv cache reason; escalated `make lint` passed. |
 | Current blocker | None. |
-| Commit-ready summary | Added build/import coverage proving official-shape PS3.16 fixture rows persist with source refs, plus resolver coverage proving `lookup_sr_template("1500")`, `lookup_context_group("29")`, and `lookup_code_meaning("CT", scheme="DCM")` return `ok` against that fixture data. |
-| Next recommended action | Start Phase R3 by adding strict official positive goldens for PN, application/dicom, RetrieveStudy, TID 1500, CID 29, and CT/DCM that fail on `not_found`, missing fields, or missing required-part citations. |
+| Commit-ready summary | Added release-only strict official positive goldens for PN, application/dicom, RetrieveStudy, TID 1500, CID 29, and CT/DCM; wired `make test-dicom-release` to run those tests alongside the release prerequisite check; documented that the strict gate pins named v2 acceptance examples. |
+| Next recommended action | Start Phase R4 by extending expected tool traces and scoring so positive v2 semantic cases require `ok` tool results with citations from the required standard part, and so fallback source-reference calls cannot satisfy those cases. |
 
 ## Phase R0 - Reproduce and Inventory the Gap
 
@@ -182,11 +182,11 @@ Commits:
 | Commit | Summary | Verification |
 |---|---|---|
 | 507d1cd | Added official-shape PS3.16 parser support for TID/CID metadata in section or table titles, official SR template row headers, CID code rows, and CID include xrefs. | `uv run --dev pytest tests/unit/test_part16_parser.py -q`; `uv run --dev pytest tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'part16 or sr_template or context_group or code_meaning' -q`; `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'part16 or sr_template or context_group or code_meaning' -q`; `uv run --dev ruff check src/dicom_kb/parsers/part16_content_mapping.py tests/unit/test_part16_parser.py tests/fixtures_synthetic/__init__.py`; `make lint`; `make typecheck` could not run because sandboxed uv cache access failed and escalated `make typecheck` was rejected. |
-| Pending current commit | Added official-shape PS3.16 build/import coverage and resolver coverage proving TID 1500, CID 29, and CT/DCM rows persist with PS3.16 citations and return `ok`. | `uv run --dev pytest tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'official_shape or part16 or sr_template or context_group or code_meaning' -q`; `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'official_shape or part16 or sr_template or context_group or code_meaning' -q`; `make lint`; `make typecheck` |
+| 0571440 | Added official-shape PS3.16 build/import coverage and resolver coverage proving TID 1500, CID 29, and CT/DCM rows persist with PS3.16 citations and return `ok`. | `uv run --dev pytest tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'official_shape or part16 or sr_template or context_group or code_meaning' -q`; `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'official_shape or part16 or sr_template or context_group or code_meaning' -q`; `make lint`; `make typecheck` |
 
 ## Phase R3 - Pin Strict Official Goldens
 
-Status: `Not started`
+Status: `Complete`
 
 Scope:
 
@@ -196,19 +196,19 @@ Scope:
 
 Completion checklist:
 
-- [ ] Strict PN VR official golden requires PS3.5 citation.
-- [ ] Strict application/dicom official golden requires PS3.10 or PS3.18 citation.
-- [ ] Strict RetrieveStudy official golden requires PS3.18 citation.
-- [ ] Strict TID 1500 official golden requires PS3.16 citation and rows.
-- [ ] Strict CID 29 official golden requires PS3.16 citation and rows.
-- [ ] Strict CT/DCM official golden requires PS3.16 citation.
-- [ ] Flexible discovery tests are clearly smoke-only.
+- [x] Strict PN VR official golden requires PS3.5 citation.
+- [x] Strict application/dicom official golden requires PS3.10 or PS3.18 citation.
+- [x] Strict RetrieveStudy official golden requires PS3.18 citation.
+- [x] Strict TID 1500 official golden requires PS3.16 citation and rows.
+- [x] Strict CID 29 official golden requires PS3.16 citation and rows.
+- [x] Strict CT/DCM official golden requires PS3.16 citation.
+- [x] Flexible discovery tests are clearly smoke-only.
 
 Commits:
 
 | Commit | Summary | Verification |
 |---|---|---|
-| Pending | No Phase R3 commit yet. | Pending |
+| Pending current commit | Added release-only strict positive official goldens for PN, application/dicom, RetrieveStudy, TID 1500, CID 29, and CT/DCM, and wired them into `make test-dicom-release` while keeping flexible discovery goldens as smoke coverage. | `uv run --dev pytest tests/unit/test_makefile.py tests/unit/test_metadata.py tests/integration_requires_dicom_download/test_release_gate.py tests/integration_requires_dicom_download/test_release_goldens.py -rs`; `uv run --dev ruff check tests/integration_requires_dicom_download/test_release_goldens.py tests/unit/test_makefile.py tests/unit/test_metadata.py`; `make test`; `make test-dicom-release`; `make lint` |
 
 ## Phase R4 - Harden Agent Regression Scoring
 
@@ -287,6 +287,11 @@ Commits:
 | 2026-06-14 | `uv run --dev pytest tests/unit/test_release_requirements.py` | Passed | 4 passed; covers complete, missing DocBook part, missing semantic rows, and missing DocBook structure scenarios for the strict release requirement helper. |
 | 2026-06-14 | `make lint` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev ruff check .` with all checks passed. |
 | 2026-06-14 | `make typecheck` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev mypy` with no issues in 57 source files. |
+| 2026-06-14 | `uv run --dev pytest tests/unit/test_makefile.py tests/unit/test_metadata.py tests/integration_requires_dicom_download/test_release_gate.py tests/integration_requires_dicom_download/test_release_goldens.py -rs` | Passed | 8 passed and 7 skipped; release-gate tests are opt-in without `DICOM_KB_RUN_RELEASE=1`. |
+| 2026-06-14 | `uv run --dev ruff check tests/integration_requires_dicom_download/test_release_goldens.py tests/unit/test_makefile.py tests/unit/test_metadata.py` | Passed | Focused lint for the new release-golden tests and target/docs assertions. |
+| 2026-06-14 | `make test` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun passed with 321 passed and 17 skipped. |
+| 2026-06-14 | `make test-dicom-release` | Failed in sandbox; failed as expected escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun executed the strict gate and failed against the reduced local 2026b KB with 7 failures: the prerequisite test rejected missing v2 DocBook parts, semantic rows, and DocBook structure, and the six pinned v2 examples returned `not_found`. |
+| 2026-06-14 | `make lint` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev ruff check .` with all checks passed. |
 | 2026-06-14 | `uv run --dev pytest tests/unit/test_makefile.py tests/unit/test_metadata.py tests/unit/test_release_requirements.py tests/integration_requires_dicom_download/test_release_gate.py -rs` | Passed | 12 passed, 1 skipped; the strict release gate is skipped unless `DICOM_KB_RUN_RELEASE=1` is set. |
 | 2026-06-14 | `make test-dicom-release` | Failed as expected | Escalated rerun executed the strict release gate and rejected the reduced local 2026b KB: missing DocBook artifacts for PS3.10, PS3.16, PS3.18, PS3.5, PS3.7, and PS3.8; missing v2 semantic rows; missing DocBook structure rows for the same v2 parts. |
 | 2026-06-14 | `make lint` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev ruff check .` with all checks passed. |

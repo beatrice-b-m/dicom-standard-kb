@@ -37,7 +37,7 @@ Status values:
 | Phase 6 - Contextual enumerated values and defined terms | Complete | Existing `attribute_value_term` coverage is documented; deterministic IOD/SOP/module/macro context resolution works through the shared PS3.3/PS3.4 graph, and ambiguous contextual value-term matches now return candidates instead of a merged answer. |
 | Phase 7 - Selected PS3.7/PS3.8 semantics | Complete | Selected PS3.7 DIMSE service-behavior and PS3.8 association-PDU parser slices are in place for synthetic fixtures, with cited PS3.7/PS3.8 retrieval fallback coverage and agent regression traces through `retrieve_standard_text`. |
 | Phase 8 - Evaluation harness expansion | Complete | The final v2 workflow prompt batch raises the suite to 101 prompt cases; every implemented v2 public tool appears in deterministic expected traces, unsupported normative-claim checks cover the major v2 domains, and the full agent regression suite passes. |
-| Phase 9 - V2 release hardening | In progress | Remediation found that the earlier integration gate could pass against a PS3.3/PS3.4/PS3.6-only official KB. `make test-dicom-release` is now the strict opt-in v2 official release gate and currently rejects the reduced local 2026b KB; see `REMEDIATION_PROGRESS.md`. |
+| Phase 9 - V2 release hardening | In progress | Remediation found that the earlier integration gate could pass against a PS3.3/PS3.4/PS3.6-only official KB. `make test-dicom-release` is now the strict opt-in v2 official release gate, includes pinned positive goldens for the named v2 examples, and currently rejects the reduced local 2026b KB; see `REMEDIATION_PROGRESS.md`. |
 
 ## Acceptance Criteria Tracker
 
@@ -57,11 +57,11 @@ Status values:
 | Current phase | V2 release evidence remediation |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed commit | Pending current commit. Previous remediation commit: 5aff662. |
-| Last verification | `make test-dicom-release` now runs the strict v2 official release gate and fails against the reduced local 2026b KB with missing v2 DocBook parts, semantic rows, and DocBook structure rows; `make test-dicom-integration` remains smoke coverage and passed with 46 passed and 11 skipped. |
+| Last completed commit | Pending current R3 commit. Previous remediation commit: 0571440. |
+| Last verification | `make test-dicom-release` now runs the strict v2 official release gate plus pinned positive goldens for PN, application/dicom, RetrieveStudy, TID 1500, CID 29, and CT/DCM. It fails against the reduced local 2026b KB with missing v2 DocBook parts, semantic rows, DocBook structure rows, and `not_found` results for all six pinned v2 examples. |
 | Current blocker | None |
-| Commit-ready summary | Updated the release-gate contract so strict v2 official readiness uses `make test-dicom-release` rather than the smoke integration target alone. |
-| Next recommended action | Continue remediation from `REMEDIATION_PROGRESS.md`, starting with official-shape PS3.16 parser support. |
+| Commit-ready summary | Updated the release-gate contract so strict v2 official readiness also requires exact positive official goldens for the named v2 examples, not only prerequisite row counts. |
+| Next recommended action | Continue remediation from `REMEDIATION_PROGRESS.md`, starting with Phase R4 agent-regression scorer hardening. |
 
 ## Phase 0 - V2 Contract Baseline
 
@@ -570,14 +570,16 @@ Commits:
 | 2c24e49 | Added `parse_warnings_by_part` to build metrics, CLI build output, and persisted build metadata; synthetic build tests assert the per-part counts and docs name the public metric. | `uv run --dev pytest tests/unit/test_build.py` passed with 5 passed; `uv run --dev pytest tests/unit/test_cli_build.py` passed with 2 passed; `uv run --dev pytest tests/unit/test_metadata.py` passed with 7 passed. Sandboxed `make lint`, `make typecheck`, and `make test` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed; escalated `make test` passed with 312 passed and 10 skipped. |
 | 179024e | Added a repeatable tracked-file distribution audit for release-forbidden official artifacts, generated databases, vector indexes, generated standard text/JSON paths, official `partNN.xml` files, and standalone terminology dump artifacts. The same test confirms wheel and Docker release inputs stay code-only. | `uv run --dev pytest tests/unit/test_distribution_audit.py tests/unit/test_metadata.py` passed with 9 passed; `uv run --dev ruff check tests/unit/test_distribution_audit.py tests/unit/test_metadata.py` passed; sandboxed `make lint` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` was rejected by the environment approval policy; escalated `make typecheck` passed with no issues in 57 source files. |
 | b46b314 | Recorded the final Phase 9 release-gate results and marked the v2 implementation plan complete before the remediation review identified the smoke-vs-release gate gap. | Sandboxed `make test-dicom-integration` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make test-dicom-integration` passed with 46 passed and 10 skipped. Sandboxed `make test-dicom-current` failed before running for the same `uv` cache permission reason; escalated `make test-dicom-current` passed with 1 passed. |
-| Pending current commit | Added `make test-dicom-release` as the strict opt-in v2 official release gate and documented that `make test-dicom-integration` remains smoke coverage for partial local caches. | `uv run --dev pytest tests/unit/test_makefile.py tests/unit/test_metadata.py tests/unit/test_release_requirements.py tests/integration_requires_dicom_download/test_release_gate.py -rs`; `make test-dicom-release`; `make lint`; `make typecheck`; `make test`; `make test-dicom-integration` |
+| 87cd1be | Added `make test-dicom-release` as the strict opt-in v2 official release gate and documented that `make test-dicom-integration` remains smoke coverage for partial local caches. | `uv run --dev pytest tests/unit/test_makefile.py tests/unit/test_metadata.py tests/unit/test_release_requirements.py tests/integration_requires_dicom_download/test_release_gate.py -rs`; `make test-dicom-release`; `make lint`; `make typecheck`; `make test`; `make test-dicom-integration` |
+| Pending current commit | Added exact strict official positive goldens for PN, application/dicom, RetrieveStudy, TID 1500, CID 29, and CT/DCM, and wired them into `make test-dicom-release`. | `uv run --dev pytest tests/unit/test_makefile.py tests/unit/test_metadata.py tests/integration_requires_dicom_download/test_release_gate.py tests/integration_requires_dicom_download/test_release_goldens.py -rs`; `uv run --dev ruff check tests/integration_requires_dicom_download/test_release_goldens.py tests/unit/test_makefile.py tests/unit/test_metadata.py`; `make test`; `make test-dicom-release`; `make lint` |
 
 Notes:
 
 - Phase 9 release evidence is under remediation. The strict
   `make test-dicom-release` target is now the final v2 official-edition gate;
   it currently fails against the reduced local 2026b KB until the missing v2
-  official parts and semantic rows are present.
+  official parts, semantic rows, and pinned positive example results are
+  present.
 
 ## Decision Log
 

@@ -21,7 +21,7 @@ test-dicom-current:
 	DICOM_KB_RUN_CURRENT=1 uv run --dev pytest -m dicom_current tests/integration_requires_dicom_download/test_current_resolution.py
 
 test-dicom-release:
-	DICOM_KB_RUN_RELEASE=1 uv run --dev pytest -m dicom_release tests/integration_requires_dicom_download/test_release_gate.py
+	DICOM_KB_RUN_RELEASE=1 uv run --dev pytest -m dicom_release tests/integration_requires_dicom_download/test_release_gate.py tests/integration_requires_dicom_download/test_release_goldens.py
 
 ingest-fixture:
 	uv run --dev dicom-kb build-fixture

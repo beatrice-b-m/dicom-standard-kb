@@ -22,6 +22,7 @@ def test_makefile_dicom_integration_aliases_are_wired() -> None:
     assert "-m dicom_release" in release.stdout
     assert "DICOM_KB_RUN_RELEASE=1" in release.stdout
     assert "test_release_gate.py" in release.stdout
+    assert "test_release_goldens.py" in release.stdout
     assert "dicom_current" not in default.stdout
     assert "dicom_release" not in default.stdout
 
