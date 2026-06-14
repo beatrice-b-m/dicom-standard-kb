@@ -264,6 +264,51 @@ def _context_connection(tmp_path: Path) -> sqlite3.Connection:
     return connection
 
 
+def _context_connection_with_ambiguous_value_terms(
+    tmp_path: Path,
+) -> sqlite3.Connection:
+    connection = _connection(tmp_path)
+    document = parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3")
+    parsed_part03 = parse_part03(document, edition="2026b")
+    patient_module = next(
+        module
+        for module in parsed_part03.modules
+        if module.id == "2026b.module.patient"
+    )
+    duplicate_patient_name = AttributeUse(
+        id="2026b.module.patient.attribute_use.duplicate",
+        edition_id="2026b",
+        owner_type="module",
+        owner_id=patient_module.id,
+        row_kind="attribute",
+        attribute_tag="(0010,0010)",
+        attribute_keyword="PatientName",
+        attribute_name="Patient's Name",
+        type_designation="2",
+        description_text="Second applicable context for ambiguity testing.",
+        sequence_depth=0,
+        row_order=99,
+        source_ref=patient_module.source_ref,
+    )
+    import_part03(
+        connection,
+        edition="2026b",
+        iods=parsed_part03.iods,
+        modules=parsed_part03.modules,
+        macros=parsed_part03.macros,
+        iod_module_uses=parsed_part03.iod_module_uses,
+        iod_functional_group_uses=parsed_part03.iod_functional_group_uses,
+        attribute_uses=[*parsed_part03.attribute_uses, duplicate_patient_name],
+        conditions=parsed_part03.conditions,
+    )
+    import_attribute_value_terms(
+        connection,
+        edition="2026b",
+        document=document,
+    )
+    return connection
+
+
 def _context_connection_with_duplicate_attribute(
     tmp_path: Path,
     *,
@@ -1799,6 +1844,61 @@ def test_lookup_value_terms_resolves_iod_and_sop_contexts(
         "PS3.4",
         "PS3.6",
     }
+
+
+def test_lookup_value_terms_returns_candidates_for_ambiguous_context(
+    tmp_path: Path,
+) -> None:
+    response = lookup_defined_terms(
+        _context_connection_with_ambiguous_value_terms(tmp_path),
+        attribute="PatientName",
+        edition="2026b",
+        context="CT Image",
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert response.status == "validation_error"
+    assert response.result is not None
+    assert response.result["message"] == (
+        "Context input matched multiple value-term contexts."
+    )
+    assert response.result["attribute"]["tag"] == "(0010,0010)"
+    assert response.result["candidates"] == [
+        {
+            "context_label": "Patient Module - Defined Terms:",
+            "attribute_use_id": "2026b.module.patient.attribute_use.0",
+            "terms": [
+                {
+                    "value": "ALPHA",
+                    "meaning": "Alphabetic representation.",
+                    "term_kind": "defined_term",
+                },
+                {
+                    "value": "IDEOGRAPHIC",
+                    "meaning": "Ideographic representation.",
+                    "term_kind": "defined_term",
+                },
+            ],
+        },
+        {
+            "context_label": "Patient Module - Defined Terms:",
+            "attribute_use_id": "2026b.module.patient.attribute_use.duplicate",
+            "terms": [
+                {
+                    "value": "ALPHA",
+                    "meaning": "Alphabetic representation.",
+                    "term_kind": "defined_term",
+                },
+                {
+                    "value": "IDEOGRAPHIC",
+                    "meaning": "Ideographic representation.",
+                    "term_kind": "defined_term",
+                },
+            ],
+        },
+    ]
+    assert {ref.part for ref in response.refs} == {"PS3.3", "PS3.6"}
 
 
 def test_resolve_attribute_context_computes_lowest_type_for_multiple_uses(

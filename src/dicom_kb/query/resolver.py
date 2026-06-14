@@ -6,6 +6,7 @@ import sqlite3
 from datetime import datetime
 
 from dicom_kb.db.repositories import (
+    AttributeValueTermRecord,
     AttributeValueTermRepository,
     CodeMeaningRecord,
     ContextGroupRecord,
@@ -1289,6 +1290,24 @@ def _lookup_attribute_value_terms(
         context_refs,
         (record.term.source_ref for record in records),
     )
+    if context is not None:
+        candidates = _attribute_value_term_context_candidates(records)
+        if len(candidates) > 1:
+            return tool_response(
+                edition=edition,
+                tool=tool,
+                input=response_input,
+                status="validation_error",
+                result={
+                    "message": "Context input matched multiple value-term contexts.",
+                    "attribute": data_element_result(element),
+                    "candidates": candidates,
+                },
+                refs=refs,
+                warnings=warnings,
+                trace=trace,
+            )
+
     return tool_response(
         edition=edition,
         tool=tool,
@@ -1299,6 +1318,35 @@ def _lookup_attribute_value_terms(
         warnings=warnings,
         trace=trace,
     )
+
+
+def _attribute_value_term_context_candidates(
+    records: list[AttributeValueTermRecord],
+) -> list[dict[str, object]]:
+    grouped_records: dict[tuple[str | None, str | None], list[AttributeValueTermRecord]]
+    grouped_records = {}
+    for record in records:
+        key = (record.term.attribute_use_id, record.term.context_label)
+        grouped_records.setdefault(key, []).append(record)
+
+    candidates: list[dict[str, object]] = []
+    for attribute_use_id, context_label in grouped_records:
+        candidate_records = grouped_records[(attribute_use_id, context_label)]
+        candidates.append(
+            {
+                "context_label": context_label,
+                "attribute_use_id": attribute_use_id,
+                "terms": [
+                    {
+                        "value": record.term.value,
+                        "meaning": record.term.meaning,
+                        "term_kind": record.term.term_kind,
+                    }
+                    for record in candidate_records
+                ],
+            }
+        )
+    return candidates
 
 
 def _value_term_context_attribute_use_ids(
