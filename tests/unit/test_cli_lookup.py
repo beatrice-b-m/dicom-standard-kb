@@ -17,6 +17,7 @@ from dicom_kb.db.importers import (
     import_part03,
     import_part04,
     import_part06,
+    import_sr_templates,
     import_transfer_syntax_details,
     import_vr_definitions,
 )
@@ -30,6 +31,7 @@ from dicom_kb.parsers.part05_encoding import (
 )
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
 from dicom_kb.parsers.part10_media_storage import parse_part10
+from dicom_kb.parsers.part16_content_mapping import parse_part16
 from dicom_kb.parsers.part18_web_services import parse_part18
 from dicom_kb.sources.downloader import (
     DEFAULT_DOCBOOK_PARTS,
@@ -45,6 +47,7 @@ from tests.fixtures_synthetic import (
     PS35_ENCODING_DOCBOOK,
     PS36_REGISTRY_DOCBOOK,
     PS310_MEDIA_STORAGE_DOCBOOK,
+    PS316_CONTENT_MAPPING_DOCBOOK,
     PS318_WEB_SERVICES_DOCBOOK,
 )
 
@@ -133,6 +136,16 @@ def _fixture_db(tmp_path: Path) -> Path:
         connection,
         edition="2026b",
         media_types=parsed_part10.media_types,
+    )
+    parsed_part16 = parse_part16(
+        parse_docbook_xml(PS316_CONTENT_MAPPING_DOCBOOK, part="PS3.16"),
+        edition="2026b",
+    )
+    import_sr_templates(
+        connection,
+        edition="2026b",
+        templates=parsed_part16.sr_templates,
+        rows=parsed_part16.sr_template_rows,
     )
     part18_document = parse_docbook_xml(PS318_WEB_SERVICES_DOCBOOK, part="PS3.18")
     import_docbook_structure(
@@ -371,6 +384,46 @@ def test_cli_lookup_dicomweb_outputs_ps318_transaction(tmp_path: Path) -> None:
         "media_type_refs": ["application/dicom"],
     }
     assert payload["refs"][0]["part"] == "PS3.18"
+
+
+def test_cli_lookup_sr_template_outputs_ps316_template(tmp_path: Path) -> None:
+    payload = _invoke_json(
+        tmp_path,
+        "lookup",
+        "sr-template",
+        "TID 1500",
+        "--edition",
+        "2026b",
+    )
+
+    assert payload["tool"] == "lookup_sr_template"
+    assert payload["status"] == "ok"
+    assert payload["result"] == {
+        "tid": "TID 1500",
+        "name": "Measurement Report",
+        "extensibility": "EXTENSIBLE",
+        "rows": [
+            {
+                "order": 1,
+                "relationship_type": "CONTAINS",
+                "value_type": "CONTAINER",
+                "concept_name": "Measurement Report",
+                "cardinality": "1",
+                "condition": "Root container is required.",
+                "include_tid": None,
+            },
+            {
+                "order": 2,
+                "relationship_type": "CONTAINS",
+                "value_type": "INCLUDE",
+                "concept_name": None,
+                "cardinality": "1-n",
+                "condition": "Include measurements when present.",
+                "include_tid": "TID 1501",
+            },
+        ],
+    }
+    assert payload["refs"][0]["part"] == "PS3.16"
 
 
 def test_cli_explain_encoding_outputs_structured_rule(tmp_path: Path) -> None:

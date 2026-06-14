@@ -55,6 +55,7 @@ from dicom_kb.query.resolver import (
     lookup_iod,
     lookup_media_type,
     lookup_sop_class,
+    lookup_sr_template,
     lookup_transfer_syntax,
     lookup_uid,
     lookup_vr,
@@ -1063,6 +1064,41 @@ def lookup_dicomweb_command(
             lookup_dicomweb_transaction(
                 connection,
                 name_or_route=name_or_route,
+                edition=resolved_edition,
+            )
+        )
+
+
+@lookup_app.command("sr-template")
+def lookup_sr_template_command(
+    tid_or_name: Annotated[
+        str,
+        typer.Argument(help="PS3.16 SR template TID or exact template name."),
+    ],
+    edition: Annotated[
+        str | None,
+        typer.Option("--edition", help="Concrete DICOM edition label."),
+    ] = None,
+    db: Annotated[
+        Path | None,
+        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
+    ] = None,
+    cache_dir: Annotated[
+        Path | None,
+        typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
+    ] = None,
+) -> None:
+    """Look up a PS3.16 SR template by TID or exact name."""
+    resolved_edition = _resolve_edition(edition)
+    with _connect_query_db(
+        _resolve_db_path(db),
+        cache_dir=_resolve_cache_dir(cache_dir),
+        edition=resolved_edition,
+    ) as connection:
+        _echo_response(
+            lookup_sr_template(
+                connection,
+                tid_or_name=tid_or_name,
                 edition=resolved_edition,
             )
         )

@@ -33,7 +33,7 @@ Status values:
 | Phase 2 - PS3.5 VR and transfer syntax semantics | Complete | `vr_definition` and `transfer_syntax_detail` import paths plus Python resolver functions, CLI commands, MCP tools, and official-edition golden test coverage are in place. The local 2026b official KB was rebuilt with Phase 2 rows and the transfer-syntax goldens execute and pass. |
 | Phase 3 - PS3.10 file meta and media foundation | Complete | `file_meta_requirement` and PS3.10-derived `dicom_media_type` parser/import/build wiring are in place for synthetic PS3.10 rows. The Python resolver, CLI command, and MCP tool cover the PS3.10 `lookup_media_type` baseline, including bounded cited text fallback for prose-only PS3.10 file format rules. |
 | Phase 4 - PS3.18 DICOMweb transactions | Complete | Synthetic PS3.18 DICOMweb transaction rows parse into `dicomweb_transaction` with route template, method, resource category, constraints, status codes, media-type refs, source refs, and build/import smoke coverage. Python, CLI, and MCP transaction lookup behavior are in place, and PS3.18 media-type rows now expand the existing `lookup_media_type` surface with DICOMweb request/response contexts. |
-| Phase 5 - PS3.16 SR templates, CIDs, and codes | In progress | SR template, context group, and coded concept parsing/import/build wiring are in place for synthetic PS3.16 fixtures. Python resolver functions now cover code meaning, context group, and SR template lookups; CLI and MCP public tool exposure remain pending. |
+| Phase 5 - PS3.16 SR templates, CIDs, and codes | In progress | SR template, context group, and coded concept parsing/import/build wiring are in place for synthetic PS3.16 fixtures. Python resolver functions now cover code meaning, context group, and SR template lookups; the CLI now exposes SR template lookup, while remaining CLI and MCP public tool exposure is pending. |
 | Phase 6 - Contextual enumerated values and defined terms | Not started | Satisfies v2 acceptance criterion 4. |
 | Phase 7 - Selected PS3.7/PS3.8 semantics | Not started | Completes selected networking/messaging scope and text fallback. |
 | Phase 8 - Evaluation harness expansion | Not started | Satisfies v2 acceptance criterion 6. |
@@ -57,11 +57,11 @@ Status values:
 | Current phase | Phase 5 - PS3.16 SR Templates, Context Groups, and Codes |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed commit | Pending current commit; previous completed commit was e8768e9. |
-| Last verification | `uv run --dev pytest tests/unit/test_query_resolver.py -k sr_template` passed with 3 passed and 57 deselected; `uv run --dev pytest tests/unit/test_query_resolver.py` passed with 60 passed; initial sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make typecheck` passed; escalated `make lint` first reported import ordering, then passed after applying Ruff's import-order fix; escalated `make test` passed with 285 passed and 4 skipped. |
+| Last completed commit | Pending current commit; previous completed commit was fa256c6. |
+| Last verification | `uv run --dev pytest tests/unit/test_cli_lookup.py -k sr_template` passed with 1 passed and 28 deselected after aligning the assertion with preserved null row fields; `uv run --dev pytest tests/unit/test_cli_lookup.py` passed with 29 passed; initial sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed; escalated `make test` passed with 286 passed and 4 skipped. |
 | Current blocker | None |
-| Commit-ready summary | Added Python resolver coverage for `lookup_sr_template` against imported PS3.16 `sr_template` and `sr_template_row` rows, including bare/exact TID matching, exact name matching, include-row preservation, validation, not-found handling, and ambiguous-name candidates. |
-| Next recommended action | Continue Phase 5 with the next smallest public exposure slice: add the CLI `dicom-kb lookup sr-template <tid-or-name>` command for the existing Python resolver; do not add MCP exposure or other lookup commands in that slice. |
+| Commit-ready summary | Added the CLI `dicom-kb lookup sr-template <tid-or-name>` command for the existing Python `lookup_sr_template` resolver, with focused CLI coverage using the synthetic PS3.16 fixture. |
+| Next recommended action | Continue Phase 5 with the next smallest public exposure slice: add the CLI `dicom-kb lookup context-group <cid-or-name>` command for the existing Python resolver; do not add MCP exposure or other lookup commands in that slice. |
 
 ## Phase 0 - V2 Contract Baseline
 
@@ -351,7 +351,8 @@ Commits:
 | 6d7c53f | Derived PS3.16 coded concepts from parsed context group coded rows, with SQLite import/build wiring and focused coverage. | `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
 | 2deb80c | Added the Python `lookup_code_meaning` resolver for imported PS3.16 coded concepts, with optional scheme filtering and ambiguous code-value candidates. | `uv run --dev pytest tests/unit/test_query_resolver.py -k code_meaning`; `uv run --dev pytest tests/unit/test_query_resolver.py`; `make lint`; `make typecheck`; `make test` |
 | e8768e9 | Added the Python `lookup_context_group` resolver for imported PS3.16 context groups, with ordered coded/include rows and ambiguous-name candidates. | `uv run --dev pytest tests/unit/test_query_resolver.py -k context_group`; `uv run --dev pytest tests/unit/test_query_resolver.py`; `make lint`; `make typecheck`; `make test` |
-| Pending current commit | Added the Python `lookup_sr_template` resolver for imported PS3.16 SR templates, with ordered content/include rows and ambiguous-name candidates. | `uv run --dev pytest tests/unit/test_query_resolver.py -k sr_template`; `uv run --dev pytest tests/unit/test_query_resolver.py`; `make lint`; `make typecheck`; `make test` |
+| fa256c6 | Added the Python `lookup_sr_template` resolver for imported PS3.16 SR templates, with ordered content/include rows and ambiguous-name candidates. | `uv run --dev pytest tests/unit/test_query_resolver.py -k sr_template`; `uv run --dev pytest tests/unit/test_query_resolver.py`; `make lint`; `make typecheck`; `make test` |
+| Pending current commit | Added the CLI `lookup sr-template` command for the existing Python resolver, with focused CLI coverage against the synthetic PS3.16 fixture. | `uv run --dev pytest tests/unit/test_cli_lookup.py -k sr_template`; `uv run --dev pytest tests/unit/test_cli_lookup.py`; `make lint`; `make typecheck`; `make test` |
 
 Notes:
 
@@ -387,6 +388,9 @@ Notes:
   remaining public exposure for Phase 5. Ambiguous template names return
   candidates rather than a guessed template, and include rows are preserved as
   `include_tid` rows in lookup results.
+- The SR-template CLI slice exposes only the existing Python resolver through
+  `dicom-kb lookup sr-template <tid-or-name>`. It intentionally does not add
+  the context-group/code CLI commands or any MCP tools.
 
 ## Phase 6 - Contextual Enumerated Values and Defined Terms
 
