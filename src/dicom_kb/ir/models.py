@@ -283,6 +283,37 @@ class SRTemplateRow(BaseModel):
     source_ref: SourceRef
 
 
+class ContextGroup(BaseModel):
+    """PS3.16 context group metadata row."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    edition_id: str
+    cid: str
+    name: str
+    extensibility: str | None = None
+    version: str | None = None
+    source_ref: SourceRef
+
+
+class ContextGroupRow(BaseModel):
+    """PS3.16 context group coded entry or include row."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    edition_id: str
+    context_group_id: str
+    row_order: int
+    coding_scheme_designator: str | None = None
+    coding_scheme_version: str | None = None
+    code_value: str | None = None
+    code_meaning: str | None = None
+    include_cid: str | None = None
+    source_ref: SourceRef
+
+
 class Condition(BaseModel):
     """A preserved raw condition with machine-readability metadata."""
 

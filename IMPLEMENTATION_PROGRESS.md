@@ -33,7 +33,7 @@ Status values:
 | Phase 2 - PS3.5 VR and transfer syntax semantics | Complete | `vr_definition` and `transfer_syntax_detail` import paths plus Python resolver functions, CLI commands, MCP tools, and official-edition golden test coverage are in place. The local 2026b official KB was rebuilt with Phase 2 rows and the transfer-syntax goldens execute and pass. |
 | Phase 3 - PS3.10 file meta and media foundation | Complete | `file_meta_requirement` and PS3.10-derived `dicom_media_type` parser/import/build wiring are in place for synthetic PS3.10 rows. The Python resolver, CLI command, and MCP tool cover the PS3.10 `lookup_media_type` baseline, including bounded cited text fallback for prose-only PS3.10 file format rules. |
 | Phase 4 - PS3.18 DICOMweb transactions | Complete | Synthetic PS3.18 DICOMweb transaction rows parse into `dicomweb_transaction` with route template, method, resource category, constraints, status codes, media-type refs, source refs, and build/import smoke coverage. Python, CLI, and MCP transaction lookup behavior are in place, and PS3.18 media-type rows now expand the existing `lookup_media_type` surface with DICOMweb request/response contexts. |
-| Phase 5 - PS3.16 SR templates, CIDs, and codes | In progress | SR template metadata and row parsing/import/build wiring are in place for synthetic PS3.16 fixtures. Context groups, coded concepts, lookup surfaces, and public tool exposure remain pending. |
+| Phase 5 - PS3.16 SR templates, CIDs, and codes | In progress | SR template and context group metadata/row parsing/import/build wiring are in place for synthetic PS3.16 fixtures. Coded concepts, lookup surfaces, and public tool exposure remain pending. |
 | Phase 6 - Contextual enumerated values and defined terms | Not started | Satisfies v2 acceptance criterion 4. |
 | Phase 7 - Selected PS3.7/PS3.8 semantics | Not started | Completes selected networking/messaging scope and text fallback. |
 | Phase 8 - Evaluation harness expansion | Not started | Satisfies v2 acceptance criterion 6. |
@@ -57,11 +57,11 @@ Status values:
 | Current phase | Phase 5 - PS3.16 SR Templates, Context Groups, and Codes |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed commit | Pending current commit; previous completed commit was 22ce14e. |
-| Last verification | `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py` passed with 8 passed. Initial sandboxed `make lint`, `make typecheck`, and `make test` each failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed; escalated `make test` passed with 274 passed and 4 skipped. |
+| Last completed commit | Pending current commit; previous completed commit was 453ab0f. |
+| Last verification | `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py` passed with 9 passed. Initial sandboxed `make lint`, `make typecheck`, and `make test` each failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make test` initially passed with 275 passed and 4 skipped before final lint/type fixes; final escalated `make lint` passed; final escalated `make typecheck` passed; final escalated `make test` passed with 275 passed and 4 skipped. |
 | Current blocker | None |
-| Commit-ready summary | Added PS3.16 SR template metadata and row IR models, parser extraction from the synthetic fixture, SQLite import/build wiring, and focused parser/import/build coverage. |
-| Next recommended action | Continue Phase 5 with the next smallest parser/import slice: parse PS3.16 context group metadata and rows into `context_group` and `context_group_row` from the synthetic fixture, with SQLite import/build tests only. |
+| Commit-ready summary | Added PS3.16 context group metadata and row IR models, parser extraction from the synthetic fixture, SQLite import/build wiring, and focused parser/import/build coverage. |
+| Next recommended action | Continue Phase 5 with the next smallest parser/import slice: derive PS3.16 coded concepts into `coded_concept` from parsed context group coded rows, with SQLite import/build tests only. |
 
 ## Phase 0 - V2 Contract Baseline
 
@@ -333,8 +333,8 @@ Completion checklist:
 
 - [x] TID metadata imports with extensibility.
 - [x] TID rows import with relationship/value/cardinality fields.
-- [ ] CID metadata imports with extensibility.
-- [ ] CID rows import with code value, scheme, and meaning.
+- [x] CID metadata imports with extensibility.
+- [x] CID rows import with code value, scheme, and meaning.
 - [ ] Code lookup handles ambiguous code values.
 - [ ] Python resolver functions exist and are tested.
 - [ ] CLI commands exist and have snapshot tests.
@@ -346,17 +346,23 @@ Commits:
 
 | Commit | Summary | Verification |
 |---|---|---|
-| Pending current commit | Added PS3.16 SR template metadata and row parsing/import/build wiring from the synthetic fixture. | `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
+| 453ab0f | Added PS3.16 SR template metadata and row parsing/import/build wiring from the synthetic fixture. | `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
+| Pending current commit | Added PS3.16 context group metadata and row parsing/import/build wiring from the synthetic fixture. | `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
 
 Notes:
 
 - Do not add bulk terminology export endpoints or generated terminology
   dumps.
-- The SR template parser/import slice intentionally does not add
+- The SR template parser/import slice intentionally did not add
   `lookup_sr_template`, CLI commands, MCP tools, context group parsing, or
-  coded concept parsing. It only populates `sr_template` and
-  `sr_template_row` rows with source references so later Phase 5 slices can
+  coded concept parsing. It only populated `sr_template` and
+  `sr_template_row` rows with source references so later Phase 5 slices could
   build lookup behavior against stable table data.
+- The context group parser/import slice intentionally does not add
+  `lookup_context_group`, CLI commands, MCP tools, or coded concept parsing.
+  It only populates `context_group` and `context_group_row` rows with source
+  references so later Phase 5 slices can build lookup behavior against stable
+  table data.
 
 ## Phase 6 - Contextual Enumerated Values and Defined Terms
 

@@ -60,6 +60,51 @@
           </tbody>
         </tgroup>
       </table>
+      <table xml:id="table_16-3">
+        <title>Synthetic Context Group Rows</title>
+        <tgroup cols="10">
+          <thead>
+            <row>
+              <entry>CID</entry>
+              <entry>Name</entry>
+              <entry>Extensibility</entry>
+              <entry>Version</entry>
+              <entry>Row</entry>
+              <entry>Coding Scheme Designator</entry>
+              <entry>Coding Scheme Version</entry>
+              <entry>Code Value</entry>
+              <entry>Code Meaning</entry>
+              <entry>Include CID</entry>
+            </row>
+          </thead>
+          <tbody>
+            <row>
+              <entry>29</entry>
+              <entry>Acquisition Modality</entry>
+              <entry>EXTENSIBLE</entry>
+              <entry>20260101</entry>
+              <entry>1</entry>
+              <entry>DCM</entry>
+              <entry></entry>
+              <entry>CT</entry>
+              <entry>Computed Tomography</entry>
+              <entry></entry>
+            </row>
+            <row>
+              <entry>29</entry>
+              <entry>Acquisition Modality</entry>
+              <entry>EXTENSIBLE</entry>
+              <entry>20260101</entry>
+              <entry>2</entry>
+              <entry></entry>
+              <entry></entry>
+              <entry></entry>
+              <entry></entry>
+              <entry>CID 30</entry>
+            </row>
+          </tbody>
+        </tgroup>
+      </table>
     </section>
   </chapter>
 </book>

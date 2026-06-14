@@ -4,7 +4,11 @@ import json
 import sqlite3
 from pathlib import Path
 
-from dicom_kb.db.importers import import_docbook_structure, import_sr_templates
+from dicom_kb.db.importers import (
+    import_context_groups,
+    import_docbook_structure,
+    import_sr_templates,
+)
 from dicom_kb.db.models import apply_migrations, connect_sqlite
 from dicom_kb.docbook.parser import parse_docbook_xml
 from dicom_kb.parsers.part16_content_mapping import parse_part16
@@ -22,7 +26,10 @@ def test_parse_part16_classifies_sr_template_tables_and_warns_on_gaps() -> None:
 
     result = parse_part16(document, edition="2026b")
 
-    assert [table.table_id for table in result.recognized_tables] == ["table_16-1"]
+    assert [table.table_id for table in result.recognized_tables] == [
+        "table_16-1",
+        "table_16-3",
+    ]
     template_table = result.recognized_tables[0]
     assert template_table.table_kind == "sr_template"
     assert template_table.source_ref.part == "PS3.16"
@@ -65,6 +72,31 @@ def test_parse_part16_classifies_sr_template_tables_and_warns_on_gaps() -> None:
         ),
     ]
     assert result.sr_template_rows[0].source_ref.table_id == "table_16-1"
+    context_group_table = result.recognized_tables[1]
+    assert context_group_table.table_kind == "context_group"
+    assert context_group_table.source_ref.part == "PS3.16"
+    assert context_group_table.source_ref.section == "sect_16_1"
+    assert context_group_table.source_ref.table_id == "table_16-3"
+    assert context_group_table.source_ref.title == "Synthetic Context Group Rows"
+    assert [
+        (record.cid, record.name, record.extensibility, record.version)
+        for record in result.context_groups
+    ] == [("CID 29", "Acquisition Modality", "EXTENSIBLE", "20260101")]
+    assert [
+        (
+            record.row_order,
+            record.coding_scheme_designator,
+            record.coding_scheme_version,
+            record.code_value,
+            record.code_meaning,
+            record.include_cid,
+        )
+        for record in result.context_group_rows
+    ] == [
+        (1, "DCM", None, "CT", "Computed Tomography", None),
+        (2, None, None, None, None, "CID 30"),
+    ]
+    assert result.context_group_rows[0].source_ref.table_id == "table_16-3"
     assert [(warning.table_id, warning.message) for warning in result.warnings] == [
         ("table_16-2", "unsupported PS3.16 table shape")
     ]
@@ -133,6 +165,70 @@ def test_import_sr_templates_persists_metadata_and_rows_with_source_refs(
     ]
 
 
+def test_import_context_groups_persists_metadata_and_rows_with_source_refs(
+    tmp_path: Path,
+) -> None:
+    connection = _connection(tmp_path)
+    document = parse_docbook_xml(PS316_CONTENT_MAPPING_DOCBOOK, part="PS3.16")
+    parsed = parse_part16(document, edition="2026b")
+
+    summary = import_context_groups(
+        connection,
+        edition="2026b",
+        context_groups=parsed.context_groups,
+        rows=parsed.context_group_rows,
+    )
+
+    assert summary.context_groups == 1
+    assert summary.context_group_rows == 2
+    assert summary.source_refs == 1
+    rows = connection.execute(
+        """
+        SELECT context_group.cid, context_group.name,
+               context_group.extensibility, context_group.version,
+               row.row_order, row.coding_scheme_designator,
+               row.coding_scheme_version, row.code_value, row.code_meaning,
+               row.include_cid, ref.part, ref.table_id
+        FROM context_group
+        JOIN context_group_row row ON row.context_group_id = context_group.id
+        JOIN source_ref ref ON ref.id = row.source_ref_id
+        WHERE context_group.edition_id = ?
+        ORDER BY row.row_order
+        """,
+        ("2026b",),
+    ).fetchall()
+    assert [dict(row) for row in rows] == [
+        {
+            "cid": "CID 29",
+            "name": "Acquisition Modality",
+            "extensibility": "EXTENSIBLE",
+            "version": "20260101",
+            "row_order": 1,
+            "coding_scheme_designator": "DCM",
+            "coding_scheme_version": None,
+            "code_value": "CT",
+            "code_meaning": "Computed Tomography",
+            "include_cid": None,
+            "part": "PS3.16",
+            "table_id": "table_16-3",
+        },
+        {
+            "cid": "CID 29",
+            "name": "Acquisition Modality",
+            "extensibility": "EXTENSIBLE",
+            "version": "20260101",
+            "row_order": 2,
+            "coding_scheme_designator": None,
+            "coding_scheme_version": None,
+            "code_value": None,
+            "code_meaning": None,
+            "include_cid": "CID 30",
+            "part": "PS3.16",
+            "table_id": "table_16-3",
+        },
+    ]
+
+
 def test_part16_docbook_structure_persists_nodes_refs_and_raw_table_ir(
     tmp_path: Path,
 ) -> None:
@@ -145,8 +241,8 @@ def test_part16_docbook_structure_persists_nodes_refs_and_raw_table_ir(
         document=document,
     )
 
-    assert summary.doc_nodes == 5
-    assert summary.raw_table_irs == 2
+    assert summary.doc_nodes == 6
+    assert summary.raw_table_irs == 3
     section = connection.execute(
         """
         SELECT node.title, ref.part, ref.xml_id

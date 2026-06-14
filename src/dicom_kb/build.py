@@ -11,6 +11,7 @@ from dicom_kb.db.importers import (
     ImportSummary,
     import_attribute_value_terms,
     import_build_metadata,
+    import_context_groups,
     import_dicom_media_types,
     import_dicomweb_transactions,
     import_docbook_structure,
@@ -389,6 +390,14 @@ def build_sqlite_database(
                     edition=manifest.edition,
                     templates=parsed_part16.sr_templates,
                     rows=parsed_part16.sr_template_rows,
+                )
+            )
+            summaries.append(
+                import_context_groups(
+                    connection,
+                    edition=manifest.edition,
+                    context_groups=parsed_part16.context_groups,
+                    rows=parsed_part16.context_group_rows,
                 )
             )
         if "PS3.18" in documents:

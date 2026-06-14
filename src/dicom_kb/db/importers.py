@@ -19,6 +19,8 @@ from dicom_kb.ir.models import (
     AttributeUse,
     AttributeValueTerm,
     Condition,
+    ContextGroup,
+    ContextGroupRow,
     DataElement,
     DicomMediaType,
     DicomwebTransaction,
@@ -74,6 +76,8 @@ class ImportSummary:
     dicomweb_transactions: int = 0
     sr_templates: int = 0
     sr_template_rows: int = 0
+    context_groups: int = 0
+    context_group_rows: int = 0
     include_rows_resolved: int = 0
     include_rows_unresolved: int = 0
 
@@ -559,6 +563,42 @@ def import_sr_templates(
         source_refs=len(source_refs),
         sr_templates=len(template_records),
         sr_template_rows=len(row_records),
+    )
+
+
+def import_context_groups(
+    connection: sqlite3.Connection,
+    *,
+    edition: str,
+    context_groups: Iterable[ContextGroup],
+    rows: Iterable[ContextGroupRow],
+) -> ImportSummary:
+    """Import parsed PS3.16 context group metadata and rows."""
+    group_records = tuple(context_groups)
+    row_records = tuple(rows)
+    source_refs = _unique_source_refs(
+        [record.source_ref for record in group_records]
+        + [record.source_ref for record in row_records]
+    )
+
+    try:
+        with connection:
+            for source_ref in source_refs:
+                _insert_source_ref(connection, source_ref)
+            for group in group_records:
+                _insert_context_group(connection, group)
+            for row in row_records:
+                _insert_context_group_row(connection, row)
+    except sqlite3.IntegrityError as exc:
+        raise ImportError(
+            f"failed to import PS3.16 context groups for {edition}"
+        ) from exc
+
+    return ImportSummary(
+        edition=edition,
+        source_refs=len(source_refs),
+        context_groups=len(group_records),
+        context_group_rows=len(row_records),
     )
 
 
@@ -1272,6 +1312,53 @@ def _insert_sr_template_row(
             record.condition_text,
             record.condition_id,
             record.include_tid,
+            record.source_ref.id,
+        ),
+    )
+
+
+def _insert_context_group(
+    connection: sqlite3.Connection, record: ContextGroup
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO context_group (
+          id, edition_id, cid, name, extensibility, version, source_ref_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            record.id,
+            record.edition_id,
+            record.cid,
+            record.name,
+            record.extensibility,
+            record.version,
+            record.source_ref.id,
+        ),
+    )
+
+
+def _insert_context_group_row(
+    connection: sqlite3.Connection, record: ContextGroupRow
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO context_group_row (
+          id, edition_id, context_group_id, row_order, coding_scheme_designator,
+          coding_scheme_version, code_value, code_meaning, include_cid,
+          source_ref_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            record.id,
+            record.edition_id,
+            record.context_group_id,
+            record.row_order,
+            record.coding_scheme_designator,
+            record.coding_scheme_version,
+            record.code_value,
+            record.code_meaning,
+            record.include_cid,
             record.source_ref.id,
         ),
     )

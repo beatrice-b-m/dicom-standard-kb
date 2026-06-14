@@ -8,7 +8,14 @@ from dataclasses import dataclass
 from dicom_kb.docbook.parser import ParsedDocument
 from dicom_kb.docbook.tables import ParsedRow, ParsedTable
 from dicom_kb.docbook.text_chunks import normalize_text
-from dicom_kb.ir.models import ParserWarning, SourceRef, SRTemplate, SRTemplateRow
+from dicom_kb.ir.models import (
+    ContextGroup,
+    ContextGroupRow,
+    ParserWarning,
+    SourceRef,
+    SRTemplate,
+    SRTemplateRow,
+)
 
 
 @dataclass(frozen=True)
@@ -28,6 +35,8 @@ class Part16ParseResult:
     recognized_tables: tuple[Part16TableSummary, ...]
     sr_templates: tuple[SRTemplate, ...]
     sr_template_rows: tuple[SRTemplateRow, ...]
+    context_groups: tuple[ContextGroup, ...]
+    context_group_rows: tuple[ContextGroupRow, ...]
     warnings: tuple[ParserWarning, ...]
 
 
@@ -36,6 +45,8 @@ def parse_part16(document: ParsedDocument, *, edition: str) -> Part16ParseResult
     recognized: list[Part16TableSummary] = []
     templates: dict[str, SRTemplate] = {}
     template_rows: list[SRTemplateRow] = []
+    context_groups: dict[str, ContextGroup] = {}
+    context_group_rows: list[ContextGroupRow] = []
     warnings: list[ParserWarning] = []
 
     for table in document.tables:
@@ -49,12 +60,27 @@ def parse_part16(document: ParsedDocument, *, edition: str) -> Part16ParseResult
                     source_ref=_source_ref(edition, table),
                 )
             )
-            parsed_templates, parsed_rows = _parse_sr_template_table(
+            parsed_templates, parsed_template_rows = _parse_sr_template_table(
                 table, headers, edition, warnings
             )
             for template in parsed_templates:
                 templates[template.id] = template
-            template_rows.extend(parsed_rows)
+            template_rows.extend(parsed_template_rows)
+        elif _is_context_group_table(headers):
+            recognized.append(
+                Part16TableSummary(
+                    table_id=table.xml_id,
+                    title=table.title,
+                    table_kind="context_group",
+                    source_ref=_source_ref(edition, table),
+                )
+            )
+            parsed_groups, parsed_group_rows = _parse_context_group_table(
+                table, headers, edition, warnings
+            )
+            for group in parsed_groups:
+                context_groups[group.id] = group
+            context_group_rows.extend(parsed_group_rows)
         else:
             warnings.append(
                 ParserWarning(
@@ -69,6 +95,8 @@ def parse_part16(document: ParsedDocument, *, edition: str) -> Part16ParseResult
         recognized_tables=tuple(recognized),
         sr_templates=tuple(templates.values()),
         sr_template_rows=tuple(template_rows),
+        context_groups=tuple(context_groups.values()),
+        context_group_rows=tuple(context_group_rows),
         warnings=tuple(warnings),
     )
 
@@ -85,6 +113,19 @@ def _headers(table: ParsedTable) -> dict[str, int]:
 def _is_sr_template_table(headers: dict[str, int]) -> bool:
     return "tid" in headers and bool(
         headers.keys() & {"name", "template name", "template", "extensibility"}
+    )
+
+
+def _is_context_group_table(headers: dict[str, int]) -> bool:
+    return "cid" in headers and bool(
+        headers.keys()
+        & {
+            "name",
+            "context group name",
+            "context group",
+            "code value",
+            "code meaning",
+        }
     )
 
 
@@ -168,6 +209,89 @@ def _parse_sr_template_table(
     return list(templates.values()), template_rows
 
 
+def _parse_context_group_table(
+    table: ParsedTable,
+    headers: dict[str, int],
+    edition: str,
+    warnings: list[ParserWarning],
+) -> tuple[list[ContextGroup], list[ContextGroupRow]]:
+    groups: dict[str, ContextGroup] = {}
+    group_rows: list[ContextGroupRow] = []
+    cid_column = headers.get("cid")
+    name_column = _first_header(headers, "name", "context group name", "context group")
+    if cid_column is None or name_column is None:
+        warnings.append(
+            ParserWarning(
+                part="PS3.16",
+                table_id=table.xml_id,
+                row_index=None,
+                message="skipped context group table without CID and name",
+            )
+        )
+        return [], []
+
+    row_column = _first_header(headers, "row", "row order")
+    extensibility_column = _first_header(headers, "extensibility")
+    version_column = _first_header(headers, "version")
+    scheme_column = _first_header(
+        headers,
+        "coding scheme designator",
+        "scheme",
+        "coding scheme",
+    )
+    scheme_version_column = _first_header(
+        headers,
+        "coding scheme version",
+        "scheme version",
+    )
+    code_value_column = _first_header(headers, "code value", "code")
+    code_meaning_column = _first_header(headers, "code meaning", "meaning")
+    include_column = _first_header(headers, "include cid", "included cid", "include")
+
+    row_count_by_group: dict[str, int] = {}
+    for row in _data_rows(table):
+        cid = _normalize_cid(_cell(row, cid_column))
+        name = _cell(row, name_column)
+        if cid is None or not name:
+            warnings.append(
+                _warning(table, row, "skipped incomplete context group row")
+            )
+            continue
+
+        group_id = f"{edition}.PS3.16.context_group.{_identifier_fragment(cid)}"
+        groups.setdefault(
+            group_id,
+            ContextGroup(
+                id=group_id,
+                edition_id=edition,
+                cid=cid,
+                name=name,
+                extensibility=_optional_cell(row, extensibility_column),
+                version=_optional_cell(row, version_column),
+                source_ref=_source_ref(edition, table),
+            ),
+        )
+
+        row_count_by_group[group_id] = row_count_by_group.get(group_id, 0) + 1
+        row_order = _row_order(row, row_column) or row_count_by_group[group_id]
+        group_rows.append(
+            ContextGroupRow(
+                id=f"{group_id}.row.{row_order}",
+                edition_id=edition,
+                context_group_id=group_id,
+                row_order=row_order,
+                coding_scheme_designator=_optional_cell(row, scheme_column),
+                coding_scheme_version=_optional_cell(row, scheme_version_column),
+                code_value=_optional_cell(row, code_value_column),
+                code_meaning=_optional_cell(row, code_meaning_column),
+                include_cid=_normalize_cid(_optional_cell(row, include_column)),
+                source_ref=_source_ref(edition, table),
+            )
+        )
+
+    return list(groups.values()), group_rows
+
+
 def _data_rows(table: ParsedTable) -> list[ParsedRow]:
     return [
         row for row in table.rows if row.section != "thead" and row.row_kind == "data"
@@ -208,6 +332,19 @@ def _normalize_tid(value: str | None) -> str | None:
         return f"TID {normalized[4:].strip()}"
     if normalized.isdigit():
         return f"TID {normalized}"
+    return normalized
+
+
+def _normalize_cid(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = normalize_text(value)
+    if not normalized:
+        return None
+    if normalized.upper().startswith("CID "):
+        return f"CID {normalized[4:].strip()}"
+    if normalized.isdigit():
+        return f"CID {normalized}"
     return normalized
 
 

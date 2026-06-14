@@ -130,6 +130,14 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
         import_summary.sr_template_rows == 2
         for import_summary in summary.import_summaries
     )
+    assert any(
+        import_summary.context_groups == 1
+        for import_summary in summary.import_summaries
+    )
+    assert any(
+        import_summary.context_group_rows == 2
+        for import_summary in summary.import_summaries
+    )
     metrics = summary.metrics.as_jsonable()
     assert set(metrics) == {
         "edition",
@@ -246,6 +254,20 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
             """,
             ("2026b",),
         ).fetchall()
+        context_group_rows = connection.execute(
+            """
+            SELECT context_group.cid, context_group.name,
+                   context_group.extensibility, context_group.version,
+                   row.row_order, row.coding_scheme_designator,
+                   row.coding_scheme_version, row.code_value, row.code_meaning,
+                   row.include_cid
+            FROM context_group
+            JOIN context_group_row row ON row.context_group_id = context_group.id
+            WHERE context_group.edition_id = ?
+            ORDER BY row.row_order
+            """,
+            ("2026b",),
+        ).fetchall()
 
     assert tag_response.status == "ok"
     assert sop_response.status == "ok"
@@ -263,7 +285,7 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
         "PS3.16",
         "PS3.18",
     }
-    assert len(v2_tables) == 14
+    assert len(v2_tables) == 15
     assert [dict(row) for row in vr_rows] == [
         {"vr": "OB", "name": "Other Byte", "binary_or_text": "binary"},
         {"vr": "PN", "name": "Person Name", "binary_or_text": "text"},
@@ -446,6 +468,32 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
             "cardinality": "1-n",
             "condition_text": "Include measurements when present.",
             "include_tid": "TID 1501",
+        },
+    ]
+    assert [dict(row) for row in context_group_rows] == [
+        {
+            "cid": "CID 29",
+            "name": "Acquisition Modality",
+            "extensibility": "EXTENSIBLE",
+            "version": "20260101",
+            "row_order": 1,
+            "coding_scheme_designator": "DCM",
+            "coding_scheme_version": None,
+            "code_value": "CT",
+            "code_meaning": "Computed Tomography",
+            "include_cid": None,
+        },
+        {
+            "cid": "CID 29",
+            "name": "Acquisition Modality",
+            "extensibility": "EXTENSIBLE",
+            "version": "20260101",
+            "row_order": 2,
+            "coding_scheme_designator": None,
+            "coding_scheme_version": None,
+            "code_value": None,
+            "code_meaning": None,
+            "include_cid": "CID 30",
         },
     ]
     assert set(payload["source_sha256"]) == {
