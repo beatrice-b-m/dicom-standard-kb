@@ -31,6 +31,10 @@
             <entry>PatientName</entry><entry>PN</entry><entry>1</entry><entry></entry>
           </row>
           <row>
+            <entry>(7FE0,0010)</entry><entry>Pixel Data</entry>
+            <entry>PixelData</entry><entry>OB or OW</entry><entry>1</entry><entry></entry>
+          </row>
+          <row>
             <entry>(60xx,3000)</entry><entry>Overlay Data</entry>
             <entry>OverlayData</entry><entry>OW</entry><entry>1</entry><entry></entry>
           </row>

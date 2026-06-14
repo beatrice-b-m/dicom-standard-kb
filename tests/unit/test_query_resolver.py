@@ -1584,7 +1584,7 @@ def test_retrieve_standard_text_returns_cited_ps37_service_behavior_fallback(
     assert response.status == "ok"
     assert response.result is not None
     assert response.result["part"] == "PS3.7"
-    assert response.result["title"] == "Message Overview"
+    assert response.result["title"] == "DIMSE Service Behavior Overview"
     assert "C-ECHO service behavior verifies communication" in str(
         response.result["text_excerpt"]
     )
@@ -1613,7 +1613,7 @@ def test_retrieve_standard_text_returns_cited_ps38_network_fallback(
     assert response.status == "ok"
     assert response.result is not None
     assert response.result["part"] == "PS3.8"
-    assert response.result["title"] == "Network Overview"
+    assert response.result["title"] == "Association PDU Behavior Overview"
     assert "A-ASSOCIATE-RQ PDU starts association establishment" in str(
         response.result["text_excerpt"]
     )

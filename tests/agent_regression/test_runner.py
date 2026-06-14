@@ -6,6 +6,7 @@ import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import NoReturn
 
 from click.utils import strip_ansi
 from typer.testing import CliRunner
@@ -14,8 +15,17 @@ from dicom_kb.build import default_db_path
 from dicom_kb.cli.main import app
 from dicom_kb.eval.reporting import score_agent_runs
 from dicom_kb.eval.runner import (
+    _ensure_source_reference,
+    _observed_call,
+    _reference_answer,
     run_reference_agent_cases,
     select_agent_regression_cases,
+)
+from dicom_kb.eval.scoring import ObservedToolCall
+from dicom_kb.query.answer_contracts import (
+    StandardRef,
+    tool_response,
+    vr_definition_result,
 )
 
 
@@ -93,6 +103,82 @@ def test_reference_agent_scores_v2_public_tool_batch(tmp_path: Path) -> None:
     assert report.total_runs == 8
     assert report.failed_runs == 0
     assert [run.case_id for run in runs] == [case.id for case in selected_cases]
+
+
+def test_reference_answer_omits_fixture_terms_when_v2_fact_is_missing() -> None:
+    case = select_agent_regression_cases(("agent.v2.vr.person_name",))[0]
+    answer = _reference_answer(
+        case,
+        edition="2026b",
+        tool_calls=(
+            ObservedToolCall(
+                tool="lookup_vr",
+                arguments={"vr": "PN"},
+                response_status="not_found",
+                response_edition="2026b",
+                response_ref_count=0,
+                response_terms=("not found", "unsupported"),
+            ),
+        ),
+    )
+
+    assert "not found" in answer
+    assert "unsupported" in answer
+    assert "PN" not in answer
+    assert "Person Name" not in answer
+    assert "source references" not in answer
+
+
+def test_reference_answer_uses_successful_tool_payload_terms() -> None:
+    case = select_agent_regression_cases(("agent.v2.vr.person_name",))[0]
+    response = tool_response(
+        edition="2026b",
+        tool="lookup_vr",
+        input={"vr": "PN"},
+        status="ok",
+        result=vr_definition_result(vr="PN", name="Person Name"),
+        refs=[
+            StandardRef(
+                part="PS3.5",
+                section="6.2",
+                table="Table 6.2-1",
+                anchor="table_6.2-1",
+                edition="2026b",
+            )
+        ],
+    )
+    observed = _observed_call(response, {"vr": "PN"})
+
+    answer = _reference_answer(
+        case,
+        edition="2026b",
+        tool_calls=(observed,),
+    )
+
+    assert "PN" in answer
+    assert "Person Name" in answer
+    assert "PS3.5" in answer
+    assert "source references" in answer
+
+
+def test_positive_v2_cases_do_not_get_generic_source_fallback() -> None:
+    case = select_agent_regression_cases(("agent.v2.vr.person_name",))[0]
+    observed = [
+        ObservedToolCall(
+            tool="lookup_vr",
+            arguments={"vr": "PN"},
+            response_status="not_found",
+            response_edition="2026b",
+            response_ref_count=0,
+        )
+    ]
+
+    def fail_invoke(_tool: str, _arguments: dict[str, str]) -> NoReturn:
+        raise AssertionError("positive v2 evidence must not use fallback citation")
+
+    _ensure_source_reference(case, observed, fail_invoke)
+
+    assert len(observed) == 1
 
 
 def test_reference_agent_scores_v2_unsupported_claim_batch(tmp_path: Path) -> None:

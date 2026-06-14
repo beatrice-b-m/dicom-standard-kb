@@ -37,7 +37,7 @@ Status values:
 | Phase 6 - Contextual enumerated values and defined terms | Complete | Existing `attribute_value_term` coverage is documented; deterministic IOD/SOP/module/macro context resolution works through the shared PS3.3/PS3.4 graph, and ambiguous contextual value-term matches now return candidates instead of a merged answer. |
 | Phase 7 - Selected PS3.7/PS3.8 semantics | Complete | Selected PS3.7 DIMSE service-behavior and PS3.8 association-PDU parser slices are in place for synthetic fixtures, with cited PS3.7/PS3.8 retrieval fallback coverage and agent regression traces through `retrieve_standard_text`. |
 | Phase 8 - Evaluation harness expansion | Complete | The final v2 workflow prompt batch raises the suite to 101 prompt cases; every implemented v2 public tool appears in deterministic expected traces, unsupported normative-claim checks cover the major v2 domains, and the full agent regression suite passes. |
-| Phase 9 - V2 release hardening | In progress | Remediation found that the earlier integration gate could pass against a PS3.3/PS3.4/PS3.6-only official KB. `make test-dicom-release` is now the strict opt-in v2 official release gate, includes pinned positive goldens for the named v2 examples, and currently rejects the reduced local 2026b KB; see `REMEDIATION_PROGRESS.md`. |
+| Phase 9 - V2 release hardening | In progress | Remediation found that the earlier integration gate could pass against a PS3.3/PS3.4/PS3.6-only official KB. `make test-dicom-release` is now the strict opt-in v2 official release gate, pinned positive goldens reject missing named examples, and agent regression now requires cited v2 tool evidence without injecting fixture-only answer terms; see `REMEDIATION_PROGRESS.md`. |
 
 ## Acceptance Criteria Tracker
 
@@ -57,11 +57,11 @@ Status values:
 | Current phase | V2 release evidence remediation |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed commit | `bc8075f` completed strict official positive goldens; current Phase R4 scorer hardening is pending commit. |
-| Last verification | Positive v2 agent-regression expected traces now require `ok` status and required-part citations. `make test` passes with the reduced local 2026b KB because the real-KB eval smoke test skips non-release-ready official data; `make test-dicom-release` remains the strict gate that fails against missing v2 DocBook parts, semantic rows, DocBook structure rows, and pinned `not_found` examples. |
+| Last completed commit | `0930013` completed strict positive v2 tool-evidence scoring; current Phase R4 reference-answer hardening is pending commit. |
+| Last verification | Reference answers now derive required terms from observed tool responses instead of `case.must_include`; positive v2 semantic cases no longer receive generic fallback citations. `make lint`, `make typecheck`, and `make test` pass with the reduced local 2026b KB because the real-KB eval smoke test skips non-release-ready official data; `make test-dicom-release` remains the strict gate that fails against missing v2 DocBook parts, semantic rows, DocBook structure rows, and pinned `not_found` examples. |
 | Current blocker | None |
-| Commit-ready summary | Hardened agent-regression scoring so positive v2 semantic traces cannot pass with `not_found` tool results, wrong-part citations, or unrelated fallback citations. |
-| Next recommended action | Continue remediation from `REMEDIATION_PROGRESS.md`, finishing Phase R4 by deriving required answer terms from successful tool payload fields and scoping generic source-reference fallback calls. |
+| Commit-ready summary | Completed Phase R4 agent-regression hardening by deriving answer content from recorded response terms and preserving offline prompt coverage with payload-backed synthetic fixture facts. |
+| Next recommended action | Continue remediation from `REMEDIATION_PROGRESS.md`, starting Phase R5 final reconciliation and release-gate verification. |
 
 ## Phase 0 - V2 Contract Baseline
 

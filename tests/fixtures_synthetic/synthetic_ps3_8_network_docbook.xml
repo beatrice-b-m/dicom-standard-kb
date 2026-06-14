@@ -2,7 +2,7 @@
   <chapter xml:id="chapter_8">
     <title>PS3.8 Synthetic Network</title>
     <section xml:id="sect_8_1">
-      <title>Network Overview</title>
+      <title>Association PDU Behavior Overview</title>
       <para>Synthetic PS3.8 fixture for generic DocBook ingestion. The A-ASSOCIATE-RQ PDU starts association establishment so peer DICOM AEs can negotiate presentation contexts before DIMSE messages are exchanged.</para>
       <table xml:id="table_8-1">
         <title>Synthetic Association PDUs</title>

@@ -69,7 +69,7 @@ def test_part07_docbook_structure_persists_nodes_refs_and_raw_table_ir(
         ("sect_7_1",),
     ).fetchone()
     assert dict(section) == {
-        "title": "Message Overview",
+        "title": "DIMSE Service Behavior Overview",
         "part": "PS3.7",
         "xml_id": "sect_7_1",
     }

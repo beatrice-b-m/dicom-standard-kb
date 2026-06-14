@@ -74,7 +74,7 @@ def test_part08_docbook_structure_persists_nodes_refs_and_raw_table_ir(
         ("sect_8_1",),
     ).fetchone()
     assert dict(section) == {
-        "title": "Network Overview",
+        "title": "Association PDU Behavior Overview",
         "part": "PS3.8",
         "xml_id": "sect_8_1",
     }
