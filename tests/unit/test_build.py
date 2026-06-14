@@ -84,6 +84,7 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
     assert any("PS3.7 table_7-2" in warning for warning in summary.warnings)
     assert any("PS3.8 table_8-2" in warning for warning in summary.warnings)
     assert any("PS3.10 table_10-2" in warning for warning in summary.warnings)
+    assert any("PS3.16 table_16-2" in warning for warning in summary.warnings)
     metrics = summary.metrics.as_jsonable()
     assert set(metrics) == {
         "edition",
@@ -160,7 +161,7 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
         "PS3.16",
         "PS3.18",
     }
-    assert len(v2_tables) == 10
+    assert len(v2_tables) == 11
     assert set(payload["source_sha256"]) == {
         official_artifact_destination(
             "2026b",

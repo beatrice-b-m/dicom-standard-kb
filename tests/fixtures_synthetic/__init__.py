@@ -23,3 +23,6 @@ PS38_NETWORK_DOCBOOK = (
 PS310_MEDIA_STORAGE_DOCBOOK = (
     FIXTURE_DIR / "synthetic_ps3_10_media_storage_docbook.xml"
 ).read_text(encoding="utf-8")
+PS316_CONTENT_MAPPING_DOCBOOK = (
+    FIXTURE_DIR / "synthetic_ps3_16_content_mapping_docbook.xml"
+).read_text(encoding="utf-8")
