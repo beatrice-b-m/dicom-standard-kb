@@ -37,7 +37,7 @@ Status values:
 | Phase 6 - Contextual enumerated values and defined terms | Complete | Existing `attribute_value_term` coverage is documented; deterministic IOD/SOP/module/macro context resolution works through the shared PS3.3/PS3.4 graph, and ambiguous contextual value-term matches now return candidates instead of a merged answer. |
 | Phase 7 - Selected PS3.7/PS3.8 semantics | Complete | Selected PS3.7 DIMSE service-behavior and PS3.8 association-PDU parser slices are in place for synthetic fixtures, with cited PS3.7/PS3.8 retrieval fallback coverage and agent regression traces through `retrieve_standard_text`. |
 | Phase 8 - Evaluation harness expansion | Complete | The final v2 workflow prompt batch raises the suite to 101 prompt cases; every implemented v2 public tool appears in deterministic expected traces, unsupported normative-claim checks cover the major v2 domains, and the full agent regression suite passes. |
-| Phase 9 - V2 release hardening | In progress | README, agent-tool docs, architecture docs, and the release checklist now cover v2 build defaults, CLI commands, MCP tool names, v2 storage entities, contextual value-term resolution, v2 release gates, official-edition golden expectations, per-part metrics expectations, distribution audits, and representative official-edition v2/query goldens. Metrics implementation and final gates remain. |
+| Phase 9 - V2 release hardening | In progress | README, agent-tool docs, architecture docs, and the release checklist now cover v2 build defaults, CLI commands, MCP tool names, v2 storage entities, contextual value-term resolution, v2 release gates, official-edition golden expectations, per-part metrics expectations, distribution audits, and representative official-edition v2/query goldens. Build metrics now report parser warning counts by part; distribution audit and final integration/current gates remain. |
 
 ## Acceptance Criteria Tracker
 
@@ -57,11 +57,11 @@ Status values:
 | Current phase | Phase 9 - V2 Release Hardening |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed commit | Pending current commit. Previous completed Phase 9 commit: c7d984a. |
-| Last verification | `uv run --dev pytest tests/integration_requires_dicom_download/test_real_kb_goldens.py -rs` passed with 40 passed and 6 skipped because the local 2026b KB has not been rebuilt with PS3.5/PS3.10/PS3.16/PS3.18 v2 rows; `uv run --dev ruff check tests/integration_requires_dicom_download/test_real_kb_goldens.py` passed; `uv run --dev pytest tests/unit/test_metadata.py` passed with 7 passed. Sandboxed `make lint`, `make typecheck`, and `make test-dicom-integration` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed; escalated `make test-dicom-integration` passed with 46 passed and 10 skipped. |
+| Last completed commit | Pending current commit. Previous completed Phase 9 commit: 2d67f0c. |
+| Last verification | `uv run --dev pytest tests/unit/test_build.py` passed with 5 passed; `uv run --dev pytest tests/unit/test_cli_build.py` passed with 2 passed; `uv run --dev pytest tests/unit/test_metadata.py` passed with 7 passed. Sandboxed `make lint`, `make typecheck`, and `make test` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed; escalated `make test` passed with 312 passed and 10 skipped. |
 | Current blocker | None |
-| Commit-ready summary | Added representative official-edition integration goldens for PS3.5 VR definitions, PS3.10 media-type rows, PS3.18 DICOMweb transactions, PS3.16 SR templates/context groups/coded concepts, and contextual enumerated/defined term lookups. V2-part goldens skip explicitly when the local official KB lacks the relevant rebuilt rows. |
-| Next recommended action | Continue Phase 9 by implementing build metrics that report v2 parser warning counts by part. |
+| Commit-ready summary | Added `parse_warnings_by_part` to build metrics, CLI build output, and persisted build metadata so v2 parser warning counts can be inspected by loaded standard part. Updated build-metrics docs and release checklist wording for the new field. |
+| Next recommended action | Continue Phase 9 by auditing the repository for forbidden official artifacts, generated databases, vector indexes, and standalone terminology dumps. |
 
 ## Phase 0 - V2 Contract Baseline
 
@@ -550,11 +550,11 @@ Completion checklist:
 - [x] `docs/architecture.md` documents v2 entities.
 - [x] `docs/release_checklist.md` includes v2 gates.
 - [x] Official-edition integration tests cover representative v2 queries.
-- [ ] Build metrics report v2 parser warning counts by part.
+- [x] Build metrics report v2 parser warning counts by part.
 - [ ] No official artifacts, generated databases, or terminology dumps are committed.
-- [ ] `make lint` passes.
-- [ ] `make typecheck` passes.
-- [ ] `make test` passes.
+- [x] `make lint` passes.
+- [x] `make typecheck` passes.
+- [x] `make test` passes.
 - [ ] `make test-dicom-integration` passes or skipped prerequisite is recorded.
 - [ ] `make test-dicom-current` passes or skipped prerequisite is recorded.
 
@@ -565,7 +565,8 @@ Commits:
 | def0980 | Documented the v2 default build parts, CLI query commands, and MCP tool names in README and `docs/agent_tools.md`, with focused metadata coverage. | `uv run --dev pytest tests/unit/test_metadata.py` passed with 5 passed after refreshing the stale Phase 8 next-action assertion; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
 | ba29b44 | Documented the v2 storage entities and current contextual value-term resolution behavior in `docs/architecture.md`, with focused metadata coverage. | `uv run --dev pytest tests/unit/test_metadata.py` initially failed on line-wrapped architecture wording assertions and passed after the wording was made explicit, with 6 passed. Sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
 | c7d984a | Documented the v2 release checklist gates, including public tool coverage, official-edition golden expectations, per-part metrics expectations, final verification commands, and distribution audit requirements. | `uv run --dev pytest tests/unit/test_metadata.py` passed with 7 passed. Sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
-| Pending current commit | Added representative official-edition integration goldens for PS3.5, PS3.10, PS3.16, PS3.18, and contextual value-term query behavior, with explicit skip prerequisites for local official KBs that predate the relevant v2 rows. | `uv run --dev pytest tests/integration_requires_dicom_download/test_real_kb_goldens.py -rs` passed with 40 passed and 6 skipped; `uv run --dev ruff check tests/integration_requires_dicom_download/test_real_kb_goldens.py` passed; `uv run --dev pytest tests/unit/test_metadata.py` passed with 7 passed; sandboxed `make lint`, `make typecheck`, and `make test-dicom-integration` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed; escalated `make test-dicom-integration` passed with 46 passed and 10 skipped. |
+| 2d67f0c | Added representative official-edition integration goldens for PS3.5, PS3.10, PS3.16, PS3.18, and contextual value-term query behavior, with explicit skip prerequisites for local official KBs that predate the relevant v2 rows. | `uv run --dev pytest tests/integration_requires_dicom_download/test_real_kb_goldens.py -rs` passed with 40 passed and 6 skipped; `uv run --dev ruff check tests/integration_requires_dicom_download/test_real_kb_goldens.py` passed; `uv run --dev pytest tests/unit/test_metadata.py` passed with 7 passed; sandboxed `make lint`, `make typecheck`, and `make test-dicom-integration` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed; escalated `make test-dicom-integration` passed with 46 passed and 10 skipped. |
+| Pending current commit | Added `parse_warnings_by_part` to build metrics, CLI build output, and persisted build metadata; synthetic build tests assert the per-part counts and docs name the public metric. | `uv run --dev pytest tests/unit/test_build.py` passed with 5 passed; `uv run --dev pytest tests/unit/test_cli_build.py` passed with 2 passed; `uv run --dev pytest tests/unit/test_metadata.py` passed with 7 passed. Sandboxed `make lint`, `make typecheck`, and `make test` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed; escalated `make test` passed with 312 passed and 10 skipped. |
 
 Notes:
 

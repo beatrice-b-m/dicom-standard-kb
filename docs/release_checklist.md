@@ -48,6 +48,7 @@ Confirm build output and build metadata include aggregate `metrics` with:
 - `xrefs_total`
 - `xrefs_unresolved`
 - `parse_warnings`
+- `parse_warnings_by_part`
 - `source_refs`
 
 For v2 builds, also confirm parser-warning and unresolved-reference metrics
