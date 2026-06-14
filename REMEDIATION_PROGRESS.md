@@ -37,7 +37,7 @@ Status values:
 |---|---|---|
 | Planning scaffold | Complete | `REMEDIATION_PLAN.md` and this progress tracker exist. |
 | Phase R0 - Reproduce and inventory the gap | Complete | Local 2026b official cache contains only PS3.3/PS3.4/PS3.6; named v2 semantic lookups return `not_found`, while current official goldens pass with skips and agent regression passes. |
-| Phase R1 - Separate smoke tests from release gates | Not started | Strict release gates must reject reduced PS3.3/PS3.4/PS3.6 official KBs while preserving smoke coverage. |
+| Phase R1 - Separate smoke tests from release gates | In progress | Strict release requirement helper now checks required DocBook parts, semantic rows, and citation-preserving DocBook structure; wiring into strict integration/Makefile gates remains. |
 | Phase R2 - Repair official-shape PS3.16 ingestion | Not started | Parser/import/resolver behavior must handle official TID/CID/code table shapes, not only synthetic TID/CID columns. |
 | Phase R3 - Pin strict official goldens | Not started | Strict official positive tests must cover PN, application/dicom, RetrieveStudy, TID 1500, CID 29, and CT/DCM. |
 | Phase R4 - Harden agent regression scoring | Not started | Positive v2 prompt cases must require `ok` tool results with required-part citations. |
@@ -47,14 +47,14 @@ Status values:
 
 | Field | Value |
 |---|---|
-| Current phase | Phase R0 - Reproduce and inventory the gap |
+| Current phase | Phase R1 - Separate smoke tests from release gates |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed remediation commit | Pending current commit. |
-| Last verification | `jq -r '.edition as $edition \| .resolved_from as $resolved \| "edition=\\($edition) resolved_from=\\($resolved)", (.artifacts \| group_by(.part)[] \| "\\(.[0].part): " + (map(.format) \| unique \| join(",")))' /Users/beatrice/.cache/dicom-standard-kb/artifacts/2026b/manifest.json` passed and reported only PS3.3, PS3.4, and PS3.6 DocBook XML; `sqlite3 /Users/beatrice/.cache/dicom-standard-kb/db/2026b.sqlite "SELECT ..."` passed and recorded the required row counts below; six named CLI spot checks passed as commands and returned structured `not_found`; `uv run --dev pytest tests/integration_requires_dicom_download/test_real_kb_goldens.py -rs` passed with 40 passed and 6 skipped; `uv run --dev pytest tests/agent_regression` passed with 21 passed. |
+| Last completed remediation commit | Pending current commit. Previous completed R0 commit: bd87e30. |
+| Last verification | `uv run --dev pytest tests/unit/test_release_requirements.py` passed with 4 passed; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
 | Current blocker | None. |
-| Commit-ready summary | Recorded the R0 false-positive baseline showing that the current reduced official KB lacks required v2 semantic facts but still satisfies the current official-golden and agent-regression gates. |
-| Next recommended action | Start Phase R1 with the smallest strict-gate slice: add a shared official-KB requirement helper and focused unit tests for complete, missing-part, and missing-row scenarios before wiring it into Makefile targets or broad integration gates. |
+| Commit-ready summary | Added a strict official-KB release requirement helper for v2 gates, covering the full required DocBook part set, nonzero semantic rows, and per-part DocBook structure rows, with focused unit tests for complete, missing-part, missing-row, and missing-structure scenarios. |
+| Next recommended action | Continue Phase R1 by wiring the strict requirement helper into a dedicated release-gate integration test that rejects the current PS3.3/PS3.4/PS3.6-only local official KB while leaving reduced-cache smoke tests separate. |
 
 ## Phase R0 - Reproduce and Inventory the Gap
 
@@ -125,7 +125,7 @@ Commits:
 
 | Commit | Summary | Verification |
 |---|---|---|
-| Pending current commit | Recorded manifest, row-count, CLI spot-check, official-golden skip, and agent-regression baseline evidence. | `uv run --dev pytest tests/integration_requires_dicom_download/test_real_kb_goldens.py -rs`; `uv run --dev pytest tests/agent_regression` |
+| bd87e30 | Recorded manifest, row-count, CLI spot-check, official-golden skip, and agent-regression baseline evidence. | `uv run --dev pytest tests/integration_requires_dicom_download/test_real_kb_goldens.py -rs`; `uv run --dev pytest tests/agent_regression` |
 
 Notes:
 
@@ -133,7 +133,7 @@ Notes:
 
 ## Phase R1 - Separate Smoke Tests from Release Gates
 
-Status: `Not started`
+Status: `In progress`
 
 Scope:
 
@@ -143,9 +143,9 @@ Scope:
 
 Completion checklist:
 
-- [ ] Strict helper requires the full v2 official part set.
-- [ ] Strict helper requires nonzero rows for all required v2 semantic tables.
-- [ ] Strict helper checks citation-preserving DocBook structure for v2 parts.
+- [x] Strict helper requires the full v2 official part set.
+- [x] Strict helper requires nonzero rows for all required v2 semantic tables.
+- [x] Strict helper checks citation-preserving DocBook structure for v2 parts.
 - [ ] Reduced-cache smoke tests remain available.
 - [ ] Release gate target rejects PS3.3/PS3.4/PS3.6-only official KBs.
 - [ ] Release checklist names the strict gate.
@@ -154,7 +154,7 @@ Commits:
 
 | Commit | Summary | Verification |
 |---|---|---|
-| Pending | No Phase R1 commit yet. | Pending |
+| Pending current commit | Added the strict release requirement helper and focused unit tests. | `uv run --dev pytest tests/unit/test_release_requirements.py`; `make lint`; `make typecheck` |
 
 ## Phase R2 - Repair Official-Shape PS3.16 Ingestion
 
@@ -282,3 +282,6 @@ Commits:
 | 2026-06-14 | `uv run --dev dicom-kb lookup code CT --scheme DCM --edition 2026b` | Passed command; returned `not_found` | Missing PS3.16 coded concept rows. |
 | 2026-06-14 | `uv run --dev pytest tests/integration_requires_dicom_download/test_real_kb_goldens.py -rs` | Passed | 40 passed, 6 skipped; skipped v2 goldens for missing VR, media-type, DICOMweb, SR template, context group, and coded-concept rows. |
 | 2026-06-14 | `uv run --dev pytest tests/agent_regression` | Passed | 21 passed, confirming current agent regression still passes against the reduced official KB. |
+| 2026-06-14 | `uv run --dev pytest tests/unit/test_release_requirements.py` | Passed | 4 passed; covers complete, missing DocBook part, missing semantic rows, and missing DocBook structure scenarios for the strict release requirement helper. |
+| 2026-06-14 | `make lint` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev ruff check .` with all checks passed. |
+| 2026-06-14 | `make typecheck` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev mypy` with no issues in 57 source files. |
