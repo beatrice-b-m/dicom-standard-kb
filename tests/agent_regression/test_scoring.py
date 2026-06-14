@@ -110,6 +110,71 @@ def test_agent_score_rejects_v2_unsupported_normative_claims() -> None:
     )
 
 
+def test_agent_score_requires_positive_v2_tool_status() -> None:
+    case = get_agent_regression_case("agent.v2.vr.person_name")
+    run = AgentRun(
+        case_id=case.id,
+        edition="2026b",
+        answer=(
+            "For edition 2026b, PN means Person Name with PS3.5 source "
+            "references and citations."
+        ),
+        tool_calls=(
+            ObservedToolCall(
+                tool="lookup_vr",
+                arguments={"vr": "PN"},
+                response_status="not_found",
+                response_edition="2026b",
+                response_ref_count=0,
+            ),
+            ObservedToolCall(
+                tool="lookup_data_element",
+                arguments={"tag_or_keyword": "Modality"},
+                response_status="ok",
+                response_edition="2026b",
+                response_ref_count=1,
+                response_parts=("PS3.3",),
+            ),
+        ),
+    )
+
+    scorecard = score_agent_run(case, run)
+    issue_codes = {issue.code for issue in scorecard.issues}
+
+    assert scorecard.passed is False
+    assert "tool_status_mismatch" in issue_codes
+    assert "citation_part_mismatch" in issue_codes
+
+
+def test_agent_score_requires_positive_v2_tool_part_citation() -> None:
+    case = get_agent_regression_case("agent.v2.dicomweb.retrieve_study")
+    run = AgentRun(
+        case_id=case.id,
+        edition="2026b",
+        answer=(
+            "For edition 2026b, RetrieveStudy uses GET with PS3.18 source "
+            "references and citations."
+        ),
+        tool_calls=(
+            ObservedToolCall(
+                tool="lookup_dicomweb_transaction",
+                arguments={"name_or_route": "RetrieveStudy"},
+                response_status="ok",
+                response_edition="2026b",
+                response_ref_count=1,
+                response_parts=("PS3.3",),
+            ),
+        ),
+    )
+
+    scorecard = score_agent_run(case, run)
+
+    assert scorecard.passed is False
+    assert [issue.code for issue in scorecard.issues] == [
+        "citation_part_mismatch"
+    ]
+
+
 def test_agent_score_reports_expected_argument_mismatch() -> None:
     case = get_agent_regression_case("agent.ps36.transfer_syntax")
     run = AgentRun(

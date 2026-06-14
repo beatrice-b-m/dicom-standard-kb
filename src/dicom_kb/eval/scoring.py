@@ -18,6 +18,7 @@ class ObservedToolCall(BaseModel):
     response_status: str | None = None
     response_edition: str | None = None
     response_ref_count: int = 0
+    response_parts: tuple[str, ...] = ()
 
 
 class AgentRun(BaseModel):
@@ -129,6 +130,7 @@ def _score_expected_trace(
             )
             continue
         _score_expected_arguments(expected, tool_calls[match_index], issues)
+        _score_expected_response(expected, tool_calls[match_index], issues)
         cursor = match_index + 1
 
 
@@ -162,6 +164,48 @@ def _score_expected_arguments(
                     ),
                 )
             )
+
+
+def _score_expected_response(
+    expected: ExpectedToolCall,
+    observed: ObservedToolCall,
+    issues: list[ScoreIssue],
+) -> None:
+    if (
+        expected.required_status is not None
+        and observed.response_status != expected.required_status
+    ):
+        issues.append(
+            ScoreIssue(
+                code="tool_status_mismatch",
+                message=(
+                    f"{expected.tool} expected status "
+                    f"{expected.required_status!r}, observed "
+                    f"{observed.response_status!r}"
+                ),
+            )
+        )
+    if expected.required_parts and not _has_required_part(
+        observed,
+        expected.required_parts,
+    ):
+        issues.append(
+            ScoreIssue(
+                code="citation_part_mismatch",
+                message=(
+                    f"{expected.tool} expected citation from one of "
+                    f"{', '.join(expected.required_parts)}, observed "
+                    f"{', '.join(observed.response_parts) or 'none'}"
+                ),
+            )
+        )
+
+
+def _has_required_part(
+    observed: ObservedToolCall,
+    required_parts: tuple[str, ...],
+) -> bool:
+    return bool(set(required_parts).intersection(observed.response_parts))
 
 
 def _score_required_answer_content(
