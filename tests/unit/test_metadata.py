@@ -43,3 +43,27 @@ def test_attribute_value_term_coverage_audit_is_documented() -> None:
     assert "module or macro names" in architecture
     assert "IOD, SOP Class, TID, CID, and DICOMweb" in architecture
     assert "contexts are not yet resolved" in architecture
+
+
+def test_phase7_fallback_audit_is_recorded_in_progress() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+
+    progress = (repo_root / "IMPLEMENTATION_PROGRESS.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert (
+        "| Phase 7 - Selected PS3.7/PS3.8 semantics | Complete |" in progress
+    )
+    assert (
+        "| 5 | Fallback text retrieval covers prose-only rules. | Complete |"
+        in progress
+    )
+    assert (
+        "| c9fd4d8 | Added focused agent regression cases and expected tool traces"
+        in progress
+    )
+    assert (
+        "| Next recommended action | Begin Phase 8 evaluation harness expansion"
+        in progress
+    )

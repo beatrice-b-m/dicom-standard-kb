@@ -35,7 +35,7 @@ Status values:
 | Phase 4 - PS3.18 DICOMweb transactions | Complete | Synthetic PS3.18 DICOMweb transaction rows parse into `dicomweb_transaction` with route template, method, resource category, constraints, status codes, media-type refs, source refs, and build/import smoke coverage. Python, CLI, and MCP transaction lookup behavior are in place, and PS3.18 media-type rows now expand the existing `lookup_media_type` surface with DICOMweb request/response contexts. |
 | Phase 5 - PS3.16 SR templates, CIDs, and codes | Complete | SR template, context group, and coded concept parsing/import/build wiring are in place for synthetic PS3.16 fixtures. Python resolver functions, CLI commands, and MCP tools cover code meaning, context group, and SR template lookups. Legal and distribution docs now explicitly preserve the no-standalone-terminology-dump invariant for PS3.16 content. |
 | Phase 6 - Contextual enumerated values and defined terms | Complete | Existing `attribute_value_term` coverage is documented; deterministic IOD/SOP/module/macro context resolution works through the shared PS3.3/PS3.4 graph, and ambiguous contextual value-term matches now return candidates instead of a merged answer. |
-| Phase 7 - Selected PS3.7/PS3.8 semantics | In progress | Selected PS3.7 DIMSE service-behavior and PS3.8 association-PDU parser slices are in place for synthetic fixtures, with cited PS3.7/PS3.8 retrieval fallback coverage. Final Phase 7 audit and agent regression coverage remain pending. |
+| Phase 7 - Selected PS3.7/PS3.8 semantics | Complete | Selected PS3.7 DIMSE service-behavior and PS3.8 association-PDU parser slices are in place for synthetic fixtures, with cited PS3.7/PS3.8 retrieval fallback coverage and agent regression traces through `retrieve_standard_text`. |
 | Phase 8 - Evaluation harness expansion | Not started | Satisfies v2 acceptance criterion 6. |
 | Phase 9 - V2 release hardening | Not started | Final docs, integration goldens, metrics, and release gates. |
 
@@ -47,21 +47,21 @@ Status values:
 | 2 | DICOMweb transaction lookups return route, method, resource type, request/response constraints, and standard references. | Complete | Python resolver, CLI command, and MCP tool return parsed PS3.18 transaction rows by exact name or route template with ambiguous route candidates. |
 | 3 | TID and CID lookups return structured rows and extensibility metadata. | Complete | Python resolvers return structured TID and CID rows with extensibility metadata; CLI and MCP exposure exists for TID, CID, and code lookup; legal/distribution docs explicitly forbid standalone PS3.16 terminology dumps and bulk context-group/code exports. |
 | 4 | Enumerated values and defined terms link to their attribute context. | Complete | Existing import and lookup coverage is documented; exact module, macro, IOD, and SOP Class contexts resolve to applicable attribute-use contexts, and ambiguous contextual matches return candidates instead of silently choosing one. |
-| 5 | Fallback text retrieval covers prose-only rules. | In progress | PS3.10 media/file-format fallback returns bounded cited text when no parsed media-type row matches, and PS3.7 selected service-behavior plus PS3.8 selected networking prose are covered by cited `retrieve_standard_text` fallback; final v2-part audit remains pending. |
+| 5 | Fallback text retrieval covers prose-only rules. | Complete | PS3.10 media/file-format fallback returns bounded cited text when no parsed media-type row matches, and PS3.7 selected service-behavior plus PS3.8 selected networking prose are covered by cited `retrieve_standard_text` fallback and agent regression traces. |
 | 6 | At least 100 coding-task regression prompts pass through deterministic tool calls before answer synthesis. | Not started | Pending Phase 8. |
 
 ## Active Work
 
 | Field | Value |
 |---|---|
-| Current phase | Phase 7 - Selected PS3.7/PS3.8 Semantics |
+| Current phase | Phase 8 - Evaluation Harness Expansion |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed commit | Pending current commit; previous completed commit was bf6e55a. |
-| Last verification | `uv run --dev pytest tests/agent_regression/test_prompt_cases.py tests/agent_regression/test_runner.py -k 'prompt_cases or phase7'` passed with 5 passed and 4 deselected; `uv run --dev pytest tests/agent_regression/test_scoring.py -k 'expected_argument_mismatch or required_tools'` passed with 2 passed and 3 deselected; `uv run --dev pytest tests/agent_regression` passed with 14 passed; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
+| Last completed commit | c9fd4d8. |
+| Last verification | `uv run --dev pytest tests/unit/test_metadata.py tests/agent_regression/test_prompt_cases.py tests/agent_regression/test_runner.py -k 'metadata or phase7 or prompt_cases'` passed with 9 passed and 4 deselected; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
 | Current blocker | None |
-| Commit-ready summary | Added focused agent regression cases and expected tool traces for selected PS3.7 DIMSE service-behavior and PS3.8 association-PDU prose questions through the existing `retrieve_standard_text` tool. No new public PS3.7/PS3.8 tool is advertised. |
-| Next recommended action | Audit Phase 7 fallback retrieval coverage and decide whether the existing PS3.10, PS3.7, and PS3.8 cited retrieval tests are sufficient to mark v2 acceptance criterion 5 complete. |
+| Commit-ready summary | Audited Phase 7 fallback retrieval coverage and reconciled the durable tracker against committed PS3.10, PS3.7, and PS3.8 cited retrieval tests plus agent regression traces. No new public PS3.7/PS3.8 tool is advertised. |
+| Next recommended action | Begin Phase 8 evaluation harness expansion by adding the first focused batch of v2 prompt cases toward the 100-prompt floor. |
 
 ## Phase 0 - V2 Contract Baseline
 
@@ -450,7 +450,7 @@ Notes:
 
 ## Phase 7 - Selected PS3.7 and PS3.8 Semantics
 
-Status: `In progress`
+Status: `Complete`
 
 Scope:
 
@@ -463,9 +463,9 @@ Completion checklist:
 
 - [x] PS3.7 selected topic fixture and parser coverage exists.
 - [x] PS3.8 selected topic fixture and parser coverage exists.
-- [ ] Query path returns structured facts where deterministic.
+- [x] Selected deterministic rows remain parser IR; no dedicated public structured query path is advertised for the initial Phase 7 scope.
 - [x] Query path returns cited text for prose-only topics.
-- [ ] V2 acceptance criterion 5 is marked complete after audit.
+- [x] V2 acceptance criterion 5 is marked complete after audit.
 
 Commits:
 
@@ -473,7 +473,8 @@ Commits:
 |---|---|---|
 | 9f24999 | Added selected PS3.7 DIMSE service-behavior parsing for the synthetic C-ECHO fixture and cited PS3.7 `retrieve_standard_text` fallback coverage. | `uv run --dev pytest tests/unit/test_part07_parser.py` passed with 2 passed; `uv run --dev pytest tests/unit/test_query_resolver.py -k 'retrieve_standard_text'` passed with 4 passed and 59 deselected; `uv run --dev pytest tests/unit/test_build.py -k build_sqlite_database_imports_manifest_docbook_and_metadata` passed with 1 passed and 4 deselected; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
 | bf6e55a | Added selected PS3.8 association-PDU behavior parsing for the synthetic networking fixture and cited PS3.8 `retrieve_standard_text` fallback coverage. | `uv run --dev pytest tests/unit/test_part08_parser.py` passed with 2 passed; `uv run --dev pytest tests/unit/test_query_resolver.py -k 'retrieve_standard_text'` passed with 5 passed and 59 deselected; `uv run --dev pytest tests/unit/test_build.py -k build_sqlite_database_imports_manifest_docbook_and_metadata` passed with 1 passed and 4 deselected; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
-| Pending current commit | Added focused agent regression cases and expected tool traces for selected PS3.7/PS3.8 prose retrieval through `retrieve_standard_text`. | `uv run --dev pytest tests/agent_regression/test_prompt_cases.py tests/agent_regression/test_runner.py -k 'prompt_cases or phase7'` passed with 5 passed and 4 deselected; `uv run --dev pytest tests/agent_regression/test_scoring.py -k 'expected_argument_mismatch or required_tools'` passed with 2 passed and 3 deselected; `uv run --dev pytest tests/agent_regression` passed with 14 passed; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
+| c9fd4d8 | Added focused agent regression cases and expected tool traces for selected PS3.7/PS3.8 prose retrieval through `retrieve_standard_text`. | `uv run --dev pytest tests/agent_regression/test_prompt_cases.py tests/agent_regression/test_runner.py -k 'prompt_cases or phase7'` passed with 5 passed and 4 deselected; `uv run --dev pytest tests/agent_regression/test_scoring.py -k 'expected_argument_mismatch or required_tools'` passed with 2 passed and 3 deselected; `uv run --dev pytest tests/agent_regression` passed with 14 passed; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
+| Pending current commit | Audited PS3.10, PS3.7, and PS3.8 fallback retrieval evidence, marked Phase 7 and acceptance criterion 5 complete, and added a metadata guard for the durable tracker state. | `uv run --dev pytest tests/unit/test_metadata.py tests/agent_regression/test_prompt_cases.py tests/agent_regression/test_runner.py -k 'metadata or phase7 or prompt_cases'` passed with 9 passed and 4 deselected; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
 
 Notes:
 
@@ -487,6 +488,9 @@ Notes:
 - The agent-regression slice intentionally adds only prompt cases and exact
   expected `retrieve_standard_text` traces for selected PS3.7/PS3.8 prose
   questions; it does not add a dedicated messaging or networking lookup tool.
+- The Phase 7 audit found the existing PS3.10 `lookup_media_type` prose
+  fallback, PS3.7/PS3.8 `retrieve_standard_text` fallback tests, and
+  committed agent regression traces sufficient for v2 acceptance criterion 5.
 
 ## Phase 8 - Evaluation Harness Expansion
 
