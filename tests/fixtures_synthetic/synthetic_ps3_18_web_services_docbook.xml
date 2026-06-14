@@ -6,12 +6,23 @@
       <para>Synthetic PS3.18 fixture for generic DocBook ingestion.</para>
       <table xml:id="table_18-1">
         <title>Synthetic Transactions</title>
-        <tgroup cols="2">
+        <tgroup cols="3">
           <thead>
-            <row><entry>Transaction</entry><entry>Method</entry></row>
+            <row><entry>Transaction</entry><entry>Method</entry><entry>Route</entry></row>
           </thead>
           <tbody>
-            <row><entry>RetrieveStudy</entry><entry>GET</entry></row>
+            <row><entry>RetrieveStudy</entry><entry>GET</entry><entry>/studies/{study}</entry></row>
+          </tbody>
+        </tgroup>
+      </table>
+      <table xml:id="table_18-2">
+        <title>Synthetic Media Type Notes</title>
+        <tgroup cols="2">
+          <thead>
+            <row><entry>Media Type</entry><entry>Constraint</entry></row>
+          </thead>
+          <tbody>
+            <row><entry>application/dicom</entry><entry>Prose-only media rule.</entry></row>
           </tbody>
         </tgroup>
       </table>

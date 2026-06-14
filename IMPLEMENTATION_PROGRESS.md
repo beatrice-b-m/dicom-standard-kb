@@ -29,7 +29,7 @@ Status values:
 |---|---|---|
 | V1 baseline | Complete | See `IMPLEMENTATION_REVIEW.md`; v1 acceptance criteria are documented as met. |
 | Phase 0 - V2 contract baseline | Complete | V2 result payload builders, JSON schema coverage, canonical migration table names, and empty-database migration smoke coverage are in place. |
-| Phase 1 - New part acquisition/parser foundation | In progress | Default official DocBook fetch and synthetic build-fixture loading now cover PS3.5, PS3.7, PS3.8, PS3.10, PS3.16, and PS3.18; PS3.5, PS3.7, PS3.8, PS3.10, and PS3.16 parser scaffolds are in place; remaining parser modules still need to be added. |
+| Phase 1 - New part acquisition/parser foundation | Complete | Default official DocBook fetch, synthetic build-fixture loading, parser scaffolds, raw table IR, source refs, and unsupported-table warning aggregation now cover PS3.5, PS3.7, PS3.8, PS3.10, PS3.16, and PS3.18. |
 | Phase 2 - PS3.5 VR and transfer syntax semantics | Not started | Satisfies v2 acceptance criterion 1. |
 | Phase 3 - PS3.10 file meta and media foundation | Not started | Prepares shared media-type model. |
 | Phase 4 - PS3.18 DICOMweb transactions | Not started | Satisfies v2 acceptance criterion 2. |
@@ -54,14 +54,14 @@ Status values:
 
 | Field | Value |
 |---|---|
-| Current phase | Phase 1 - New Part Acquisition and Parser Foundation |
+| Current phase | Phase 2 - PS3.5 VR and Transfer Syntax Semantics |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed commit | 5549b36 |
-| Last verification | `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py` passed with 6 passed; sandboxed `make lint` failed because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`, escalated `make lint` passed; sandboxed `make typecheck` failed for the same uv cache permission error, escalated `make typecheck` passed; sandboxed `make test` failed for the same uv cache permission error, escalated `make test` passed with 229 passed and 4 skipped. |
+| Last completed commit | Pending current commit |
+| Last verification | `uv run --dev pytest tests/unit/test_part18_parser.py tests/unit/test_build.py` passed with 6 passed; sandboxed `make lint` failed because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`, escalated `make lint` passed; sandboxed `make typecheck` failed for the same uv cache permission error, escalated `make typecheck` passed; sandboxed `make test` failed for the same uv cache permission error, escalated `make test` passed with 231 passed and 4 skipped. |
 | Current blocker | None |
-| Commit-ready summary | Added the PS3.16 parser scaffold, direct fixture coverage for recognized SR template tables and unsupported-table warnings, generic PS3.16 document-node/source-ref/raw-table persistence coverage, and build warning aggregation for PS3.16 parser gaps without exposing query tools. |
-| Next recommended action | Add the PS3.18 parser module scaffold with synthetic fixture coverage for document nodes, source refs, raw table IR, and unsupported-table warnings, without exposing PS3.18 query tools yet. |
+| Commit-ready summary | Added the PS3.18 parser scaffold, direct fixture coverage for recognized DICOMweb transaction tables and unsupported-table warnings, generic PS3.18 document-node/source-ref/raw-table persistence coverage, and build warning aggregation for PS3.18 parser gaps without exposing query tools. |
+| Next recommended action | Start Phase 2 with the `vr_definition` import path: parse PS3.5 VR behavior rows into canonical storage and focused tests, without CLI/MCP exposure yet. |
 
 ## Phase 0 - V2 Contract Baseline
 
@@ -107,7 +107,7 @@ Notes:
 
 ## Phase 1 - New Part Acquisition and Parser Foundation
 
-Status: `In progress`
+Status: `Complete`
 
 Scope:
 
@@ -124,9 +124,9 @@ Completion checklist:
 - [x] Parser module for PS3.8 exists and has fixture coverage.
 - [x] Parser module for PS3.10 exists and has fixture coverage.
 - [x] Parser module for PS3.16 exists and has fixture coverage.
-- [ ] Parser module for PS3.18 exists and has fixture coverage.
+- [x] Parser module for PS3.18 exists and has fixture coverage.
 - [x] Build-fixture can include at least one v2 part.
-- [ ] Import metrics include warnings for v2 parser gaps.
+- [x] Import metrics include warnings for v2 parser gaps.
 
 Commits:
 
@@ -136,7 +136,8 @@ Commits:
 | 4672cd0 | Added the PS3.7 parser scaffold and fixture coverage for recognized DIMSE service tables, unsupported-table warnings, source refs, document nodes, and raw table IR. | `uv run --dev pytest tests/unit/test_part07_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
 | eacda2e | Added the PS3.8 parser scaffold and fixture coverage for recognized association PDU tables, unsupported-table warnings, source refs, document nodes, and raw table IR. | `uv run --dev pytest tests/unit/test_part08_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
 | 5549b36 | Added the PS3.10 parser scaffold and fixture coverage for recognized file meta information tables, unsupported-table warnings, source refs, document nodes, and raw table IR. | `uv run --dev pytest tests/unit/test_part10_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
-| Pending current commit | Added the PS3.16 parser scaffold and fixture coverage for recognized SR template tables, unsupported-table warnings, source refs, document nodes, and raw table IR. | `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
+| d277dd3 | Added the PS3.16 parser scaffold and fixture coverage for recognized SR template tables, unsupported-table warnings, source refs, document nodes, and raw table IR. | `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
+| Pending current commit | Added the PS3.18 parser scaffold and fixture coverage for recognized DICOMweb transaction tables, unsupported-table warnings, source refs, document nodes, raw table IR, and build warning aggregation. | `uv run --dev pytest tests/unit/test_part18_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
 
 Notes:
 
@@ -164,6 +165,10 @@ Notes:
   reports unsupported PS3.16 table shapes as parser warnings. It intentionally
   does not expose SR template, context group, or code lookup behavior; PS3.16
   content mapping semantics remain Phase 5 work.
+- The PS3.18 parser scaffold classifies DICOMweb transaction summary tables
+  and reports unsupported PS3.18 table shapes as parser warnings. It
+  intentionally does not expose DICOMweb transaction or media-type lookup
+  behavior; PS3.18 web-service semantics remain Phase 4 work.
 
 ## Phase 2 - PS3.5 VR and Transfer Syntax Semantics
 
