@@ -20,7 +20,7 @@ from dicom_kb.db.importers import (
     import_vr_definitions,
 )
 from dicom_kb.db.models import apply_migrations, connect_sqlite
-from dicom_kb.docbook.parser import parse_docbook_xml
+from dicom_kb.docbook.parser import ParsedDocument, parse_docbook_xml
 from dicom_kb.ir.models import AttributeUse, Macro, SourceRef
 from dicom_kb.parsers.part03_iods import parse_part03
 from dicom_kb.parsers.part04_sop_classes import parse_part04
@@ -62,6 +62,7 @@ from tests.fixtures_synthetic import (
     PS38_NETWORK_DOCBOOK,
     PS310_MEDIA_STORAGE_DOCBOOK,
     PS316_CONTENT_MAPPING_DOCBOOK,
+    PS316_OFFICIAL_SHAPE_DOCBOOK,
     PS318_WEB_SERVICES_DOCBOOK,
 )
 
@@ -233,6 +234,23 @@ def _part16_connection(tmp_path: Path) -> sqlite3.Connection:
     connection = connect_sqlite(tmp_path / "kb.sqlite")
     apply_migrations(connection)
     document = parse_docbook_xml(PS316_CONTENT_MAPPING_DOCBOOK, part="PS3.16")
+    _import_part16_document(connection, document=document)
+    return connection
+
+
+def _part16_official_shape_connection(tmp_path: Path) -> sqlite3.Connection:
+    connection = connect_sqlite(tmp_path / "kb.sqlite")
+    apply_migrations(connection)
+    document = parse_docbook_xml(PS316_OFFICIAL_SHAPE_DOCBOOK, part="PS3.16")
+    _import_part16_document(connection, document=document)
+    return connection
+
+
+def _import_part16_document(
+    connection: sqlite3.Connection,
+    *,
+    document: ParsedDocument,
+) -> None:
     parsed_part16 = parse_part16(document, edition="2026b")
     import_sr_templates(
         connection,
@@ -251,7 +269,6 @@ def _part16_connection(tmp_path: Path) -> sqlite3.Connection:
         edition="2026b",
         coded_concepts=parsed_part16.coded_concepts,
     )
-    return connection
 
 
 def _context_connection(tmp_path: Path) -> sqlite3.Connection:
@@ -1342,6 +1359,108 @@ def test_lookup_code_meaning_returns_ps316_coded_concept(tmp_path: Path) -> None
     assert response.refs[0].table == "Synthetic Context Group Rows"
     assert response.classification.evidence_level == "parsed_table"
     assert response.trace.query_id == "query-1"
+
+
+def test_part16_resolvers_return_official_shape_fixture_rows(
+    tmp_path: Path,
+) -> None:
+    connection = _part16_official_shape_connection(tmp_path)
+
+    template = lookup_sr_template(
+        connection,
+        tid_or_name="1500",
+        edition="2026b",
+    )
+    context_group = lookup_context_group(
+        connection,
+        cid_or_name="29",
+        edition="2026b",
+    )
+    code = lookup_code_meaning(
+        connection,
+        code_value="CT",
+        scheme="DCM",
+        edition="2026b",
+    )
+
+    assert template.status == "ok"
+    assert template.result == {
+        "tid": "TID 1500",
+        "name": "Measurement Report",
+        "extensibility": "Extensible",
+        "rows": [
+            {
+                "order": 1,
+                "relationship_type": None,
+                "value_type": "CONTAINER",
+                "concept_name": 'CID 7021 "Measurement Report Document Title"',
+                "cardinality": "1",
+                "condition": None,
+                "include_tid": None,
+            },
+            {
+                "order": 2,
+                "relationship_type": "> HAS OBS CONTEXT",
+                "value_type": "INCLUDE",
+                "concept_name": 'TID 1001 "Observation Context"',
+                "cardinality": "1",
+                "condition": None,
+                "include_tid": "TID 1001",
+            },
+            {
+                "order": 3,
+                "relationship_type": "> CONTAINS",
+                "value_type": "INCLUDE",
+                "concept_name": (
+                    'TID 1501 "Measurement and Qualitative Evaluation Group"'
+                ),
+                "cardinality": "1-n",
+                "condition": None,
+                "include_tid": "TID 1501",
+            },
+        ],
+    }
+    assert template.refs[0].part == "PS3.16"
+    assert template.refs[0].table == "TID 1500. Measurement Report"
+
+    assert context_group.status == "ok"
+    assert context_group.result == {
+        "cid": "CID 29",
+        "name": "Acquisition Modality",
+        "extensibility": "Extensible",
+        "version": "20231115",
+        "rows": [
+            {
+                "order": 1,
+                "coding_scheme_designator": "DCM",
+                "coding_scheme_version": None,
+                "code_value": "CT",
+                "code_meaning": "Computed Tomography",
+                "include_cid": None,
+            },
+            {
+                "order": 2,
+                "coding_scheme_designator": None,
+                "coding_scheme_version": None,
+                "code_value": None,
+                "code_meaning": None,
+                "include_cid": "CID 34",
+            },
+        ],
+    }
+    assert context_group.refs[0].part == "PS3.16"
+    assert context_group.refs[0].table == "CID 29. Acquisition Modality"
+
+    assert code.status == "ok"
+    assert code.result == {
+        "code_value": "CT",
+        "coding_scheme_designator": "DCM",
+        "coding_scheme_version": None,
+        "code_meaning": "Computed Tomography",
+        "context_groups": ["CID 29"],
+    }
+    assert code.refs[0].part == "PS3.16"
+    assert code.refs[0].table == "CID 29. Acquisition Modality"
 
 
 def test_lookup_code_meaning_returns_candidates_for_ambiguous_code_value(

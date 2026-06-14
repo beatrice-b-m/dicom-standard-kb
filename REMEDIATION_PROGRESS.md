@@ -38,7 +38,7 @@ Status values:
 | Planning scaffold | Complete | `REMEDIATION_PLAN.md` and this progress tracker exist. |
 | Phase R0 - Reproduce and inventory the gap | Complete | Local 2026b official cache contains only PS3.3/PS3.4/PS3.6; named v2 semantic lookups return `not_found`, while current official goldens pass with skips and agent regression passes. |
 | Phase R1 - Separate smoke tests from release gates | Complete | Strict release requirement helper checks required DocBook parts, semantic rows, and citation-preserving DocBook structure; `make test-dicom-release` now runs the strict opt-in gate and rejects the current PS3.3/PS3.4/PS3.6-only local official KB while smoke integration remains separate. |
-| Phase R2 - Repair official-shape PS3.16 ingestion | In progress | Official-shape parser support now handles TID/CID metadata from section or table titles, official SR template row headers, CID code rows, and CID include xrefs; import/build/resolver coverage against the official-shape fixture remains pending. |
+| Phase R2 - Repair official-shape PS3.16 ingestion | Complete | Official-shape parser, build/import, and resolver coverage now proves TID 1500, CID 29, and CT/DCM fixture rows persist with PS3.16 citations and return `ok`. |
 | Phase R3 - Pin strict official goldens | Not started | Strict official positive tests must cover PN, application/dicom, RetrieveStudy, TID 1500, CID 29, and CT/DCM. |
 | Phase R4 - Harden agent regression scoring | Not started | Positive v2 prompt cases must require `ok` tool results with required-part citations. |
 | Phase R5 - Reconcile completion state and final gates | Not started | Final docs and progress must reflect the repaired release evidence and final verification. |
@@ -47,14 +47,14 @@ Status values:
 
 | Field | Value |
 |---|---|
-| Current phase | Phase R2 - Repair official-shape PS3.16 ingestion |
+| Current phase | Phase R3 - Pin strict official goldens |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed remediation commit | Pending current commit. Previous completed R1 target commit: 87cd1be. |
-| Last verification | `uv run --dev pytest tests/unit/test_part16_parser.py -q` passed with 6 passed; `uv run --dev pytest tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'part16 or sr_template or context_group or code_meaning' -q` passed with 9 passed; `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'part16 or sr_template or context_group or code_meaning' -q` passed with 15 passed; `uv run --dev ruff check src/dicom_kb/parsers/part16_content_mapping.py tests/unit/test_part16_parser.py tests/fixtures_synthetic/__init__.py` passed; sandboxed `make lint` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; sandboxed `make typecheck` failed before running for the same uv cache permission reason and escalated `make typecheck` was rejected by the environment approval policy, so mypy did not run. |
+| Last completed remediation commit | Pending current commit. Previous completed R2 parser commit: 507d1cd. |
+| Last verification | `uv run --dev pytest tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'official_shape or part16 or sr_template or context_group or code_meaning' -q` passed with 11 passed; `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'official_shape or part16 or sr_template or context_group or code_meaning' -q` passed with 17 passed; sandboxed `make lint` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; sandboxed `make typecheck` failed before running for the same uv cache permission reason; escalated `make typecheck` passed. |
 | Current blocker | None. |
-| Commit-ready summary | Added official-shape PS3.16 fixture coverage and parser support for TID/CID metadata in titles, official SR template row headers, CID code rows, CID include xrefs, and derived CT/DCM coded concepts while preserving synthetic PS3.16 parsing. |
-| Next recommended action | Continue Phase R2 with the import/build/resolver fixture slice: persist the official-shape PS3.16 fixture rows, then prove `lookup_sr_template("1500")`, `lookup_context_group("29")`, and `lookup_code_meaning("CT", scheme="DCM")` return `ok` against that fixture data. |
+| Commit-ready summary | Added build/import coverage proving official-shape PS3.16 fixture rows persist with source refs, plus resolver coverage proving `lookup_sr_template("1500")`, `lookup_context_group("29")`, and `lookup_code_meaning("CT", scheme="DCM")` return `ok` against that fixture data. |
+| Next recommended action | Start Phase R3 by adding strict official positive goldens for PN, application/dicom, RetrieveStudy, TID 1500, CID 29, and CT/DCM that fail on `not_found`, missing fields, or missing required-part citations. |
 
 ## Phase R0 - Reproduce and Inventory the Gap
 
@@ -159,7 +159,7 @@ Commits:
 
 ## Phase R2 - Repair Official-Shape PS3.16 Ingestion
 
-Status: `In progress`
+Status: `Complete`
 
 Scope:
 
@@ -173,15 +173,16 @@ Completion checklist:
 - [x] Official-shape TID 1500 fixture parses.
 - [x] Official-shape CID 29 fixture parses.
 - [x] Official-shape CT/DCM code row parses.
-- [ ] Import/build tests persist PS3.16 rows with citations.
-- [ ] Resolver tests return `ok` for TID 1500, CID 29, and CT/DCM fixture data.
+- [x] Import/build tests persist PS3.16 rows with citations.
+- [x] Resolver tests return `ok` for TID 1500, CID 29, and CT/DCM fixture data.
 - [x] Existing synthetic PS3.16 tests still pass.
 
 Commits:
 
 | Commit | Summary | Verification |
 |---|---|---|
-| Pending current commit | Added official-shape PS3.16 parser support for TID/CID metadata in section or table titles, official SR template row headers, CID code rows, and CID include xrefs. | `uv run --dev pytest tests/unit/test_part16_parser.py -q`; `uv run --dev pytest tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'part16 or sr_template or context_group or code_meaning' -q`; `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'part16 or sr_template or context_group or code_meaning' -q`; `uv run --dev ruff check src/dicom_kb/parsers/part16_content_mapping.py tests/unit/test_part16_parser.py tests/fixtures_synthetic/__init__.py`; `make lint`; `make typecheck` could not run because sandboxed uv cache access failed and escalated `make typecheck` was rejected. |
+| 507d1cd | Added official-shape PS3.16 parser support for TID/CID metadata in section or table titles, official SR template row headers, CID code rows, and CID include xrefs. | `uv run --dev pytest tests/unit/test_part16_parser.py -q`; `uv run --dev pytest tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'part16 or sr_template or context_group or code_meaning' -q`; `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'part16 or sr_template or context_group or code_meaning' -q`; `uv run --dev ruff check src/dicom_kb/parsers/part16_content_mapping.py tests/unit/test_part16_parser.py tests/fixtures_synthetic/__init__.py`; `make lint`; `make typecheck` could not run because sandboxed uv cache access failed and escalated `make typecheck` was rejected. |
+| Pending current commit | Added official-shape PS3.16 build/import coverage and resolver coverage proving TID 1500, CID 29, and CT/DCM rows persist with PS3.16 citations and return `ok`. | `uv run --dev pytest tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'official_shape or part16 or sr_template or context_group or code_meaning' -q`; `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'official_shape or part16 or sr_template or context_group or code_meaning' -q`; `make lint`; `make typecheck` |
 
 ## Phase R3 - Pin Strict Official Goldens
 
@@ -300,3 +301,7 @@ Commits:
 | 2026-06-14 | `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'part16 or sr_template or context_group or code_meaning' -q` | Passed | 15 passed; combined focused parser/build/resolver check after final include-target handling. |
 | 2026-06-14 | `make lint` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev ruff check .` with all checks passed. |
 | 2026-06-14 | `make typecheck` | Could not run | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun was rejected by the environment approval policy, so `uv run --dev mypy` did not execute. |
+| 2026-06-14 | `uv run --dev pytest tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'official_shape or part16 or sr_template or context_group or code_meaning' -q` | Passed | 11 passed after adding official-shape PS3.16 build/import and resolver coverage. |
+| 2026-06-14 | `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'official_shape or part16 or sr_template or context_group or code_meaning' -q` | Passed | 17 passed; combined parser/build/resolver verification for the completed Phase R2 path. |
+| 2026-06-14 | `make lint` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev ruff check .` with all checks passed. |
+| 2026-06-14 | `make typecheck` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev mypy` with no issues in 57 source files. |

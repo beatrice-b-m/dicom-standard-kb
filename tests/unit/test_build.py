@@ -571,6 +571,170 @@ def test_build_sqlite_database_derives_transfer_syntax_details_from_part06_only(
     assert dict(row) == {"explicit_vr": 1, "endian": "little"}
 
 
+def test_build_sqlite_database_imports_official_shape_part16_rows(
+    tmp_path: Path,
+) -> None:
+    cache_dir = tmp_path / "cache"
+    _register_synthetic_parts(
+        cache_dir,
+        {"PS3.16": "synthetic_ps3_16_official_shape_docbook.xml"},
+    )
+
+    summary = build_sqlite_database(edition="2026b", cache_dir=cache_dir)
+
+    assert summary.metrics.parts_loaded == ("PS3.16",)
+    assert summary.warnings == ()
+    assert any(
+        import_summary.sr_templates == 1
+        and import_summary.sr_template_rows == 3
+        for import_summary in summary.import_summaries
+    )
+    assert any(
+        import_summary.context_groups == 1
+        and import_summary.context_group_rows == 2
+        for import_summary in summary.import_summaries
+    )
+    assert any(
+        import_summary.coded_concepts == 1
+        for import_summary in summary.import_summaries
+    )
+    with _connect(summary.db_path) as connection:
+        sr_template_rows = connection.execute(
+            """
+            SELECT template.tid, template.name, template.extensibility,
+                   row.row_order, row.relationship_type, row.value_type,
+                   row.concept_name, row.cardinality, row.condition_text,
+                   row.include_tid, ref.part, ref.table_id, ref.title
+            FROM sr_template template
+            JOIN sr_template_row row ON row.sr_template_id = template.id
+            JOIN source_ref ref ON ref.id = row.source_ref_id
+            WHERE template.edition_id = ?
+            ORDER BY row.row_order
+            """,
+            ("2026b",),
+        ).fetchall()
+        context_group_rows = connection.execute(
+            """
+            SELECT context_group.cid, context_group.name,
+                   context_group.extensibility, context_group.version,
+                   row.row_order, row.coding_scheme_designator,
+                   row.coding_scheme_version, row.code_value, row.code_meaning,
+                   row.include_cid, ref.part, ref.table_id, ref.title
+            FROM context_group
+            JOIN context_group_row row ON row.context_group_id = context_group.id
+            JOIN source_ref ref ON ref.id = row.source_ref_id
+            WHERE context_group.edition_id = ?
+            ORDER BY row.row_order
+            """,
+            ("2026b",),
+        ).fetchall()
+        coded_concept_rows = connection.execute(
+            """
+            SELECT concept.code_value, concept.coding_scheme_designator,
+                   concept.coding_scheme_version, concept.code_meaning,
+                   ref.part, ref.table_id, ref.title
+            FROM coded_concept concept
+            JOIN source_ref ref ON ref.id = concept.source_ref_id
+            WHERE concept.edition_id = ?
+            ORDER BY concept.code_value
+            """,
+            ("2026b",),
+        ).fetchall()
+
+    assert [dict(row) for row in sr_template_rows] == [
+        {
+            "tid": "TID 1500",
+            "name": "Measurement Report",
+            "extensibility": "Extensible",
+            "row_order": 1,
+            "relationship_type": None,
+            "value_type": "CONTAINER",
+            "concept_name": 'CID 7021 "Measurement Report Document Title"',
+            "cardinality": "1",
+            "condition_text": None,
+            "include_tid": None,
+            "part": "PS3.16",
+            "table_id": "table_TID_1500",
+            "title": "TID 1500. Measurement Report",
+        },
+        {
+            "tid": "TID 1500",
+            "name": "Measurement Report",
+            "extensibility": "Extensible",
+            "row_order": 2,
+            "relationship_type": "> HAS OBS CONTEXT",
+            "value_type": "INCLUDE",
+            "concept_name": 'TID 1001 "Observation Context"',
+            "cardinality": "1",
+            "condition_text": None,
+            "include_tid": "TID 1001",
+            "part": "PS3.16",
+            "table_id": "table_TID_1500",
+            "title": "TID 1500. Measurement Report",
+        },
+        {
+            "tid": "TID 1500",
+            "name": "Measurement Report",
+            "extensibility": "Extensible",
+            "row_order": 3,
+            "relationship_type": "> CONTAINS",
+            "value_type": "INCLUDE",
+            "concept_name": (
+                'TID 1501 "Measurement and Qualitative Evaluation Group"'
+            ),
+            "cardinality": "1-n",
+            "condition_text": None,
+            "include_tid": "TID 1501",
+            "part": "PS3.16",
+            "table_id": "table_TID_1500",
+            "title": "TID 1500. Measurement Report",
+        },
+    ]
+    assert [dict(row) for row in context_group_rows] == [
+        {
+            "cid": "CID 29",
+            "name": "Acquisition Modality",
+            "extensibility": "Extensible",
+            "version": "20231115",
+            "row_order": 1,
+            "coding_scheme_designator": "DCM",
+            "coding_scheme_version": None,
+            "code_value": "CT",
+            "code_meaning": "Computed Tomography",
+            "include_cid": None,
+            "part": "PS3.16",
+            "table_id": "table_CID_29",
+            "title": "CID 29. Acquisition Modality",
+        },
+        {
+            "cid": "CID 29",
+            "name": "Acquisition Modality",
+            "extensibility": "Extensible",
+            "version": "20231115",
+            "row_order": 2,
+            "coding_scheme_designator": None,
+            "coding_scheme_version": None,
+            "code_value": None,
+            "code_meaning": None,
+            "include_cid": "CID 34",
+            "part": "PS3.16",
+            "table_id": "table_CID_29",
+            "title": "CID 29. Acquisition Modality",
+        },
+    ]
+    assert [dict(row) for row in coded_concept_rows] == [
+        {
+            "code_value": "CT",
+            "coding_scheme_designator": "DCM",
+            "coding_scheme_version": "",
+            "code_meaning": "Computed Tomography",
+            "part": "PS3.16",
+            "table_id": "table_CID_29",
+            "title": "CID 29. Acquisition Modality",
+        },
+    ]
+
+
 def test_build_sqlite_database_refuses_existing_db_without_force(
     tmp_path: Path,
 ) -> None:
