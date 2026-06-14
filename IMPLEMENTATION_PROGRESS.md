@@ -35,7 +35,7 @@ Status values:
 | Phase 4 - PS3.18 DICOMweb transactions | Complete | Synthetic PS3.18 DICOMweb transaction rows parse into `dicomweb_transaction` with route template, method, resource category, constraints, status codes, media-type refs, source refs, and build/import smoke coverage. Python, CLI, and MCP transaction lookup behavior are in place, and PS3.18 media-type rows now expand the existing `lookup_media_type` surface with DICOMweb request/response contexts. |
 | Phase 5 - PS3.16 SR templates, CIDs, and codes | Complete | SR template, context group, and coded concept parsing/import/build wiring are in place for synthetic PS3.16 fixtures. Python resolver functions, CLI commands, and MCP tools cover code meaning, context group, and SR template lookups. Legal and distribution docs now explicitly preserve the no-standalone-terminology-dump invariant for PS3.16 content. |
 | Phase 6 - Contextual enumerated values and defined terms | Complete | Existing `attribute_value_term` coverage is documented; deterministic IOD/SOP/module/macro context resolution works through the shared PS3.3/PS3.4 graph, and ambiguous contextual value-term matches now return candidates instead of a merged answer. |
-| Phase 7 - Selected PS3.7/PS3.8 semantics | In progress | The first selected PS3.7 DIMSE service-behavior parser slice is in place for the synthetic C-ECHO fixture, with cited PS3.7 retrieval fallback coverage. PS3.8 selected networking semantics remain pending. |
+| Phase 7 - Selected PS3.7/PS3.8 semantics | In progress | Selected PS3.7 DIMSE service-behavior and PS3.8 association-PDU parser slices are in place for synthetic fixtures, with cited PS3.7/PS3.8 retrieval fallback coverage. Final Phase 7 audit and agent regression coverage remain pending. |
 | Phase 8 - Evaluation harness expansion | Not started | Satisfies v2 acceptance criterion 6. |
 | Phase 9 - V2 release hardening | Not started | Final docs, integration goldens, metrics, and release gates. |
 
@@ -47,7 +47,7 @@ Status values:
 | 2 | DICOMweb transaction lookups return route, method, resource type, request/response constraints, and standard references. | Complete | Python resolver, CLI command, and MCP tool return parsed PS3.18 transaction rows by exact name or route template with ambiguous route candidates. |
 | 3 | TID and CID lookups return structured rows and extensibility metadata. | Complete | Python resolvers return structured TID and CID rows with extensibility metadata; CLI and MCP exposure exists for TID, CID, and code lookup; legal/distribution docs explicitly forbid standalone PS3.16 terminology dumps and bulk context-group/code exports. |
 | 4 | Enumerated values and defined terms link to their attribute context. | Complete | Existing import and lookup coverage is documented; exact module, macro, IOD, and SOP Class contexts resolve to applicable attribute-use contexts, and ambiguous contextual matches return candidates instead of silently choosing one. |
-| 5 | Fallback text retrieval covers prose-only rules. | In progress | PS3.10 media/file-format fallback returns bounded cited text when no parsed media-type row matches, and PS3.7 selected service-behavior prose is covered by cited `retrieve_standard_text` fallback; PS3.8 and final v2-part audit remain pending. |
+| 5 | Fallback text retrieval covers prose-only rules. | In progress | PS3.10 media/file-format fallback returns bounded cited text when no parsed media-type row matches, and PS3.7 selected service-behavior plus PS3.8 selected networking prose are covered by cited `retrieve_standard_text` fallback; final v2-part audit remains pending. |
 | 6 | At least 100 coding-task regression prompts pass through deterministic tool calls before answer synthesis. | Not started | Pending Phase 8. |
 
 ## Active Work
@@ -57,11 +57,11 @@ Status values:
 | Current phase | Phase 7 - Selected PS3.7/PS3.8 Semantics |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed commit | Pending current commit; previous completed commit was dbda78e. |
-| Last verification | `uv run --dev pytest tests/unit/test_part07_parser.py` passed with 2 passed; `uv run --dev pytest tests/unit/test_query_resolver.py -k 'retrieve_standard_text'` passed with 4 passed and 59 deselected; `uv run --dev pytest tests/unit/test_build.py -k build_sqlite_database_imports_manifest_docbook_and_metadata` passed with 1 passed and 4 deselected; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
+| Last completed commit | Pending current commit; previous completed commit was 9f24999. |
+| Last verification | `uv run --dev pytest tests/unit/test_part08_parser.py` passed with 2 passed; `uv run --dev pytest tests/unit/test_query_resolver.py -k 'retrieve_standard_text'` passed with 5 passed and 59 deselected; `uv run --dev pytest tests/unit/test_build.py -k build_sqlite_database_imports_manifest_docbook_and_metadata` passed with 1 passed and 4 deselected; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
 | Current blocker | None |
-| Commit-ready summary | Added a selected PS3.7 DIMSE service-behavior parser path for the synthetic C-ECHO fixture and regression coverage that PS3.7 service-behavior prose can be retrieved with citations through the existing bounded text retrieval path. No new public PS3.7 tool is advertised. |
-| Next recommended action | Continue Phase 7 with the smallest selected PS3.8 networking semantics slice: add a synthetic PS3.8 selected networking-behavior fixture/parser path and cited retrieval fallback coverage without adding broad public-tool claims. |
+| Commit-ready summary | Added a selected PS3.8 association-PDU behavior parser path for the synthetic networking fixture and regression coverage that PS3.8 networking prose can be retrieved with citations through the existing bounded text retrieval path. No new public PS3.8 tool is advertised. |
+| Next recommended action | Continue Phase 7 with focused agent regression coverage for selected PS3.7/PS3.8 prose questions through `retrieve_standard_text`, then audit whether fallback retrieval coverage is sufficient to mark acceptance criterion 5 complete. |
 
 ## Phase 0 - V2 Contract Baseline
 
@@ -462,7 +462,7 @@ Scope:
 Completion checklist:
 
 - [x] PS3.7 selected topic fixture and parser coverage exists.
-- [ ] PS3.8 selected topic fixture and parser coverage exists.
+- [x] PS3.8 selected topic fixture and parser coverage exists.
 - [ ] Query path returns structured facts where deterministic.
 - [ ] Query path returns cited text for prose-only topics.
 - [ ] V2 acceptance criterion 5 is marked complete after audit.
@@ -471,7 +471,8 @@ Commits:
 
 | Commit | Summary | Verification |
 |---|---|---|
-| Pending current commit | Added selected PS3.7 DIMSE service-behavior parsing for the synthetic C-ECHO fixture and cited PS3.7 `retrieve_standard_text` fallback coverage. | `uv run --dev pytest tests/unit/test_part07_parser.py` passed with 2 passed; `uv run --dev pytest tests/unit/test_query_resolver.py -k 'retrieve_standard_text'` passed with 4 passed and 59 deselected; `uv run --dev pytest tests/unit/test_build.py -k build_sqlite_database_imports_manifest_docbook_and_metadata` passed with 1 passed and 4 deselected; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
+| 9f24999 | Added selected PS3.7 DIMSE service-behavior parsing for the synthetic C-ECHO fixture and cited PS3.7 `retrieve_standard_text` fallback coverage. | `uv run --dev pytest tests/unit/test_part07_parser.py` passed with 2 passed; `uv run --dev pytest tests/unit/test_query_resolver.py -k 'retrieve_standard_text'` passed with 4 passed and 59 deselected; `uv run --dev pytest tests/unit/test_build.py -k build_sqlite_database_imports_manifest_docbook_and_metadata` passed with 1 passed and 4 deselected; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
+| Pending current commit | Added selected PS3.8 association-PDU behavior parsing for the synthetic networking fixture and cited PS3.8 `retrieve_standard_text` fallback coverage. | `uv run --dev pytest tests/unit/test_part08_parser.py` passed with 2 passed; `uv run --dev pytest tests/unit/test_query_resolver.py -k 'retrieve_standard_text'` passed with 5 passed and 59 deselected; `uv run --dev pytest tests/unit/test_build.py -k build_sqlite_database_imports_manifest_docbook_and_metadata` passed with 1 passed and 4 deselected; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
 
 Notes:
 
@@ -479,6 +480,9 @@ Notes:
 - The first PS3.7 slice intentionally keeps selected service behavior as
   parser IR plus generic cited retrieval coverage only; it does not add a new
   public Python, CLI, or MCP tool.
+- The first PS3.8 slice intentionally keeps selected association-PDU behavior
+  as parser IR plus generic cited retrieval coverage only; it does not add a
+  new public Python, CLI, or MCP tool.
 
 ## Phase 8 - Evaluation Harness Expansion
 
@@ -551,7 +555,7 @@ Notes:
 |---|---|---|---|
 | 2026-06-14 | Start v2 from documented complete v1 baseline. | `IMPLEMENTATION_REVIEW.md` records all active v1 review findings as resolved. | Initial planning docs commit. |
 | 2026-06-14 | Use canonical v2 table names from `IMPLEMENTATION_PLAN.md`: `vr_definition`, `transfer_syntax_detail`, `file_meta_requirement`, `dicom_media_type`, `dicomweb_transaction`, `sr_template`, `sr_template_row`, `context_group`, `context_group_row`, and `coded_concept`. | Parser phases need stable storage targets before new part ingestion begins; JSON-array fields are stored as text for SQLite/PostgreSQL portability until importers add domain models. | 0bbb0fe. |
-| 2026-06-14 | Keep the initial Phase 7 PS3.7/PS3.8 slices off the public-tool surface. | The v2 plan allows selected PS3.7/PS3.8 content to be available through structured lookup where possible and cited text retrieval otherwise, and no dedicated public contract exists for these topics yet. Parser IR plus bounded retrieval keeps the repo working without broad tool claims. | Pending current commit. |
+| 2026-06-14 | Keep the initial Phase 7 PS3.7/PS3.8 slices off the public-tool surface. | The v2 plan allows selected PS3.7/PS3.8 content to be available through structured lookup where possible and cited text retrieval otherwise, and no dedicated public contract exists for these topics yet. Parser IR plus bounded retrieval keeps the repo working without broad tool claims. | 9f24999. |
 
 ## Open Questions
 

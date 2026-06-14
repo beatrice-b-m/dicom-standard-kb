@@ -59,6 +59,7 @@ from tests.fixtures_synthetic import (
     PS35_ENCODING_DOCBOOK,
     PS36_REGISTRY_DOCBOOK,
     PS37_MESSAGES_DOCBOOK,
+    PS38_NETWORK_DOCBOOK,
     PS310_MEDIA_STORAGE_DOCBOOK,
     PS316_CONTENT_MAPPING_DOCBOOK,
     PS318_WEB_SERVICES_DOCBOOK,
@@ -120,6 +121,18 @@ def _part07_doc_connection(tmp_path: Path) -> sqlite3.Connection:
     connection = connect_sqlite(tmp_path / "kb.sqlite")
     apply_migrations(connection)
     document = parse_docbook_xml(PS37_MESSAGES_DOCBOOK, part="PS3.7")
+    import_docbook_structure(
+        connection,
+        edition="2026b",
+        document=document,
+    )
+    return connection
+
+
+def _part08_doc_connection(tmp_path: Path) -> sqlite3.Connection:
+    connection = connect_sqlite(tmp_path / "kb.sqlite")
+    apply_migrations(connection)
+    document = parse_docbook_xml(PS38_NETWORK_DOCBOOK, part="PS3.8")
     import_docbook_structure(
         connection,
         edition="2026b",
@@ -1464,6 +1477,35 @@ def test_retrieve_standard_text_returns_cited_ps37_service_behavior_fallback(
         ("PS3.7", "sect_7_1"),
         ("PS3.7", "table_7-1"),
         ("PS3.7", "table_7-2"),
+    ]
+
+
+def test_retrieve_standard_text_returns_cited_ps38_network_fallback(
+    tmp_path: Path,
+) -> None:
+    response = retrieve_standard_text(
+        _part08_doc_connection(tmp_path),
+        part="PS3.8",
+        section_or_anchor="sect_8_1",
+        edition="2026b",
+        max_chars=280,
+    )
+
+    assert response.status == "ok"
+    assert response.result is not None
+    assert response.result["part"] == "PS3.8"
+    assert response.result["title"] == "Network Overview"
+    assert "A-ASSOCIATE-RQ PDU starts association establishment" in str(
+        response.result["text_excerpt"]
+    )
+    assert response.result["tables"] == [
+        {"table_id": "table_8-1", "title": "Synthetic Association PDUs"},
+        {"table_id": "table_8-2", "title": "Synthetic Network Notes"},
+    ]
+    assert [(ref.part, ref.anchor) for ref in response.refs] == [
+        ("PS3.8", "sect_8_1"),
+        ("PS3.8", "table_8-1"),
+        ("PS3.8", "table_8-2"),
     ]
 
 

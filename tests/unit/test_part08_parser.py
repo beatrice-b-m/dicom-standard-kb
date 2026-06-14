@@ -29,6 +29,22 @@ def test_parse_part08_classifies_association_pdu_tables_and_warns_on_gaps() -> N
     assert pdu_table.source_ref.section == "sect_8_1"
     assert pdu_table.source_ref.table_id == "table_8-1"
     assert pdu_table.source_ref.title == "Synthetic Association PDUs"
+    assert [
+        (record.pdu, record.direction, record.behavior)
+        for record in result.pdu_behaviors
+    ] == [
+        (
+            "A-ASSOCIATE-RQ",
+            "request",
+            "Starts association establishment by proposing presentation contexts.",
+        ),
+        (
+            "A-ASSOCIATE-AC",
+            "response",
+            "Accepts association establishment with negotiated presentation contexts.",
+        ),
+    ]
+    assert result.pdu_behaviors[0].source_ref.table_id == "table_8-1"
     assert [(warning.table_id, warning.message) for warning in result.warnings] == [
         ("table_8-2", "unsupported PS3.8 table shape")
     ]
@@ -75,6 +91,10 @@ def test_part08_docbook_structure_persists_nodes_refs_and_raw_table_ir(
     payload = json.loads(raw_table["ir_json"])
     assert payload["title"] == "Synthetic Association PDUs"
     assert payload["rows"][1]["cells"][0]["text"] == "A-ASSOCIATE-RQ"
+    assert (
+        payload["rows"][1]["cells"][2]["text"]
+        == "Starts association establishment by proposing presentation contexts."
+    )
     assert len(raw_table["ir_sha256"]) == 64
     assert raw_table["part"] == "PS3.8"
     assert raw_table["table_id"] == "table_8-1"
