@@ -17,6 +17,7 @@ MCPToolName = Literal[
     "dicom_lookup_media_type",
     "dicom_lookup_dicomweb_transaction",
     "dicom_lookup_sr_template",
+    "dicom_lookup_context_group",
     "dicom_list_modules_for_iod",
     "dicom_list_attributes_for_module",
     "dicom_resolve_attribute_context",
@@ -37,6 +38,7 @@ MCP_TOOL_NAMES: tuple[MCPToolName, ...] = (
     "dicom_lookup_media_type",
     "dicom_lookup_dicomweb_transaction",
     "dicom_lookup_sr_template",
+    "dicom_lookup_context_group",
     "dicom_list_modules_for_iod",
     "dicom_list_attributes_for_module",
     "dicom_resolve_attribute_context",
@@ -108,6 +110,10 @@ MCP_TOOL_SPECS: tuple[MCPToolSpec, ...] = (
     {
         "name": "dicom_lookup_sr_template",
         "description": "Look up a DICOM PS3.16 SR template by TID or name.",
+    },
+    {
+        "name": "dicom_lookup_context_group",
+        "description": "Look up a DICOM PS3.16 context group by CID or name.",
     },
     {
         "name": "dicom_list_modules_for_iod",

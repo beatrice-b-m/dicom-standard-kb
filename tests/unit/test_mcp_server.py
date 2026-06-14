@@ -72,6 +72,7 @@ def test_mcp_tool_names_match_supported_spec() -> None:
         "dicom_lookup_media_type",
         "dicom_lookup_dicomweb_transaction",
         "dicom_lookup_sr_template",
+        "dicom_lookup_context_group",
         "dicom_list_modules_for_iod",
         "dicom_list_attributes_for_module",
         "dicom_resolve_attribute_context",
@@ -304,6 +305,42 @@ def test_execute_mcp_tool_returns_sr_template(tmp_path: Path) -> None:
                 "cardinality": "1-n",
                 "condition": "Include measurements when present.",
                 "include_tid": "TID 1501",
+            },
+        ],
+    }
+    assert payload["refs"][0]["part"] == "PS3.16"
+
+
+def test_execute_mcp_tool_returns_context_group(tmp_path: Path) -> None:
+    payload = execute_mcp_tool(
+        "dicom_lookup_context_group",
+        {"cid_or_name": "CID 29"},
+        config=MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)),
+    )
+
+    assert payload["tool"] == "lookup_context_group"
+    assert payload["status"] == "ok"
+    assert payload["result"] == {
+        "cid": "CID 29",
+        "name": "Acquisition Modality",
+        "extensibility": "EXTENSIBLE",
+        "version": "20260101",
+        "rows": [
+            {
+                "order": 1,
+                "coding_scheme_designator": "DCM",
+                "coding_scheme_version": None,
+                "code_value": "CT",
+                "code_meaning": "Computed Tomography",
+                "include_cid": None,
+            },
+            {
+                "order": 2,
+                "coding_scheme_designator": None,
+                "coding_scheme_version": None,
+                "code_value": None,
+                "code_meaning": None,
+                "include_cid": "CID 30",
             },
         ],
     }

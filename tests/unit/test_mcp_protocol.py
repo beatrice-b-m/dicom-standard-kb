@@ -164,6 +164,23 @@ def test_mcp_stdio_protocol_with_official_client(tmp_path: Path) -> None:
                 )
                 assert sr_template_payload["refs"][0]["part"] == "PS3.16"
 
+                context_group_result = await session.call_tool(
+                    "dicom_lookup_context_group",
+                    {"cid_or_name": "CID 29"},
+                )
+                context_group_payload = _tool_payload(context_group_result)
+                assert context_group_payload["edition"] == "2026b"
+                assert context_group_payload["tool"] == "lookup_context_group"
+                assert context_group_payload["status"] == "ok"
+                assert context_group_payload["result"]["cid"] == "CID 29"
+                assert context_group_payload["result"]["name"] == (
+                    "Acquisition Modality"
+                )
+                assert context_group_payload["result"]["rows"][0][
+                    "code_meaning"
+                ] == "Computed Tomography"
+                assert context_group_payload["refs"][0]["part"] == "PS3.16"
+
     anyio.run(run_client)
 
 

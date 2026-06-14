@@ -11,6 +11,7 @@ from dicom_kb.query.resolver import (
     explain_encoding_rule,
     list_attributes_for_module,
     list_modules_for_iod,
+    lookup_context_group,
     lookup_data_element,
     lookup_defined_terms,
     lookup_dicomweb_transaction,
@@ -103,6 +104,11 @@ def dispatch_mcp_tool(
         "dicom_lookup_sr_template": lambda: lookup_sr_template(
             connection,
             tid_or_name=str(arguments["tid_or_name"]),
+            edition=edition,
+        ),
+        "dicom_lookup_context_group": lambda: lookup_context_group(
+            connection,
+            cid_or_name=str(arguments["cid_or_name"]),
             edition=edition,
         ),
         "dicom_list_modules_for_iod": lambda: list_modules_for_iod(
@@ -238,6 +244,14 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
                 return executor(
                     "dicom_lookup_sr_template",
                     {"tid_or_name": tid_or_name},
+                )
+
+        elif spec["name"] == "dicom_lookup_context_group":
+            @_tool(server, name=spec["name"], description=spec["description"])
+            def dicom_lookup_context_group(cid_or_name: str) -> dict[str, Any]:
+                return executor(
+                    "dicom_lookup_context_group",
+                    {"cid_or_name": cid_or_name},
                 )
 
         elif spec["name"] == "dicom_list_modules_for_iod":
