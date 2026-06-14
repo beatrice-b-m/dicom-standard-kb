@@ -27,6 +27,8 @@ from dicom_kb.ir.models import (
     SOPClass,
     SOPClassIOD,
     SourceRef,
+    SRTemplate,
+    SRTemplateRow,
     TransferSyntaxDetail,
     UIDRegistryEntry,
     VRDefinition,
@@ -113,6 +115,14 @@ class ContextGroupRecord:
     rows: tuple[ContextGroupRow, ...] = ()
 
 
+@dataclass(frozen=True)
+class SRTemplateRecord:
+    """A PS3.16 SR template with ordered content and include rows."""
+
+    template: SRTemplate
+    rows: tuple[SRTemplateRow, ...] = ()
+
+
 class Part16Repository:
     """Lookup imported PS3.16 content mapping semantics."""
 
@@ -186,6 +196,59 @@ class Part16Repository:
             )
             for row in group_rows
         ]
+
+    def list_sr_templates(
+        self, tid_or_name: str, *, edition: str
+    ) -> list[SRTemplateRecord]:
+        """Return SR templates matching an exact TID, bare TID number, or name."""
+        normalized = tid_or_name.strip()
+        normalized_label = _sr_template_label(normalized)
+        template_rows = self.connection.execute(
+            """
+            SELECT template.*, sr.part AS source_part,
+                   sr.section AS source_section,
+                   sr.table_id AS source_table_id,
+                   sr.xml_id AS source_xml_id,
+                   sr.title AS source_title, sr.canonical_url AS source_url
+            FROM sr_template template
+            JOIN source_ref sr ON sr.id = template.source_ref_id
+            WHERE template.edition_id = ?
+              AND (
+                lower(template.tid) = lower(?)
+                OR lower(template.tid) = lower(?)
+                OR lower(template.name) = lower(?)
+              )
+            ORDER BY template.tid, template.name, template.id
+            """,
+            (edition, normalized, normalized_label, normalized),
+        ).fetchall()
+        return [
+            SRTemplateRecord(
+                template=_sr_template_from_row(row),
+                rows=self._rows_for_sr_template(str(row["id"]), edition=edition),
+            )
+            for row in template_rows
+        ]
+
+    def _rows_for_sr_template(
+        self, sr_template_id: str, *, edition: str
+    ) -> tuple[SRTemplateRow, ...]:
+        rows = self.connection.execute(
+            """
+            SELECT row.*, sr.part AS source_part,
+                   sr.section AS source_section,
+                   sr.table_id AS source_table_id,
+                   sr.xml_id AS source_xml_id,
+                   sr.title AS source_title, sr.canonical_url AS source_url
+            FROM sr_template_row row
+            JOIN source_ref sr ON sr.id = row.source_ref_id
+            WHERE row.edition_id = ?
+              AND row.sr_template_id = ?
+            ORDER BY row.row_order, row.id
+            """,
+            (edition, sr_template_id),
+        ).fetchall()
+        return tuple(_sr_template_row_from_row(row) for row in rows)
 
     def _rows_for_context_group(
         self, context_group_id: str, *, edition: str
@@ -1271,10 +1334,42 @@ def _context_group_row_from_row(row: sqlite3.Row) -> ContextGroupRow:
     )
 
 
+def _sr_template_from_row(row: sqlite3.Row) -> SRTemplate:
+    return SRTemplate(
+        id=str(row["id"]),
+        edition_id=str(row["edition_id"]),
+        tid=str(row["tid"]),
+        name=str(row["name"]),
+        extensibility=row["extensibility"],
+        source_ref=_source_ref_from_row(row),
+    )
+
+
+def _sr_template_row_from_row(row: sqlite3.Row) -> SRTemplateRow:
+    return SRTemplateRow(
+        id=str(row["id"]),
+        edition_id=str(row["edition_id"]),
+        sr_template_id=str(row["sr_template_id"]),
+        row_order=int(row["row_order"]),
+        relationship_type=row["relationship_type"],
+        value_type=row["value_type"],
+        concept_name=row["concept_name"],
+        cardinality=row["cardinality"],
+        condition_text=row["condition_text"],
+        condition_id=row["condition_id"],
+        include_tid=row["include_tid"],
+        source_ref=_source_ref_from_row(row),
+    )
+
+
 def _media_context_matches(record: DicomMediaType, normalized: str) -> bool:
     context = record.service_context.casefold() if record.service_context else ""
     directions = {direction.casefold() for direction in record.directions}
     return normalized == context or normalized in directions
+
+
+def _sr_template_label(tid: str) -> str:
+    return tid if tid.casefold().startswith("tid ") else f"TID {tid}"
 
 
 def _context_group_label(cid: str) -> str:

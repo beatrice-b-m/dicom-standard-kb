@@ -15,6 +15,7 @@ from dicom_kb.db.importers import (
     import_part03,
     import_part04,
     import_part06,
+    import_sr_templates,
     import_transfer_syntax_details,
     import_vr_definitions,
 )
@@ -44,6 +45,7 @@ from dicom_kb.query.resolver import (
     lookup_iod,
     lookup_media_type,
     lookup_sop_class,
+    lookup_sr_template,
     lookup_transfer_syntax,
     lookup_uid,
     lookup_vr,
@@ -206,6 +208,12 @@ def _part16_connection(tmp_path: Path) -> sqlite3.Connection:
     apply_migrations(connection)
     document = parse_docbook_xml(PS316_CONTENT_MAPPING_DOCBOOK, part="PS3.16")
     parsed_part16 = parse_part16(document, edition="2026b")
+    import_sr_templates(
+        connection,
+        edition="2026b",
+        templates=parsed_part16.sr_templates,
+        rows=parsed_part16.sr_template_rows,
+    )
     import_context_groups(
         connection,
         edition="2026b",
@@ -1141,6 +1149,104 @@ def test_lookup_context_group_validates_input_and_reports_not_found(
     assert empty.result == {"message": "cid_or_name must not be empty."}
     assert missing.status == "not_found"
     assert missing.result == {"message": "No PS3.16 context group matched the input."}
+
+
+def test_lookup_sr_template_returns_ps316_rows_and_include_rows(
+    tmp_path: Path,
+) -> None:
+    response = lookup_sr_template(
+        _part16_connection(tmp_path),
+        tid_or_name="1500",
+        edition="2026b",
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert response.status == "ok"
+    assert response.result == {
+        "tid": "TID 1500",
+        "name": "Measurement Report",
+        "extensibility": "EXTENSIBLE",
+        "rows": [
+            {
+                "order": 1,
+                "relationship_type": "CONTAINS",
+                "value_type": "CONTAINER",
+                "concept_name": "Measurement Report",
+                "cardinality": "1",
+                "condition": "Root container is required.",
+                "include_tid": None,
+            },
+            {
+                "order": 2,
+                "relationship_type": "CONTAINS",
+                "value_type": "INCLUDE",
+                "concept_name": None,
+                "cardinality": "1-n",
+                "condition": "Include measurements when present.",
+                "include_tid": "TID 1501",
+            },
+        ],
+    }
+    assert response.refs[0].part == "PS3.16"
+    assert response.refs[0].table == "Synthetic Template Rows"
+    assert response.classification.evidence_level == "parsed_table"
+    assert response.trace.query_id == "query-1"
+
+
+def test_lookup_sr_template_returns_candidates_for_ambiguous_name(
+    tmp_path: Path,
+) -> None:
+    connection = _part16_connection(tmp_path)
+    connection.execute(
+        """
+        INSERT INTO sr_template (
+          id, edition_id, tid, name, extensibility, source_ref_id
+        ) VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "2026b.PS3.16.sr_template.tid_1501",
+            "2026b",
+            "TID 1501",
+            "Measurement Report",
+            "NON-EXTENSIBLE",
+            "2026b.PS3.16.table_16-1",
+        ),
+    )
+
+    response = lookup_sr_template(
+        connection,
+        tid_or_name="Measurement Report",
+        edition="2026b",
+    )
+
+    assert response.status == "validation_error"
+    assert response.result is not None
+    assert response.result["message"] == "SR template input matched multiple rows."
+    assert [
+        candidate["tid"] for candidate in response.result["candidates"]
+    ] == ["TID 1500", "TID 1501"]
+    assert response.result["candidates"][0]["rows"][1]["include_tid"] == "TID 1501"
+    assert response.result["candidates"][1]["rows"] == []
+    assert {ref.part for ref in response.refs} == {"PS3.16"}
+
+
+def test_lookup_sr_template_validates_input_and_reports_not_found(
+    tmp_path: Path,
+) -> None:
+    connection = _part16_connection(tmp_path)
+
+    empty = lookup_sr_template(connection, tid_or_name="  ", edition="2026b")
+    missing = lookup_sr_template(
+        connection,
+        tid_or_name="TID 9999",
+        edition="2026b",
+    )
+
+    assert empty.status == "validation_error"
+    assert empty.result == {"message": "tid_or_name must not be empty."}
+    assert missing.status == "not_found"
+    assert missing.result == {"message": "No PS3.16 SR template matched the input."}
 
 
 def test_lookup_code_meaning_returns_ps316_coded_concept(tmp_path: Path) -> None:

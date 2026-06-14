@@ -17,6 +17,7 @@ from dicom_kb.db.repositories import (
     Part10Repository,
     Part16Repository,
     Part18Repository,
+    SRTemplateRecord,
     UIDRepository,
 )
 from dicom_kb.ir.models import (
@@ -35,6 +36,7 @@ from dicom_kb.query.answer_contracts import (
     ParseConfidence,
     ResponseClassification,
     ResponseTrace,
+    SRTemplateRowResult,
     StandardRef,
     ToolResponse,
     attribute_context_result,
@@ -49,6 +51,7 @@ from dicom_kb.query.answer_contracts import (
     iod_result,
     module_attributes_result,
     sop_class_result,
+    sr_template_result,
     standard_ref,
     standard_text_result,
     standard_text_search_result,
@@ -706,6 +709,72 @@ def lookup_context_group(
         status="ok",
         result=_context_group_result(record),
         refs=_context_group_refs([record]),
+        trace=trace,
+    )
+
+
+def lookup_sr_template(
+    connection: sqlite3.Connection,
+    *,
+    tid_or_name: str,
+    edition: str,
+    query_id: str | None = None,
+    resolved_at: datetime | None = None,
+) -> ToolResponse:
+    """Resolve an imported PS3.16 SR template by TID or exact name."""
+    trace = build_trace(
+        connection,
+        edition=edition,
+        query_id=query_id,
+        resolved_at=resolved_at,
+    )
+    response_input = {"tid_or_name": tid_or_name}
+    normalized_input = tid_or_name.strip()
+    if not normalized_input:
+        return tool_response(
+            edition=edition,
+            tool="lookup_sr_template",
+            input=response_input,
+            status="validation_error",
+            result={"message": "tid_or_name must not be empty."},
+            trace=trace,
+        )
+
+    records = Part16Repository(connection).list_sr_templates(
+        normalized_input,
+        edition=edition,
+    )
+    if not records:
+        return tool_response(
+            edition=edition,
+            tool="lookup_sr_template",
+            input=response_input,
+            status="not_found",
+            result={"message": "No PS3.16 SR template matched the input."},
+            trace=trace,
+        )
+    if len(records) > 1:
+        return tool_response(
+            edition=edition,
+            tool="lookup_sr_template",
+            input=response_input,
+            status="validation_error",
+            result={
+                "message": "SR template input matched multiple rows.",
+                "candidates": [_sr_template_result(record) for record in records],
+            },
+            refs=_sr_template_refs(records),
+            trace=trace,
+        )
+
+    record = records[0]
+    return tool_response(
+        edition=edition,
+        tool="lookup_sr_template",
+        input=response_input,
+        status="ok",
+        result=_sr_template_result(record),
+        refs=_sr_template_refs([record]),
         trace=trace,
     )
 
@@ -1478,12 +1547,48 @@ def _context_group_result(record: ContextGroupRecord) -> dict[str, object]:
     )
 
 
+def _sr_template_result(record: SRTemplateRecord) -> dict[str, object]:
+    template = record.template
+    return sr_template_result(
+        tid=template.tid,
+        name=template.name,
+        extensibility=template.extensibility,
+        rows=[
+            SRTemplateRowResult(
+                order=row.row_order,
+                relationship_type=row.relationship_type,
+                value_type=row.value_type,
+                concept_name=row.concept_name,
+                cardinality=row.cardinality,
+                condition=row.condition_text,
+                include_tid=row.include_tid,
+            )
+            for row in record.rows
+        ],
+    )
+
+
 def _context_group_refs(records: list[ContextGroupRecord]) -> list[StandardRef]:
     source_refs = []
     seen: set[str] = set()
     for record in records:
         for source_ref in [
             record.group.source_ref,
+            *[row.source_ref for row in record.rows],
+        ]:
+            if source_ref.id in seen:
+                continue
+            seen.add(source_ref.id)
+            source_refs.append(standard_ref(source_ref))
+    return source_refs
+
+
+def _sr_template_refs(records: list[SRTemplateRecord]) -> list[StandardRef]:
+    source_refs = []
+    seen: set[str] = set()
+    for record in records:
+        for source_ref in [
+            record.template.source_ref,
             *[row.source_ref for row in record.rows],
         ]:
             if source_ref.id in seen:
