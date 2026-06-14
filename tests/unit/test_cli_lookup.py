@@ -11,6 +11,7 @@ from typer.testing import CliRunner
 from dicom_kb.cli.main import app
 from dicom_kb.db.importers import (
     import_attribute_value_terms,
+    import_context_groups,
     import_dicom_media_types,
     import_dicomweb_transactions,
     import_docbook_structure,
@@ -146,6 +147,12 @@ def _fixture_db(tmp_path: Path) -> Path:
         edition="2026b",
         templates=parsed_part16.sr_templates,
         rows=parsed_part16.sr_template_rows,
+    )
+    import_context_groups(
+        connection,
+        edition="2026b",
+        context_groups=parsed_part16.context_groups,
+        rows=parsed_part16.context_group_rows,
     )
     part18_document = parse_docbook_xml(PS318_WEB_SERVICES_DOCBOOK, part="PS3.18")
     import_docbook_structure(
@@ -420,6 +427,45 @@ def test_cli_lookup_sr_template_outputs_ps316_template(tmp_path: Path) -> None:
                 "cardinality": "1-n",
                 "condition": "Include measurements when present.",
                 "include_tid": "TID 1501",
+            },
+        ],
+    }
+    assert payload["refs"][0]["part"] == "PS3.16"
+
+
+def test_cli_lookup_context_group_outputs_ps316_group(tmp_path: Path) -> None:
+    payload = _invoke_json(
+        tmp_path,
+        "lookup",
+        "context-group",
+        "CID 29",
+        "--edition",
+        "2026b",
+    )
+
+    assert payload["tool"] == "lookup_context_group"
+    assert payload["status"] == "ok"
+    assert payload["result"] == {
+        "cid": "CID 29",
+        "name": "Acquisition Modality",
+        "extensibility": "EXTENSIBLE",
+        "version": "20260101",
+        "rows": [
+            {
+                "order": 1,
+                "coding_scheme_designator": "DCM",
+                "coding_scheme_version": None,
+                "code_value": "CT",
+                "code_meaning": "Computed Tomography",
+                "include_cid": None,
+            },
+            {
+                "order": 2,
+                "coding_scheme_designator": None,
+                "coding_scheme_version": None,
+                "code_value": None,
+                "code_meaning": None,
+                "include_cid": "CID 30",
             },
         ],
     }

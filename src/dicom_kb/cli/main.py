@@ -48,6 +48,7 @@ from dicom_kb.query.resolver import (
     explain_encoding_rule,
     list_attributes_for_module,
     list_modules_for_iod,
+    lookup_context_group,
     lookup_data_element,
     lookup_defined_terms,
     lookup_dicomweb_transaction,
@@ -1099,6 +1100,41 @@ def lookup_sr_template_command(
             lookup_sr_template(
                 connection,
                 tid_or_name=tid_or_name,
+                edition=resolved_edition,
+            )
+        )
+
+
+@lookup_app.command("context-group")
+def lookup_context_group_command(
+    cid_or_name: Annotated[
+        str,
+        typer.Argument(help="PS3.16 context group CID or exact context group name."),
+    ],
+    edition: Annotated[
+        str | None,
+        typer.Option("--edition", help="Concrete DICOM edition label."),
+    ] = None,
+    db: Annotated[
+        Path | None,
+        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
+    ] = None,
+    cache_dir: Annotated[
+        Path | None,
+        typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
+    ] = None,
+) -> None:
+    """Look up a PS3.16 context group by CID or exact name."""
+    resolved_edition = _resolve_edition(edition)
+    with _connect_query_db(
+        _resolve_db_path(db),
+        cache_dir=_resolve_cache_dir(cache_dir),
+        edition=resolved_edition,
+    ) as connection:
+        _echo_response(
+            lookup_context_group(
+                connection,
+                cid_or_name=cid_or_name,
                 edition=resolved_edition,
             )
         )
