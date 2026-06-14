@@ -534,7 +534,7 @@ def test_cli_lookup_defined_terms_outputs_value_terms(tmp_path: Path) -> None:
         "--edition",
         "2026b",
         "--context",
-        "Patient",
+        "CT Image Storage",
     )
 
     assert payload["tool"] == "lookup_defined_terms"
@@ -544,7 +544,7 @@ def test_cli_lookup_defined_terms_outputs_value_terms(tmp_path: Path) -> None:
         "ALPHA",
         "IDEOGRAPHIC",
     ]
-    assert {ref["part"] for ref in payload["refs"]} == {"PS3.3", "PS3.6"}
+    assert {ref["part"] for ref in payload["refs"]} == {"PS3.3", "PS3.4", "PS3.6"}
 
 
 def test_cli_retrieve_text_outputs_capped_excerpt(tmp_path: Path) -> None:

@@ -663,6 +663,7 @@ class AttributeValueTermRepository:
         term_kind: str,
         edition: str,
         context: str | None = None,
+        attribute_use_ids: tuple[str, ...] | None = None,
     ) -> list[AttributeValueTermRecord]:
         """Return value terms linked to a PS3.6 attribute identity."""
         element, _warning = DataElementRepository(
@@ -670,8 +671,27 @@ class AttributeValueTermRepository:
         ).find_by_tag_or_keyword(attribute, edition=edition)
         if element is None:
             return []
+        if attribute_use_ids is not None and not attribute_use_ids:
+            return []
+
+        context_clause = """
+              AND (
+                ? IS NULL
+                OR lower(avt.context_label) LIKE '%' || lower(?) || '%'
+                OR lower(m.name) = lower(?)
+                OR lower(ma.name) = lower(?)
+              )
+        """
+        params: list[object] = [edition, term_kind, element.id]
+        if attribute_use_ids is not None:
+            placeholders = ", ".join("?" for _ in attribute_use_ids)
+            context_clause = f"AND avt.attribute_use_id IN ({placeholders})"
+            params.extend(attribute_use_ids)
+        else:
+            params.extend([context, context, context, context])
+
         rows = self.connection.execute(
-            """
+            f"""
             SELECT
               avt.id AS term_id,
               avt.edition_id AS term_edition_id,
@@ -717,15 +737,10 @@ class AttributeValueTermRepository:
             WHERE avt.edition_id = ?
               AND avt.term_kind = ?
               AND avt.data_element_id = ?
-              AND (
-                ? IS NULL
-                OR lower(avt.context_label) LIKE '%' || lower(?) || '%'
-                OR lower(m.name) = lower(?)
-                OR lower(ma.name) = lower(?)
-              )
+              {context_clause}
             ORDER BY avt.context_label, avt.value, avt.id
             """,
-            (edition, term_kind, element.id, context, context, context, context),
+            params,
         ).fetchall()
         return [
             AttributeValueTermRecord(

@@ -370,7 +370,7 @@ def test_execute_mcp_tool_returns_code_meaning(tmp_path: Path) -> None:
 def test_execute_mcp_tool_returns_defined_terms(tmp_path: Path) -> None:
     payload = execute_mcp_tool(
         "dicom_lookup_defined_terms",
-        {"attribute": "PatientName", "context": "Patient"},
+        {"attribute": "PatientName", "context": "CT Image"},
         config=MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)),
     )
 
@@ -380,6 +380,7 @@ def test_execute_mcp_tool_returns_defined_terms(tmp_path: Path) -> None:
         "ALPHA",
         "IDEOGRAPHIC",
     ]
+    assert {ref["part"] for ref in payload["refs"]} == {"PS3.3", "PS3.6"}
 
 
 def test_execute_mcp_tool_reports_missing_db(tmp_path: Path) -> None:

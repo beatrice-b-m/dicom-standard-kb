@@ -34,7 +34,7 @@ Status values:
 | Phase 3 - PS3.10 file meta and media foundation | Complete | `file_meta_requirement` and PS3.10-derived `dicom_media_type` parser/import/build wiring are in place for synthetic PS3.10 rows. The Python resolver, CLI command, and MCP tool cover the PS3.10 `lookup_media_type` baseline, including bounded cited text fallback for prose-only PS3.10 file format rules. |
 | Phase 4 - PS3.18 DICOMweb transactions | Complete | Synthetic PS3.18 DICOMweb transaction rows parse into `dicomweb_transaction` with route template, method, resource category, constraints, status codes, media-type refs, source refs, and build/import smoke coverage. Python, CLI, and MCP transaction lookup behavior are in place, and PS3.18 media-type rows now expand the existing `lookup_media_type` surface with DICOMweb request/response contexts. |
 | Phase 5 - PS3.16 SR templates, CIDs, and codes | Complete | SR template, context group, and coded concept parsing/import/build wiring are in place for synthetic PS3.16 fixtures. Python resolver functions, CLI commands, and MCP tools cover code meaning, context group, and SR template lookups. Legal and distribution docs now explicitly preserve the no-standalone-terminology-dump invariant for PS3.16 content. |
-| Phase 6 - Contextual enumerated values and defined terms | In progress | Existing `attribute_value_term` coverage is documented; deterministic IOD/SOP context resolution remains pending. |
+| Phase 6 - Contextual enumerated values and defined terms | In progress | Existing `attribute_value_term` coverage is documented; deterministic IOD/SOP/module/macro context resolution now works through the shared PS3.3/PS3.4 graph, with ambiguity handling still pending. |
 | Phase 7 - Selected PS3.7/PS3.8 semantics | Not started | Completes selected networking/messaging scope and text fallback. |
 | Phase 8 - Evaluation harness expansion | Not started | Satisfies v2 acceptance criterion 6. |
 | Phase 9 - V2 release hardening | Not started | Final docs, integration goldens, metrics, and release gates. |
@@ -57,11 +57,11 @@ Status values:
 | Current phase | Phase 6 - Contextual Enumerated Values and Defined Terms |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed commit | Pending current commit; previous completed commit was a63a71e. |
-| Last verification | Initial `uv run --dev pytest tests/unit/test_metadata.py` failed on a line-wrapped documentation assertion and was fixed; final `uv run --dev pytest tests/unit/test_metadata.py` passed with 3 passed; `uv run --dev ruff check tests/unit/test_metadata.py` passed; sandboxed `make lint` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; sandboxed `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make typecheck` passed. |
+| Last completed commit | Pending current commit; previous completed commit was 5c9a5df. |
+| Last verification | `uv run --dev pytest tests/unit/test_query_resolver.py -k 'value_terms or defined_terms'` passed with 3 passed; `uv run --dev pytest tests/unit/test_cli_lookup.py -k defined_terms` passed with 1 passed; `uv run --dev pytest tests/unit/test_mcp_server.py -k defined_terms` passed with 1 passed; `uv run --dev pytest tests/unit/test_db_importers.py -k attribute_value_terms` passed with 1 passed; sandboxed `make lint`, `make typecheck`, and `make test` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed; escalated `make test` passed with 294 passed and 4 skipped. |
 | Current blocker | None |
-| Commit-ready summary | Documented the existing `attribute_value_term` importer and resolver coverage, including the deterministic PS3.6 data-element link, PS3.3 attribute-use link, text context matching, and unresolved IOD/SOP/TID/CID/DICOMweb context gaps. Added a focused regression test for the audit text. |
-| Next recommended action | Extend contextual value-term resolution for deterministic PS3.3 IOD and SOP Class inputs by resolving those contexts to applicable module or macro attribute uses before falling back to text context matching. |
+| Commit-ready summary | Extended value-term lookup context handling so exact PS3.3 IOD and PS3.4 SOP Class context strings resolve through the existing module, macro, and functional-group graph to exact attribute-use ids before falling back to legacy text/module/macro matching. Added Python, CLI, and MCP regression coverage for the contextual lookup path. |
+| Next recommended action | Add ambiguity handling for contextual value-term lookups when a context string can match multiple applicable contexts or value-term contexts, returning candidates or warnings instead of silently choosing one. |
 
 ## Phase 0 - V2 Contract Baseline
 
@@ -426,23 +426,25 @@ Scope:
 Completion checklist:
 
 - [x] Existing value-term coverage is documented.
-- [ ] Context resolver supports deterministic IOD/SOP/module/macro context.
+- [x] Context resolver supports deterministic IOD/SOP/module/macro context.
 - [ ] Ambiguous contexts return candidates or warnings.
-- [ ] Python, CLI, and MCP tests cover contextual lookups.
+- [x] Python, CLI, and MCP tests cover contextual lookups.
 - [ ] V2 acceptance criterion 4 is marked complete.
 
 Commits:
 
 | Commit | Summary | Verification |
 |---|---|---|
-| Pending current commit | Documented the current `attribute_value_term` import and lookup coverage, including deterministic context links already supported and Phase 6 context gaps. | Initial `uv run --dev pytest tests/unit/test_metadata.py` failed on a line-wrapped documentation assertion and was fixed; final `uv run --dev pytest tests/unit/test_metadata.py` passed with 3 passed; `uv run --dev ruff check tests/unit/test_metadata.py` passed; sandboxed `make lint` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; sandboxed `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make typecheck` passed. |
+| 5c9a5df | Documented the current `attribute_value_term` import and lookup coverage, including deterministic context links already supported and Phase 6 context gaps. | Initial `uv run --dev pytest tests/unit/test_metadata.py` failed on a line-wrapped documentation assertion and was fixed; final `uv run --dev pytest tests/unit/test_metadata.py` passed with 3 passed; `uv run --dev ruff check tests/unit/test_metadata.py` passed; sandboxed `make lint` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; sandboxed `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make typecheck` passed. |
+| Pending current commit | Extended value-term context resolution for exact PS3.3 IOD and PS3.4 SOP Class inputs by resolving them to applicable attribute-use ids through the existing context graph before falling back to text/module/macro matching. | `uv run --dev pytest tests/unit/test_query_resolver.py -k 'value_terms or defined_terms'`; `uv run --dev pytest tests/unit/test_cli_lookup.py -k defined_terms`; `uv run --dev pytest tests/unit/test_mcp_server.py -k defined_terms`; `uv run --dev pytest tests/unit/test_db_importers.py -k attribute_value_terms`; sandboxed `make lint`, `make typecheck`, and `make test` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint`; escalated `make typecheck`; escalated `make test` |
 
 Notes:
 
 - Do not silently convert defined terms into enumerated values.
 - Current value-term lookup supports exact PS3.3 module and macro names in the
-  optional text context, but does not yet resolve IOD or SOP Class inputs to
-  their applicable module/macro attribute uses.
+  optional text context and now resolves exact PS3.3 IOD or PS3.4 SOP Class
+  context inputs to their applicable module/macro attribute uses before falling
+  back to text context matching.
 
 ## Phase 7 - Selected PS3.7 and PS3.8 Semantics
 

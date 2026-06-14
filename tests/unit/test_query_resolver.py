@@ -1728,7 +1728,7 @@ def test_lookup_value_terms_supports_context_and_missing_term_kind(
         connection,
         attribute="PatientName",
         edition="2026b",
-        context="CT Image",
+        context="Missing Context",
         query_id="query-2",
         resolved_at=RESOLVED_AT,
     )
@@ -1745,6 +1745,60 @@ def test_lookup_value_terms_supports_context_and_missing_term_kind(
     assert len(matched_context.result["terms"]) == 2
     assert missing_context.status == "not_found"
     assert missing_kind.status == "not_found"
+
+
+def test_lookup_value_terms_resolves_iod_and_sop_contexts(
+    tmp_path: Path,
+) -> None:
+    connection = _context_connection(tmp_path)
+    iod_context = lookup_defined_terms(
+        connection,
+        attribute="PatientName",
+        edition="2026b",
+        context="CT Image",
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+    sop_context = lookup_defined_terms(
+        connection,
+        attribute="PatientName",
+        edition="2026b",
+        context="CT Image Storage",
+        query_id="query-2",
+        resolved_at=RESOLVED_AT,
+    )
+    mismatched_sop_context = lookup_defined_terms(
+        connection,
+        attribute="PatientName",
+        edition="2026b",
+        context="Enhanced CT Image Storage",
+        query_id="query-3",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert iod_context.status == "ok"
+    assert iod_context.result is not None
+    assert [term["value"] for term in iod_context.result["terms"]] == [
+        "ALPHA",
+        "IDEOGRAPHIC",
+    ]
+    assert {ref.part for ref in iod_context.refs} == {"PS3.3", "PS3.6"}
+
+    assert sop_context.status == "ok"
+    assert sop_context.result is not None
+    assert [term["attribute_use_id"] for term in sop_context.result["terms"]] == [
+        "2026b.module.patient.attribute_use.0",
+        "2026b.module.patient.attribute_use.0",
+    ]
+    assert {ref.part for ref in sop_context.refs} == {"PS3.3", "PS3.4", "PS3.6"}
+
+    assert mismatched_sop_context.status == "not_found"
+    assert mismatched_sop_context.refs is not None
+    assert {ref.part for ref in mismatched_sop_context.refs} == {
+        "PS3.3",
+        "PS3.4",
+        "PS3.6",
+    }
 
 
 def test_resolve_attribute_context_computes_lowest_type_for_multiple_uses(

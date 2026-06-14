@@ -21,6 +21,7 @@ from dicom_kb.db.repositories import (
     UIDRepository,
 )
 from dicom_kb.ir.models import (
+    DataElement,
     DicomMediaType,
     DicomwebTransaction,
     TransferSyntaxDetail,
@@ -1244,12 +1245,33 @@ def _lookup_attribute_value_terms(
             trace=trace,
         )
 
+    context_attribute_use_ids: tuple[str, ...] | None = None
+    context_refs: list[StandardRef] = []
+    context_warnings: list[str] = []
+    if context is not None:
+        (
+            context_attribute_use_ids,
+            context_refs,
+            context_warnings,
+        ) = _value_term_context_attribute_use_ids(
+            connection,
+            element=element,
+            context=context,
+            edition=edition,
+        )
+
     records = AttributeValueTermRepository(connection).list_terms_for_attribute(
         attribute=attribute,
         term_kind=term_kind,
         edition=edition,
         context=context,
+        attribute_use_ids=context_attribute_use_ids,
     )
+    warnings = [
+        warning
+        for warning in [element_warning, *context_warnings]
+        if warning is not None
+    ]
     if not records:
         return tool_response(
             edition=edition,
@@ -1257,13 +1279,14 @@ def _lookup_attribute_value_terms(
             input=response_input,
             status="not_found",
             result={"message": "No parsed value terms matched the input."},
-            refs=[standard_ref(element.source_ref)],
-            warnings=[element_warning] if element_warning else [],
+            refs=citation_refs((element.source_ref,), context_refs),
+            warnings=warnings,
             trace=trace,
         )
 
     refs = citation_refs(
         (element.source_ref,),
+        context_refs,
         (record.term.source_ref for record in records),
     )
     return tool_response(
@@ -1273,8 +1296,53 @@ def _lookup_attribute_value_terms(
         status="ok",
         result=attribute_value_terms_result(element, records),
         refs=refs,
-        warnings=[element_warning] if element_warning else [],
+        warnings=warnings,
         trace=trace,
+    )
+
+
+def _value_term_context_attribute_use_ids(
+    connection: sqlite3.Connection,
+    *,
+    element: DataElement,
+    context: str,
+    edition: str,
+) -> tuple[tuple[str, ...] | None, list[StandardRef], list[str]]:
+    part03 = Part03Repository(connection)
+    iod = part03.find_iod_by_name_or_keyword(context, edition=edition)
+    if iod is not None:
+        context_iods = [iod]
+        context_refs = [standard_ref(iod.source_ref)]
+        context_warnings: list[str] = []
+    else:
+        resolved_context = resolve_context_iods(
+            connection,
+            part03,
+            iod_name=None,
+            sop_class=context,
+            edition=edition,
+        )
+        if isinstance(resolved_context, ToolResponse):
+            return None, [], []
+        context_iods, context_refs, context_warnings = resolved_context
+
+    uses, use_refs, expansion_warnings = attribute_context_uses(
+        part03,
+        context_iods,
+        element,
+        edition=edition,
+    )
+    attribute_use_ids = tuple(
+        dict.fromkeys(
+            str(use.payload["attribute_use_id"])
+            for use in uses
+            if use.payload.get("attribute_use_id") is not None
+        )
+    )
+    return (
+        attribute_use_ids,
+        citation_refs(context_refs, use_refs),
+        [*context_warnings, *expansion_warnings],
     )
 
 
