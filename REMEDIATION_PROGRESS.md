@@ -41,7 +41,7 @@ Status values:
 | Phase R2 - Repair official-shape PS3.16 ingestion | Complete | Official-shape parser, build/import, and resolver coverage now proves TID 1500, CID 29, and CT/DCM fixture rows persist with PS3.16 citations and return `ok`. |
 | Phase R3 - Pin strict official goldens | Complete | Strict release-only positive tests now pin PN, application/dicom, RetrieveStudy, TID 1500, CID 29, and CT/DCM and fail on `not_found`, missing fields, or missing required-part citations. |
 | Phase R4 - Harden agent regression scoring | Complete | Positive v2 expected traces now require `ok` status and required-part citations; reference answers derive terms from observed tool responses instead of prompt fixtures, and positive v2 semantic cases no longer receive generic fallback citations. |
-| Phase R5 - Reconcile completion state and final gates | Not started | Final docs and progress must reflect the repaired release evidence and final verification. |
+| Phase R5 - Reconcile completion state and final gates | Blocked | Final docs already name the strict release gate, offline checks and current-edition resolution pass, and the strict release gate correctly rejects the reduced local 2026b official KB. A full v2 official KB is required before Phase R5 can complete. |
 
 ## Active Work
 
@@ -50,11 +50,11 @@ Status values:
 | Current phase | Phase R5 - Reconcile completion state and final gates |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed remediation commit | `0930013` completed the Phase R4 scorer-evidence slice; current Phase R4 reference-answer slice is pending commit. |
-| Last verification | `uv run --dev pytest tests/agent_regression -q` passed with 26 passed; `uv run --dev pytest tests/integration_requires_dicom_download/test_eval_runner.py -rs` skipped the reduced local 2026b KB as not release-ready; focused parser/resolver/importer regression tests passed; focused `ruff` passed; sandboxed `make lint`, `make typecheck`, and `make test` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed; escalated `make test` passed with 325 passed and 18 skipped. |
-| Current blocker | None. |
-| Commit-ready summary | Completed Phase R4 by deriving reference-answer terms from recorded tool response terms, keeping positive v2 semantic cases off the generic Modality fallback path, and updating synthetic fixtures so existing workflow prompts are backed by successful payload evidence instead of injected prompt terms. |
-| Next recommended action | Start Phase R5 by reconciling `IMPLEMENTATION_PROGRESS.md` and release documentation with the completed remediation evidence, then run the final verification set including `make test-dicom-current` and the strict official release gate. |
+| Last completed remediation commit | `0e572a4` completed Phase R4 reference-answer hardening. |
+| Last verification | Phase R5 final verification ran on 2026-06-14. Sandboxed `make lint`, `make typecheck`, `make test`, `make test-dicom-current`, and `make test-dicom-release` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated reruns passed for `make lint`, `make typecheck`, `make test` with 325 passed and 18 skipped, and `make test-dicom-current` with 1 passed. Escalated `make test-dicom-release` failed as expected with 7 failures because the local 2026b official KB is reduced and lacks required v2 parts, semantic rows, DocBook structure rows, and the pinned positive examples. Post-edit `uv run --dev pytest tests/unit/test_metadata.py tests/unit/test_distribution_audit.py -q` passed with 9 passed. |
+| Current blocker | A full official v2 KB is not present locally. The current 2026b cache is still PS3.3/PS3.4/PS3.6-only, so the strict release gate cannot pass until PS3.5, PS3.7, PS3.8, PS3.10, PS3.16, and PS3.18 DocBook artifacts are fetched and the KB is rebuilt with the required semantic rows. |
+| Commit-ready summary | Records Phase R5 final reconciliation and the remaining external prerequisite after the repaired strict release gate correctly rejects the reduced local 2026b official KB. |
+| Next recommended action | Fetch or otherwise provide the full official v2 part set for a concrete edition, rebuild the local KB, then rerun `make test-dicom-release`; if it passes, update `IMPLEMENTATION_PROGRESS.md` and `REMEDIATION_PROGRESS.md` to mark Phase R5 and v2 release hardening complete. |
 
 ## Phase R0 - Reproduce and Inventory the Gap
 
@@ -235,11 +235,11 @@ Commits:
 | Commit | Summary | Verification |
 |---|---|---|
 | 0930013 | Added positive v2 expected-call response requirements, response citation parts in reference transcripts, scorer failures for `not_found` and wrong-part citations, and a release-ready prerequisite skip for the real-KB eval smoke integration. | `uv run --dev pytest tests/agent_regression tests/integration_requires_dicom_download/test_eval_runner.py -rs`; `uv run --dev ruff check src/dicom_kb/eval/expected_tool_traces.py src/dicom_kb/eval/scoring.py src/dicom_kb/eval/runner.py src/dicom_kb/eval/prompt_cases.py tests/agent_regression/test_scoring.py tests/integration_requires_dicom_download/test_eval_runner.py`; `make lint`; `make typecheck`; `make test` |
-| Pending current commit | Derives reference-answer content from observed response terms, omits fixture-only v2 facts when supporting tools return `not_found`, scopes generic fallback citations away from positive v2 semantic cases, and updates synthetic fixtures so existing workflow prompts have payload-backed evidence. | `uv run --dev pytest tests/agent_regression -q`; `uv run --dev pytest tests/integration_requires_dicom_download/test_eval_runner.py -rs`; `uv run --dev pytest tests/agent_regression tests/unit/test_db_importers.py tests/unit/test_part07_parser.py tests/unit/test_part08_parser.py tests/unit/test_query_resolver.py -q`; `uv run --dev ruff check src/dicom_kb/eval/runner.py src/dicom_kb/eval/scoring.py tests/agent_regression/test_runner.py tests/unit/test_db_importers.py tests/unit/test_part07_parser.py tests/unit/test_part08_parser.py tests/unit/test_query_resolver.py`; `make lint`; `make typecheck`; `make test` |
+| 0e572a4 | Derived reference-answer content from observed response terms, omitted fixture-only v2 facts when supporting tools returned `not_found`, scoped generic fallback citations away from positive v2 semantic cases, and updated synthetic fixtures so workflow prompts have payload-backed evidence. | `uv run --dev pytest tests/agent_regression -q`; `uv run --dev pytest tests/integration_requires_dicom_download/test_eval_runner.py -rs`; `uv run --dev pytest tests/agent_regression tests/unit/test_db_importers.py tests/unit/test_part07_parser.py tests/unit/test_part08_parser.py tests/unit/test_query_resolver.py -q`; `uv run --dev ruff check src/dicom_kb/eval/runner.py src/dicom_kb/eval/scoring.py tests/agent_regression/test_runner.py tests/unit/test_db_importers.py tests/unit/test_part07_parser.py tests/unit/test_part08_parser.py tests/unit/test_query_resolver.py`; `make lint`; `make typecheck`; `make test` |
 
 ## Phase R5 - Reconcile Completion State and Final Gates
 
-Status: `Not started`
+Status: `Blocked`
 
 Scope:
 
@@ -250,24 +250,30 @@ Scope:
 
 Completion checklist:
 
-- [ ] `IMPLEMENTATION_PROGRESS.md` reflects repaired evidence or explicit blockers.
-- [ ] Release docs name the strict official gate.
-- [ ] `make lint` recorded.
-- [ ] `make typecheck` recorded.
-- [ ] `make test` recorded.
-- [ ] `make test-dicom-current` recorded.
-- [ ] Strict official release gate recorded.
-- [ ] Distribution audit confirms no forbidden generated/official artifacts are tracked.
+- [x] `IMPLEMENTATION_PROGRESS.md` reflects repaired evidence or explicit blockers.
+- [x] Release docs name the strict official gate.
+- [x] `make lint` recorded.
+- [x] `make typecheck` recorded.
+- [x] `make test` recorded.
+- [x] `make test-dicom-current` recorded.
+- [x] Strict official release gate recorded.
+- [x] Distribution audit confirms no forbidden generated/official artifacts are tracked.
 
 Commits:
 
 | Commit | Summary | Verification |
 |---|---|---|
-| Pending | No Phase R5 commit yet. | Pending |
+| Pending current commit | Reconciles the completed remediation evidence and records the remaining full-official-KB prerequisite for the strict v2 release gate. | `make lint`; `make typecheck`; `make test`; `make test-dicom-current`; `make test-dicom-release`; `uv run --dev pytest tests/unit/test_metadata.py tests/unit/test_distribution_audit.py -q` |
 
 ## Blockers and Open Decisions
 
-- None recorded yet.
+- Phase R5 cannot complete until a full official v2 KB is available locally.
+  The current local 2026b cache is reduced to PS3.3/PS3.4/PS3.6, so
+  `make test-dicom-release` correctly fails on missing required parts,
+  semantic rows, DocBook structure rows, and the six pinned positive examples.
+  Next action: fetch or provide PS3.5, PS3.7, PS3.8, PS3.10, PS3.16, and
+  PS3.18 DocBook artifacts for a concrete edition, rebuild the KB, and rerun
+  the strict release gate.
 
 ## Verification Log
 
@@ -318,6 +324,12 @@ Commits:
 | 2026-06-14 | `make lint` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev ruff check .` with all checks passed. |
 | 2026-06-14 | `make typecheck` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev mypy` with no issues in 57 source files. |
 | 2026-06-14 | `uv run --dev pytest tests/agent_regression -q` | Passed | 26 passed after reference answers began deriving required terms from observed tool responses instead of `case.must_include`. |
+| 2026-06-14 | `make lint` | Failed in sandbox; passed escalated | Phase R5 final verification. Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev ruff check .` with all checks passed. |
+| 2026-06-14 | `make typecheck` | Failed in sandbox; passed escalated | Phase R5 final verification. Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev mypy` with no issues in 57 source files. |
+| 2026-06-14 | `make test` | Failed in sandbox; passed escalated | Phase R5 final verification. Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun passed with 325 passed and 18 skipped. |
+| 2026-06-14 | `make test-dicom-current` | Failed in sandbox; passed escalated | Phase R5 final verification. Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun passed with 1 passed. |
+| 2026-06-14 | `make test-dicom-release` | Failed in sandbox; failed as expected escalated | Phase R5 final verification. Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun executed the strict gate and failed with 7 failures against the reduced local 2026b KB: missing required v2 DocBook artifacts, missing semantic rows, missing DocBook structure rows, and `not_found` for PN, application/dicom, RetrieveStudy, TID 1500, CID 29, and CT/DCM. |
+| 2026-06-14 | `uv run --dev pytest tests/unit/test_metadata.py tests/unit/test_distribution_audit.py -q` | Passed | 9 passed after Phase R5 progress reconciliation edits; this also rechecked the tracked-file distribution audit. |
 | 2026-06-14 | `uv run --dev pytest tests/integration_requires_dicom_download/test_eval_runner.py -rs` | Skipped as expected | 1 skipped because the selected local 2026b official KB is not release-ready; the skip message listed missing v2 DocBook parts, semantic rows, and DocBook structure rows. |
 | 2026-06-14 | `uv run --dev pytest tests/agent_regression tests/unit/test_db_importers.py tests/unit/test_part07_parser.py tests/unit/test_part08_parser.py tests/unit/test_query_resolver.py -q` | Passed | Focused regression suite for the R4 runner/scoring changes and synthetic fixture updates passed. |
 | 2026-06-14 | `uv run --dev ruff check src/dicom_kb/eval/runner.py src/dicom_kb/eval/scoring.py tests/agent_regression/test_runner.py tests/unit/test_db_importers.py tests/unit/test_part07_parser.py tests/unit/test_part08_parser.py tests/unit/test_query_resolver.py` | Passed | Focused lint for the changed eval runner/scoring model and fixture-coupled tests. |

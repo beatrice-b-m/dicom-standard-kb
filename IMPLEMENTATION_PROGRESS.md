@@ -37,7 +37,7 @@ Status values:
 | Phase 6 - Contextual enumerated values and defined terms | Complete | Existing `attribute_value_term` coverage is documented; deterministic IOD/SOP/module/macro context resolution works through the shared PS3.3/PS3.4 graph, and ambiguous contextual value-term matches now return candidates instead of a merged answer. |
 | Phase 7 - Selected PS3.7/PS3.8 semantics | Complete | Selected PS3.7 DIMSE service-behavior and PS3.8 association-PDU parser slices are in place for synthetic fixtures, with cited PS3.7/PS3.8 retrieval fallback coverage and agent regression traces through `retrieve_standard_text`. |
 | Phase 8 - Evaluation harness expansion | Complete | The final v2 workflow prompt batch raises the suite to 101 prompt cases; every implemented v2 public tool appears in deterministic expected traces, unsupported normative-claim checks cover the major v2 domains, and the full agent regression suite passes. |
-| Phase 9 - V2 release hardening | In progress | Remediation found that the earlier integration gate could pass against a PS3.3/PS3.4/PS3.6-only official KB. `make test-dicom-release` is now the strict opt-in v2 official release gate, pinned positive goldens reject missing named examples, and agent regression now requires cited v2 tool evidence without injecting fixture-only answer terms; see `REMEDIATION_PROGRESS.md`. |
+| Phase 9 - V2 release hardening | Blocked | Remediation found that the earlier integration gate could pass against a PS3.3/PS3.4/PS3.6-only official KB. `make test-dicom-release` is now the strict opt-in v2 official release gate and correctly rejects the reduced local 2026b KB; a full v2 official KB is required before this phase can complete. |
 
 ## Acceptance Criteria Tracker
 
@@ -57,11 +57,11 @@ Status values:
 | Current phase | V2 release evidence remediation |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed commit | `0930013` completed strict positive v2 tool-evidence scoring; current Phase R4 reference-answer hardening is pending commit. |
-| Last verification | Reference answers now derive required terms from observed tool responses instead of `case.must_include`; positive v2 semantic cases no longer receive generic fallback citations. `make lint`, `make typecheck`, and `make test` pass with the reduced local 2026b KB because the real-KB eval smoke test skips non-release-ready official data; `make test-dicom-release` remains the strict gate that fails against missing v2 DocBook parts, semantic rows, DocBook structure rows, and pinned `not_found` examples. |
-| Current blocker | None |
-| Commit-ready summary | Completed Phase R4 agent-regression hardening by deriving answer content from recorded response terms and preserving offline prompt coverage with payload-backed synthetic fixture facts. |
-| Next recommended action | Continue remediation from `REMEDIATION_PROGRESS.md`, starting Phase R5 final reconciliation and release-gate verification. |
+| Last completed commit | `0e572a4` completed Phase R4 reference-answer hardening. |
+| Last verification | Phase R5 final verification on 2026-06-14: escalated `make lint`, `make typecheck`, `make test`, and `make test-dicom-current` passed after sandboxed uv-cache permission failures; escalated `make test-dicom-release` failed as expected with 7 failures because the local 2026b official KB lacks the required v2 DocBook parts, semantic rows, DocBook structure rows, and pinned positive examples. Post-edit `uv run --dev pytest tests/unit/test_metadata.py tests/unit/test_distribution_audit.py -q` passed with 9 passed. |
+| Current blocker | Full v2 official KB not available locally; the current 2026b cache is reduced to PS3.3/PS3.4/PS3.6. |
+| Commit-ready summary | Records final reconciliation and the remaining external prerequisite for v2 release hardening. |
+| Next recommended action | Fetch or provide the full official v2 part set for a concrete edition, rebuild the local KB, rerun `make test-dicom-release`, and mark Phase 9 complete only if the strict release gate passes. |
 
 ## Phase 0 - V2 Contract Baseline
 
@@ -534,7 +534,7 @@ Notes:
 
 ## Phase 9 - V2 Release Hardening
 
-Status: `In progress`
+Status: `Blocked`
 
 Scope:
 
@@ -572,15 +572,17 @@ Commits:
 | b46b314 | Recorded the final Phase 9 release-gate results and marked the v2 implementation plan complete before the remediation review identified the smoke-vs-release gate gap. | Sandboxed `make test-dicom-integration` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make test-dicom-integration` passed with 46 passed and 10 skipped. Sandboxed `make test-dicom-current` failed before running for the same `uv` cache permission reason; escalated `make test-dicom-current` passed with 1 passed. |
 | 87cd1be | Added `make test-dicom-release` as the strict opt-in v2 official release gate and documented that `make test-dicom-integration` remains smoke coverage for partial local caches. | `uv run --dev pytest tests/unit/test_makefile.py tests/unit/test_metadata.py tests/unit/test_release_requirements.py tests/integration_requires_dicom_download/test_release_gate.py -rs`; `make test-dicom-release`; `make lint`; `make typecheck`; `make test`; `make test-dicom-integration` |
 | bc8075f | Added exact strict official positive goldens for PN, application/dicom, RetrieveStudy, TID 1500, CID 29, and CT/DCM, and wired them into `make test-dicom-release`. | `uv run --dev pytest tests/unit/test_makefile.py tests/unit/test_metadata.py tests/integration_requires_dicom_download/test_release_gate.py tests/integration_requires_dicom_download/test_release_goldens.py -rs`; `uv run --dev ruff check tests/integration_requires_dicom_download/test_release_goldens.py tests/unit/test_makefile.py tests/unit/test_metadata.py`; `make test`; `make test-dicom-release`; `make lint` |
-| Pending current commit | Hardened positive v2 agent-regression scoring to require `ok` status and required-part citations from expected semantic tools, and gated the real-KB eval smoke integration on release-ready official data. | `uv run --dev pytest tests/agent_regression tests/integration_requires_dicom_download/test_eval_runner.py -rs`; `uv run --dev ruff check src/dicom_kb/eval/expected_tool_traces.py src/dicom_kb/eval/scoring.py src/dicom_kb/eval/runner.py src/dicom_kb/eval/prompt_cases.py tests/agent_regression/test_scoring.py tests/integration_requires_dicom_download/test_eval_runner.py`; `make lint`; `make typecheck`; `make test` |
+| 0930013 | Hardened positive v2 agent-regression scoring to require `ok` status and required-part citations from expected semantic tools, and gated the real-KB eval smoke integration on release-ready official data. | `uv run --dev pytest tests/agent_regression tests/integration_requires_dicom_download/test_eval_runner.py -rs`; `uv run --dev ruff check src/dicom_kb/eval/expected_tool_traces.py src/dicom_kb/eval/scoring.py src/dicom_kb/eval/runner.py src/dicom_kb/eval/prompt_cases.py tests/agent_regression/test_scoring.py tests/integration_requires_dicom_download/test_eval_runner.py`; `make lint`; `make typecheck`; `make test` |
+| 0e572a4 | Derived reference-answer content from recorded tool responses, kept positive v2 semantic cases off the generic Modality fallback path, and updated synthetic fixtures so workflow prompts are backed by successful payload evidence. | `uv run --dev pytest tests/agent_regression -q`; `uv run --dev pytest tests/integration_requires_dicom_download/test_eval_runner.py -rs`; `uv run --dev pytest tests/agent_regression tests/unit/test_db_importers.py tests/unit/test_part07_parser.py tests/unit/test_part08_parser.py tests/unit/test_query_resolver.py -q`; `uv run --dev ruff check src/dicom_kb/eval/runner.py src/dicom_kb/eval/scoring.py tests/agent_regression/test_runner.py tests/unit/test_db_importers.py tests/unit/test_part07_parser.py tests/unit/test_part08_parser.py tests/unit/test_query_resolver.py`; `make lint`; `make typecheck`; `make test` |
+| Pending current commit | Records Phase 9/R5 final verification and the remaining full-official-KB prerequisite. | `make lint`; `make typecheck`; `make test`; `make test-dicom-current`; `make test-dicom-release`; `uv run --dev pytest tests/unit/test_metadata.py tests/unit/test_distribution_audit.py -q` |
 
 Notes:
 
-- Phase 9 release evidence is under remediation. The strict
-  `make test-dicom-release` target is now the final v2 official-edition gate;
-  it currently fails against the reduced local 2026b KB until the missing v2
-  official parts, semantic rows, and pinned positive example results are
-  present.
+- Phase 9 release evidence remediation has repaired the false-positive gates.
+  The strict `make test-dicom-release` target is now the final v2
+  official-edition gate; it currently fails against the reduced local 2026b KB
+  until the missing v2 official parts, semantic rows, DocBook structure rows,
+  and pinned positive example results are present.
 
 ## Decision Log
 
