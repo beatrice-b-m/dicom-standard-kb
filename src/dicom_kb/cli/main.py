@@ -48,6 +48,7 @@ from dicom_kb.query.resolver import (
     explain_encoding_rule,
     list_attributes_for_module,
     list_modules_for_iod,
+    lookup_code_meaning,
     lookup_context_group,
     lookup_data_element,
     lookup_defined_terms,
@@ -1135,6 +1136,46 @@ def lookup_context_group_command(
             lookup_context_group(
                 connection,
                 cid_or_name=cid_or_name,
+                edition=resolved_edition,
+            )
+        )
+
+
+@lookup_app.command("code")
+def lookup_code_command(
+    code_value: Annotated[
+        str,
+        typer.Argument(help="PS3.16 coded concept code value."),
+    ],
+    scheme: Annotated[
+        str | None,
+        typer.Option("--scheme", help="Optional coding scheme designator."),
+    ] = None,
+    edition: Annotated[
+        str | None,
+        typer.Option("--edition", help="Concrete DICOM edition label."),
+    ] = None,
+    db: Annotated[
+        Path | None,
+        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
+    ] = None,
+    cache_dir: Annotated[
+        Path | None,
+        typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
+    ] = None,
+) -> None:
+    """Look up a PS3.16 coded concept by code value and optional scheme."""
+    resolved_edition = _resolve_edition(edition)
+    with _connect_query_db(
+        _resolve_db_path(db),
+        cache_dir=_resolve_cache_dir(cache_dir),
+        edition=resolved_edition,
+    ) as connection:
+        _echo_response(
+            lookup_code_meaning(
+                connection,
+                code_value=code_value,
+                scheme=scheme,
                 edition=resolved_edition,
             )
         )

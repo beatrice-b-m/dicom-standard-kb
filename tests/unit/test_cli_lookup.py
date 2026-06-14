@@ -11,6 +11,7 @@ from typer.testing import CliRunner
 from dicom_kb.cli.main import app
 from dicom_kb.db.importers import (
     import_attribute_value_terms,
+    import_coded_concepts,
     import_context_groups,
     import_dicom_media_types,
     import_dicomweb_transactions,
@@ -153,6 +154,11 @@ def _fixture_db(tmp_path: Path) -> Path:
         edition="2026b",
         context_groups=parsed_part16.context_groups,
         rows=parsed_part16.context_group_rows,
+    )
+    import_coded_concepts(
+        connection,
+        edition="2026b",
+        coded_concepts=parsed_part16.coded_concepts,
     )
     part18_document = parse_docbook_xml(PS318_WEB_SERVICES_DOCBOOK, part="PS3.18")
     import_docbook_structure(
@@ -468,6 +474,30 @@ def test_cli_lookup_context_group_outputs_ps316_group(tmp_path: Path) -> None:
                 "include_cid": "CID 30",
             },
         ],
+    }
+    assert payload["refs"][0]["part"] == "PS3.16"
+
+
+def test_cli_lookup_code_outputs_ps316_coded_concept(tmp_path: Path) -> None:
+    payload = _invoke_json(
+        tmp_path,
+        "lookup",
+        "code",
+        "CT",
+        "--scheme",
+        "DCM",
+        "--edition",
+        "2026b",
+    )
+
+    assert payload["tool"] == "lookup_code_meaning"
+    assert payload["status"] == "ok"
+    assert payload["result"] == {
+        "code_value": "CT",
+        "coding_scheme_designator": "DCM",
+        "coding_scheme_version": None,
+        "code_meaning": "Computed Tomography",
+        "context_groups": ["CID 29"],
     }
     assert payload["refs"][0]["part"] == "PS3.16"
 
