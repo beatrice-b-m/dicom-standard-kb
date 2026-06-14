@@ -80,7 +80,10 @@ locally built concrete edition. The representative set must include:
 The strict release gate is separate from smoke coverage. It requires a local
 official KB with DocBook artifacts for PS3.3, PS3.4, PS3.5, PS3.6, PS3.7,
 PS3.8, PS3.10, PS3.16, and PS3.18; nonzero rows for every v2 semantic table;
-and citation-preserving DocBook structure rows for each required part.
+and citation-preserving DocBook structure rows for each required part. It also
+pins positive official examples for PN, application/dicom, RetrieveStudy, TID
+1500, CID 29, and CT/DCM so named v2 acceptance examples cannot be replaced by
+unrelated rows.
 
 ## Config Compatibility
 
