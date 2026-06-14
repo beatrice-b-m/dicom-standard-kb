@@ -57,7 +57,7 @@ Status values:
 | Current phase | Phase 1 - New Part Acquisition and Parser Foundation |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed commit | Pending current slice commit |
+| Last completed commit | 0bbb0fe |
 | Last verification | `uv run --dev pytest tests/unit/test_db_migrations.py tests/unit/test_build.py` passed with 6 passed; `make lint` passed; `make typecheck` passed with no issues in 51 source files; `make test` passed with 217 passed, 4 skipped. |
 | Current blocker | None |
 | Commit-ready summary | Added canonical v2 migration tables for planned Phase 2-5 entities, bumped the local build schema version to 8, and added empty-database migration smoke coverage. |
@@ -90,7 +90,7 @@ Commits:
 |---|---|---|
 | d831ea9 | Added Pydantic-backed v2 result payload builders and classification defaults for planned v2 tools. | `uv run --dev pytest tests/unit/test_json_schemas.py`; `make lint`; `make typecheck`; `make test` |
 | 3fc8149 | Added explicit JSON schema coverage for v2 result payloads and representative payload contract tests. | `uv run --dev pytest tests/unit/test_json_schemas.py`; `make lint`; `make typecheck`; `make test` |
-| Pending current slice commit | Added canonical v2 migration table names and empty-database migration smoke coverage. | `uv run --dev pytest tests/unit/test_db_migrations.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
+| 0bbb0fe | Added canonical v2 migration table names and empty-database migration smoke coverage. | `uv run --dev pytest tests/unit/test_db_migrations.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
 
 Notes:
 
@@ -392,7 +392,7 @@ Notes:
 | Date | Decision | Rationale | Commit |
 |---|---|---|---|
 | 2026-06-14 | Start v2 from documented complete v1 baseline. | `IMPLEMENTATION_REVIEW.md` records all active v1 review findings as resolved. | Initial planning docs commit. |
-| 2026-06-14 | Use canonical v2 table names from `IMPLEMENTATION_PLAN.md`: `vr_definition`, `transfer_syntax_detail`, `file_meta_requirement`, `dicom_media_type`, `dicomweb_transaction`, `sr_template`, `sr_template_row`, `context_group`, `context_group_row`, and `coded_concept`. | Parser phases need stable storage targets before new part ingestion begins; JSON-array fields are stored as text for SQLite/PostgreSQL portability until importers add domain models. | Pending current slice commit. |
+| 2026-06-14 | Use canonical v2 table names from `IMPLEMENTATION_PLAN.md`: `vr_definition`, `transfer_syntax_detail`, `file_meta_requirement`, `dicom_media_type`, `dicomweb_transaction`, `sr_template`, `sr_template_row`, `context_group`, `context_group_row`, and `coded_concept`. | Parser phases need stable storage targets before new part ingestion begins; JSON-array fields are stored as text for SQLite/PostgreSQL portability until importers add domain models. | 0bbb0fe. |
 
 ## Open Questions
 
