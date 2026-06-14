@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 
-from dicom_kb.docbook.parser import ParsedDocument
+from dicom_kb.docbook.parser import ParsedDocument, ParsedSection
 from dicom_kb.docbook.tables import ParsedRow, ParsedTable
 from dicom_kb.docbook.text_chunks import normalize_text
 from dicom_kb.ir.models import (
@@ -43,6 +43,14 @@ class Part16ParseResult:
     warnings: tuple[ParserWarning, ...]
 
 
+@dataclass(frozen=True)
+class _TableMetadata:
+    identifier: str | None
+    name: str | None
+    extensibility: str | None = None
+    version: str | None = None
+
+
 def parse_part16(document: ParsedDocument, *, edition: str) -> Part16ParseResult:
     """Parse supported PS3.16 content mapping tables and report parser gaps."""
     recognized: list[Part16TableSummary] = []
@@ -51,10 +59,15 @@ def parse_part16(document: ParsedDocument, *, edition: str) -> Part16ParseResult
     context_groups: dict[str, ContextGroup] = {}
     context_group_rows: list[ContextGroupRow] = []
     warnings: list[ParserWarning] = []
+    sections_by_id = {
+        section.xml_id: section
+        for section in document.sections
+        if section.xml_id is not None
+    }
 
     for table in document.tables:
         headers = _headers(table)
-        if _is_sr_template_table(headers):
+        if _is_sr_template_table(table, headers, sections_by_id):
             recognized.append(
                 Part16TableSummary(
                     table_id=table.xml_id,
@@ -64,12 +77,12 @@ def parse_part16(document: ParsedDocument, *, edition: str) -> Part16ParseResult
                 )
             )
             parsed_templates, parsed_template_rows = _parse_sr_template_table(
-                table, headers, edition, warnings
+                table, headers, edition, warnings, sections_by_id
             )
             for template in parsed_templates:
                 templates[template.id] = template
             template_rows.extend(parsed_template_rows)
-        elif _is_context_group_table(headers):
+        elif _is_context_group_table(table, headers, sections_by_id):
             recognized.append(
                 Part16TableSummary(
                     table_id=table.xml_id,
@@ -79,7 +92,7 @@ def parse_part16(document: ParsedDocument, *, edition: str) -> Part16ParseResult
                 )
             )
             parsed_groups, parsed_group_rows = _parse_context_group_table(
-                table, headers, edition, warnings
+                table, headers, edition, warnings, sections_by_id
             )
             for group in parsed_groups:
                 context_groups[group.id] = group
@@ -153,14 +166,30 @@ def _headers(table: ParsedTable) -> dict[str, int]:
     return {_key(cell.text): cell.column for cell in table.rows[0].cells}
 
 
-def _is_sr_template_table(headers: dict[str, int]) -> bool:
-    return "tid" in headers and bool(
+def _is_sr_template_table(
+    table: ParsedTable,
+    headers: dict[str, int],
+    sections_by_id: dict[str, ParsedSection],
+) -> bool:
+    if "tid" in headers and bool(
         headers.keys() & {"name", "template name", "template", "extensibility"}
+    ):
+        return True
+    return (
+        {"nl", "vt", "concept name"} <= set(headers)
+        and _metadata_from_context(
+            table, sections_by_id, prefix="TID", normalizer=_normalize_tid
+        ).identifier
+        is not None
     )
 
 
-def _is_context_group_table(headers: dict[str, int]) -> bool:
-    return "cid" in headers and bool(
+def _is_context_group_table(
+    table: ParsedTable,
+    headers: dict[str, int],
+    sections_by_id: dict[str, ParsedSection],
+) -> bool:
+    if "cid" in headers and bool(
         headers.keys()
         & {
             "name",
@@ -169,6 +198,14 @@ def _is_context_group_table(headers: dict[str, int]) -> bool:
             "code value",
             "code meaning",
         }
+    ):
+        return True
+    return (
+        {"coding scheme designator", "code value", "code meaning"} <= set(headers)
+        and _metadata_from_context(
+            table, sections_by_id, prefix="CID", normalizer=_normalize_cid
+        ).identifier
+        is not None
     )
 
 
@@ -177,18 +214,24 @@ def _parse_sr_template_table(
     headers: dict[str, int],
     edition: str,
     warnings: list[ParserWarning],
+    sections_by_id: dict[str, ParsedSection],
 ) -> tuple[list[SRTemplate], list[SRTemplateRow]]:
     templates: dict[str, SRTemplate] = {}
     template_rows: list[SRTemplateRow] = []
+    metadata = _metadata_from_context(
+        table, sections_by_id, prefix="TID", normalizer=_normalize_tid
+    )
     tid_column = headers.get("tid")
     name_column = _first_header(headers, "name", "template name", "template")
-    if tid_column is None or name_column is None:
+    if (tid_column is None or name_column is None) and (
+        metadata.identifier is None or metadata.name is None
+    ):
         warnings.append(
             ParserWarning(
                 part="PS3.16",
                 table_id=table.xml_id,
                 row_index=None,
-                message="skipped SR template table without TID and name",
+                message="skipped SR template table without TID/name metadata",
             )
         )
         return [], []
@@ -210,8 +253,12 @@ def _parse_sr_template_table(
 
     row_count_by_template: dict[str, int] = {}
     for row in _data_rows(table):
-        tid = _normalize_tid(_cell(row, tid_column))
-        name = _cell(row, name_column)
+        tid = (
+            _normalize_tid(_cell(row, tid_column))
+            if tid_column is not None
+            else metadata.identifier
+        )
+        name = _cell(row, name_column) if name_column is not None else metadata.name
         if tid is None or not name:
             warnings.append(_warning(table, row, "skipped incomplete SR template row"))
             continue
@@ -224,7 +271,8 @@ def _parse_sr_template_table(
                 edition_id=edition,
                 tid=tid,
                 name=name,
-                extensibility=_optional_cell(row, extensibility_column),
+                extensibility=_optional_cell(row, extensibility_column)
+                or metadata.extensibility,
                 source_ref=_source_ref(edition, table),
             ),
         )
@@ -233,6 +281,15 @@ def _parse_sr_template_table(
             template_id, 0
         ) + 1
         row_order = _row_order(row, row_column) or row_count_by_template[template_id]
+        value_type = _optional_cell(row, value_type_column)
+        concept_name = _optional_cell(row, concept_name_column)
+        include_tid = _normalize_tid(_optional_cell(row, include_column))
+        if (
+            include_tid is None
+            and value_type is not None
+            and value_type.upper() == "INCLUDE"
+        ):
+            include_tid = _find_identifier(concept_name, prefix="TID")
         template_rows.append(
             SRTemplateRow(
                 id=f"{template_id}.row.{row_order}",
@@ -240,11 +297,11 @@ def _parse_sr_template_table(
                 sr_template_id=template_id,
                 row_order=row_order,
                 relationship_type=_optional_cell(row, relationship_column),
-                value_type=_optional_cell(row, value_type_column),
-                concept_name=_optional_cell(row, concept_name_column),
+                value_type=value_type,
+                concept_name=concept_name,
                 cardinality=_optional_cell(row, cardinality_column),
                 condition_text=_optional_cell(row, condition_column),
-                include_tid=_normalize_tid(_optional_cell(row, include_column)),
+                include_tid=include_tid,
                 source_ref=_source_ref(edition, table),
             )
         )
@@ -257,18 +314,24 @@ def _parse_context_group_table(
     headers: dict[str, int],
     edition: str,
     warnings: list[ParserWarning],
+    sections_by_id: dict[str, ParsedSection],
 ) -> tuple[list[ContextGroup], list[ContextGroupRow]]:
     groups: dict[str, ContextGroup] = {}
     group_rows: list[ContextGroupRow] = []
+    metadata = _metadata_from_context(
+        table, sections_by_id, prefix="CID", normalizer=_normalize_cid
+    )
     cid_column = headers.get("cid")
     name_column = _first_header(headers, "name", "context group name", "context group")
-    if cid_column is None or name_column is None:
+    if (cid_column is None or name_column is None) and (
+        metadata.identifier is None or metadata.name is None
+    ):
         warnings.append(
             ParserWarning(
                 part="PS3.16",
                 table_id=table.xml_id,
                 row_index=None,
-                message="skipped context group table without CID and name",
+                message="skipped context group table without CID/name metadata",
             )
         )
         return [], []
@@ -292,9 +355,13 @@ def _parse_context_group_table(
     include_column = _first_header(headers, "include cid", "included cid", "include")
 
     row_count_by_group: dict[str, int] = {}
-    for row in _data_rows(table):
-        cid = _normalize_cid(_cell(row, cid_column))
-        name = _cell(row, name_column)
+    for row in _body_rows(table):
+        cid = (
+            _normalize_cid(_cell(row, cid_column))
+            if cid_column is not None
+            else metadata.identifier
+        )
+        name = _cell(row, name_column) if name_column is not None else metadata.name
         if cid is None or not name:
             warnings.append(
                 _warning(table, row, "skipped incomplete context group row")
@@ -309,25 +376,38 @@ def _parse_context_group_table(
                 edition_id=edition,
                 cid=cid,
                 name=name,
-                extensibility=_optional_cell(row, extensibility_column),
-                version=_optional_cell(row, version_column),
+                extensibility=_optional_cell(row, extensibility_column)
+                or metadata.extensibility,
+                version=_optional_cell(row, version_column) or metadata.version,
                 source_ref=_source_ref(edition, table),
             ),
         )
 
         row_count_by_group[group_id] = row_count_by_group.get(group_id, 0) + 1
         row_order = _row_order(row, row_column) or row_count_by_group[group_id]
+        include_cid = _normalize_cid(_optional_cell(row, include_column))
+        if include_cid is None:
+            include_cid = _context_group_include_target(row)
+        coding_scheme_designator = _optional_cell(row, scheme_column)
+        coding_scheme_version = _optional_cell(row, scheme_version_column)
+        code_value = _optional_cell(row, code_value_column)
+        code_meaning = _optional_cell(row, code_meaning_column)
+        if row.row_kind == "include" or include_cid is not None:
+            coding_scheme_designator = None
+            coding_scheme_version = None
+            code_value = None
+            code_meaning = None
         group_rows.append(
             ContextGroupRow(
                 id=f"{group_id}.row.{row_order}",
                 edition_id=edition,
                 context_group_id=group_id,
                 row_order=row_order,
-                coding_scheme_designator=_optional_cell(row, scheme_column),
-                coding_scheme_version=_optional_cell(row, scheme_version_column),
-                code_value=_optional_cell(row, code_value_column),
-                code_meaning=_optional_cell(row, code_meaning_column),
-                include_cid=_normalize_cid(_optional_cell(row, include_column)),
+                coding_scheme_designator=coding_scheme_designator,
+                coding_scheme_version=coding_scheme_version,
+                code_value=code_value,
+                code_meaning=code_meaning,
+                include_cid=include_cid,
                 source_ref=_source_ref(edition, table),
             )
         )
@@ -339,6 +419,10 @@ def _data_rows(table: ParsedTable) -> list[ParsedRow]:
     return [
         row for row in table.rows if row.section != "thead" and row.row_kind == "data"
     ]
+
+
+def _body_rows(table: ParsedTable) -> list[ParsedRow]:
+    return [row for row in table.rows if row.section != "thead"]
 
 
 def _cell(row: ParsedRow, column: int) -> str:
@@ -400,6 +484,82 @@ def _first_header(headers: dict[str, int], *names: str) -> int | None:
 
 def _key(value: str) -> str:
     return normalize_text(value).lower()
+
+
+def _metadata_from_context(
+    table: ParsedTable,
+    sections_by_id: dict[str, ParsedSection],
+    *,
+    prefix: str,
+    normalizer: Callable[[str | None], str | None],
+) -> _TableMetadata:
+    title = table.title or ""
+    section = sections_by_id.get(table.parent_xml_id or "")
+    section_title = str(getattr(section, "title", "") or "")
+    plain_text = str(getattr(section, "plain_text", "") or "")
+    identifier, name = _identifier_and_name_from_title(
+        title, prefix=prefix, normalizer=normalizer
+    )
+    if identifier is None:
+        identifier, name = _identifier_and_name_from_title(
+            section_title, prefix=prefix, normalizer=normalizer
+        )
+    return _TableMetadata(
+        identifier=identifier,
+        name=name,
+        extensibility=_metadata_value(plain_text, "Type"),
+        version=_metadata_value(plain_text, "Version"),
+    )
+
+
+def _identifier_and_name_from_title(
+    value: str, *, prefix: str, normalizer: Callable[[str | None], str | None]
+) -> tuple[str | None, str | None]:
+    pattern = rf"\b{re.escape(prefix)}\s*(?P<number>[0-9A-Za-z]+)\b[.\s:-]*(?P<name>.*)"
+    match = re.search(pattern, normalize_text(value), flags=re.IGNORECASE)
+    if match is None:
+        return None, None
+    normalized = normalizer(match.group("number"))
+    name = match.group("name").strip(" .:-")
+    return normalized, name or None
+
+
+def _metadata_value(text: str, label: str) -> str | None:
+    pattern = rf"\b{re.escape(label)}:\s*(?P<value>.*?)(?=\s+[A-Z][A-Za-z ]*:\s|$)"
+    match = re.search(pattern, normalize_text(text))
+    if match is None:
+        return None
+    value = match.group("value").strip()
+    return value or None
+
+
+def _find_identifier(value: str | None, *, prefix: str) -> str | None:
+    if value is None:
+        return None
+    match = re.search(
+        rf"(?:^|[^A-Za-z0-9]){re.escape(prefix)}[\s_-]*(?P<number>[0-9A-Za-z]+)\b",
+        normalize_text(value),
+        flags=re.IGNORECASE,
+    )
+    if match is None:
+        return None
+    if prefix.upper() == "TID":
+        return _normalize_tid(match.group("number"))
+    if prefix.upper() == "CID":
+        return _normalize_cid(match.group("number"))
+    return match.group(0)
+
+
+def _context_group_include_target(row: ParsedRow) -> str | None:
+    targets = [row.include_table_ref or "", row.include_title or ""]
+    targets.extend(cell.text for cell in row.cells)
+    for cell in row.cells:
+        targets.extend(cell.xrefs)
+    for target in targets:
+        include_cid = _find_identifier(target, prefix="CID")
+        if include_cid is not None:
+            return include_cid
+    return None
 
 
 def _identifier_fragment(value: str) -> str:

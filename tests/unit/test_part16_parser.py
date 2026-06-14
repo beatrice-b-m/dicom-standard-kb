@@ -13,7 +13,10 @@ from dicom_kb.db.importers import (
 from dicom_kb.db.models import apply_migrations, connect_sqlite
 from dicom_kb.docbook.parser import parse_docbook_xml
 from dicom_kb.parsers.part16_content_mapping import parse_part16
-from tests.fixtures_synthetic import PS316_CONTENT_MAPPING_DOCBOOK
+from tests.fixtures_synthetic import (
+    PS316_CONTENT_MAPPING_DOCBOOK,
+    PS316_OFFICIAL_SHAPE_DOCBOOK,
+)
 
 
 def _connection(tmp_path: Path) -> sqlite3.Connection:
@@ -110,6 +113,91 @@ def test_parse_part16_classifies_sr_template_tables_and_warns_on_gaps() -> None:
     assert [(warning.table_id, warning.message) for warning in result.warnings] == [
         ("table_16-2", "unsupported PS3.16 table shape")
     ]
+
+
+def test_parse_part16_supports_official_shape_tid_and_cid_tables() -> None:
+    document = parse_docbook_xml(PS316_OFFICIAL_SHAPE_DOCBOOK, part="PS3.16")
+
+    result = parse_part16(document, edition="2026b")
+
+    recognized_tables = [
+        (table.table_id, table.table_kind) for table in result.recognized_tables
+    ]
+    assert recognized_tables == [
+        ("table_TID_1500", "sr_template"),
+        ("table_CID_29", "context_group"),
+    ]
+    templates = [
+        (record.tid, record.name, record.extensibility)
+        for record in result.sr_templates
+    ]
+    assert templates == [("TID 1500", "Measurement Report", "Extensible")]
+    assert [
+        (
+            record.row_order,
+            record.relationship_type,
+            record.value_type,
+            record.concept_name,
+            record.cardinality,
+            record.condition_text,
+            record.include_tid,
+        )
+        for record in result.sr_template_rows
+    ] == [
+        (
+            1,
+            None,
+            "CONTAINER",
+            'CID 7021 "Measurement Report Document Title"',
+            "1",
+            None,
+            None,
+        ),
+        (
+            2,
+            "> HAS OBS CONTEXT",
+            "INCLUDE",
+            'TID 1001 "Observation Context"',
+            "1",
+            None,
+            "TID 1001",
+        ),
+        (
+            3,
+            "> CONTAINS",
+            "INCLUDE",
+            'TID 1501 "Measurement and Qualitative Evaluation Group"',
+            "1-n",
+            None,
+            "TID 1501",
+        ),
+    ]
+    assert [
+        (record.cid, record.name, record.extensibility, record.version)
+        for record in result.context_groups
+    ] == [("CID 29", "Acquisition Modality", "Extensible", "20231115")]
+    assert [
+        (
+            record.row_order,
+            record.coding_scheme_designator,
+            record.code_value,
+            record.code_meaning,
+            record.include_cid,
+        )
+        for record in result.context_group_rows
+    ] == [
+        (1, "DCM", "CT", "Computed Tomography", None),
+        (2, None, None, None, "CID 34"),
+    ]
+    assert [
+        (
+            record.code_value,
+            record.coding_scheme_designator,
+            record.code_meaning,
+        )
+        for record in result.coded_concepts
+    ] == [("CT", "DCM", "Computed Tomography")]
+    assert result.warnings == ()
 
 
 def test_import_sr_templates_persists_metadata_and_rows_with_source_refs(
