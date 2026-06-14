@@ -4,7 +4,7 @@ import json
 import sqlite3
 from pathlib import Path
 
-from dicom_kb.db.importers import import_docbook_structure
+from dicom_kb.db.importers import import_docbook_structure, import_vr_definitions
 from dicom_kb.db.models import apply_migrations, connect_sqlite
 from dicom_kb.docbook.parser import parse_docbook_xml
 from dicom_kb.parsers.part05_encoding import parse_part05
@@ -32,6 +32,66 @@ def test_parse_part05_classifies_vr_tables_and_warns_on_gaps() -> None:
     assert [(warning.table_id, warning.message) for warning in result.warnings] == [
         ("table_5-2", "unsupported PS3.5 table shape")
     ]
+    assert [record.vr for record in result.vr_definitions] == ["PN", "OB", "SQ", "UN"]
+    pn = result.vr_definitions[0]
+    assert pn.name == "Person Name"
+    assert pn.value_representation_class == "character string"
+    assert pn.length_notes == ("variable length",)
+    assert pn.padding_behavior == "space padded"
+    assert pn.character_repertoire_notes == (
+        "uses the default character repertoire",
+    )
+    assert pn.binary_or_text == "text"
+    assert result.vr_definitions[1].binary_or_text == "binary"
+
+
+def test_import_vr_definitions_persists_ps35_rows_with_source_refs(
+    tmp_path: Path,
+) -> None:
+    connection = _connection(tmp_path)
+    parsed = parse_part05(
+        parse_docbook_xml(PS35_ENCODING_DOCBOOK, part="PS3.5"),
+        edition="2026b",
+    )
+
+    summary = import_vr_definitions(
+        connection,
+        edition="2026b",
+        vr_definitions=parsed.vr_definitions,
+    )
+
+    assert summary.vr_definitions == 4
+    row = connection.execute(
+        """
+        SELECT
+          vr.vr,
+          vr.name,
+          vr.value_representation_class,
+          vr.length_notes_json,
+          vr.padding_behavior,
+          vr.character_repertoire_notes_json,
+          vr.binary_or_text,
+          ref.part,
+          ref.table_id
+        FROM vr_definition vr
+        JOIN source_ref ref ON ref.id = vr.source_ref_id
+        WHERE vr.edition_id = ? AND vr.vr = ?
+        """,
+        ("2026b", "PN"),
+    ).fetchone()
+    assert dict(row) == {
+        "vr": "PN",
+        "name": "Person Name",
+        "value_representation_class": "character string",
+        "length_notes_json": '["variable length"]',
+        "padding_behavior": "space padded",
+        "character_repertoire_notes_json": (
+            '["uses the default character repertoire"]'
+        ),
+        "binary_or_text": "text",
+        "part": "PS3.5",
+        "table_id": "table_5-1",
+    }
 
 
 def test_part05_docbook_structure_persists_nodes_refs_and_raw_table_ir(

@@ -31,6 +31,7 @@ from dicom_kb.ir.models import (
     SOPClassIOD,
     SourceRef,
     UIDRegistryEntry,
+    VRDefinition,
     Xref,
 )
 from dicom_kb.sources.manifest import SourceManifest
@@ -60,6 +61,7 @@ class ImportSummary:
     xrefs_unresolved: int = 0
     raw_table_irs: int = 0
     attribute_value_terms: int = 0
+    vr_definitions: int = 0
     include_rows_resolved: int = 0
     include_rows_unresolved: int = 0
 
@@ -368,6 +370,34 @@ def import_attribute_value_terms(
         edition=edition,
         source_refs=len(source_refs),
         attribute_value_terms=len(term_records),
+    )
+
+
+def import_vr_definitions(
+    connection: sqlite3.Connection,
+    *,
+    edition: str,
+    vr_definitions: Iterable[VRDefinition],
+) -> ImportSummary:
+    """Import parsed PS3.5 value representation definitions."""
+    records = tuple(vr_definitions)
+    source_refs = _unique_source_refs(record.source_ref for record in records)
+
+    try:
+        with connection:
+            for source_ref in source_refs:
+                _insert_source_ref(connection, source_ref)
+            for record in records:
+                _insert_vr_definition(connection, record)
+    except sqlite3.IntegrityError as exc:
+        raise ImportError(
+            f"failed to import PS3.5 VR definitions for {edition}"
+        ) from exc
+
+    return ImportSummary(
+        edition=edition,
+        source_refs=len(source_refs),
+        vr_definitions=len(records),
     )
 
 
@@ -893,6 +923,36 @@ def _insert_attribute_value_term(
             term.value,
             term.meaning,
             term.source_ref.id,
+        ),
+    )
+
+
+def _insert_vr_definition(
+    connection: sqlite3.Connection, record: VRDefinition
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO vr_definition (
+          id, edition_id, vr, name, value_representation_class,
+          length_notes_json, padding_behavior, character_repertoire_notes_json,
+          binary_or_text, source_ref_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            record.id,
+            record.edition_id,
+            record.vr,
+            record.name,
+            record.value_representation_class,
+            json.dumps(record.length_notes, sort_keys=True, separators=(",", ":")),
+            record.padding_behavior,
+            json.dumps(
+                record.character_repertoire_notes,
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+            record.binary_or_text,
+            record.source_ref.id,
         ),
     )
 

@@ -170,6 +170,23 @@ class AttributeValueTerm(BaseModel):
     source_ref: SourceRef
 
 
+class VRDefinition(BaseModel):
+    """PS3.5 value representation behavior row."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    edition_id: str
+    vr: str
+    name: str
+    value_representation_class: str | None = None
+    length_notes: tuple[str, ...] = ()
+    padding_behavior: str | None = None
+    character_repertoire_notes: tuple[str, ...] = ()
+    binary_or_text: str | None = None
+    source_ref: SourceRef
+
+
 class Condition(BaseModel):
     """A preserved raw condition with machine-readability metadata."""
 

@@ -5,9 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from dicom_kb.docbook.parser import ParsedDocument
-from dicom_kb.docbook.tables import ParsedTable
+from dicom_kb.docbook.tables import ParsedRow, ParsedTable
 from dicom_kb.docbook.text_chunks import normalize_text
-from dicom_kb.ir.models import ParserWarning, SourceRef
+from dicom_kb.ir.models import ParserWarning, SourceRef, VRDefinition
 
 
 @dataclass(frozen=True)
@@ -25,12 +25,14 @@ class Part05ParseResult:
     """Parsed PS3.5 scaffold metadata and parser gap warnings."""
 
     recognized_tables: tuple[Part05TableSummary, ...]
+    vr_definitions: tuple[VRDefinition, ...]
     warnings: tuple[ParserWarning, ...]
 
 
 def parse_part05(document: ParsedDocument, *, edition: str) -> Part05ParseResult:
-    """Classify PS3.5 tables without exposing public encoding facts yet."""
+    """Parse deterministic PS3.5 value representation definitions."""
     recognized: list[Part05TableSummary] = []
+    vr_definitions: list[VRDefinition] = []
     warnings: list[ParserWarning] = []
 
     for table in document.tables:
@@ -44,6 +46,9 @@ def parse_part05(document: ParsedDocument, *, edition: str) -> Part05ParseResult
                     source_ref=_source_ref(edition, table),
                 )
             )
+            vr_definitions.extend(
+                _parse_vr_definition_table(table, headers, edition, warnings)
+            )
         else:
             warnings.append(
                 ParserWarning(
@@ -56,27 +61,127 @@ def parse_part05(document: ParsedDocument, *, edition: str) -> Part05ParseResult
 
     return Part05ParseResult(
         recognized_tables=tuple(recognized),
+        vr_definitions=tuple(vr_definitions),
         warnings=tuple(warnings),
     )
 
 
-def _headers(table: ParsedTable) -> set[str]:
+def _headers(table: ParsedTable) -> dict[str, int]:
     for row in table.rows:
         if row.section == "thead":
-            return {_key(cell.text) for cell in row.cells}
+            return {_key(cell.text): cell.column for cell in row.cells}
     if not table.rows:
-        return set()
-    return {_key(cell.text) for cell in table.rows[0].cells}
+        return {}
+    return {_key(cell.text): cell.column for cell in table.rows[0].cells}
 
 
-def _is_vr_behavior_table(headers: set[str]) -> bool:
+def _is_vr_behavior_table(headers: dict[str, int]) -> bool:
     return "vr" in headers and bool(
-        headers & {"behavior", "description", "name", "value representation"}
+        headers.keys() & {"behavior", "description", "name", "value representation"}
     )
+
+
+def _parse_vr_definition_table(
+    table: ParsedTable,
+    headers: dict[str, int],
+    edition: str,
+    warnings: list[ParserWarning],
+) -> list[VRDefinition]:
+    records: list[VRDefinition] = []
+    for row in _data_rows(table):
+        vr = _cell(row, headers["vr"]).upper()
+        if not _is_vr_code(vr):
+            warnings.append(_warning(table, row, "skipped malformed VR row"))
+            continue
+
+        name = (
+            _optional_cell(row, _first_header(headers, "name", "value representation"))
+            or _optional_cell(row, headers.get("description"))
+            or vr
+        )
+        records.append(
+            VRDefinition(
+                id=f"{edition}.PS3.5.vr.{vr}",
+                edition_id=edition,
+                vr=vr,
+                name=name,
+                value_representation_class=_optional_cell(
+                    row, _first_header(headers, "value representation class", "class")
+                ),
+                length_notes=_optional_cells(
+                    row, _first_header(headers, "length notes", "length")
+                ),
+                padding_behavior=_optional_cell(
+                    row, _first_header(headers, "padding behavior", "padding")
+                ),
+                character_repertoire_notes=_optional_cells(
+                    row,
+                    _first_header(
+                        headers, "character repertoire notes", "character repertoire"
+                    ),
+                ),
+                binary_or_text=_binary_or_text(
+                    _optional_cell(
+                        row, _first_header(headers, "binary or text", "behavior")
+                    )
+                ),
+                source_ref=_source_ref(edition, table),
+            )
+        )
+    warnings.extend(_duplicate_warnings(records))
+    return records
+
+
+def _data_rows(table: ParsedTable) -> list[ParsedRow]:
+    return [
+        row for row in table.rows if row.section != "thead" and row.row_kind == "data"
+    ]
+
+
+def _cell(row: ParsedRow, column: int) -> str:
+    for cell in row.cells:
+        if cell.column == column:
+            return cell.text
+    return ""
+
+
+def _optional_cell(row: ParsedRow, column: int | None) -> str | None:
+    if column is None:
+        return None
+    value = normalize_text(_cell(row, column))
+    return value or None
+
+
+def _optional_cells(row: ParsedRow, column: int | None) -> tuple[str, ...]:
+    value = _optional_cell(row, column)
+    return (value,) if value is not None else ()
+
+
+def _first_header(headers: dict[str, int], *names: str) -> int | None:
+    for name in names:
+        column = headers.get(name)
+        if column is not None:
+            return column
+    return None
 
 
 def _key(value: str) -> str:
     return normalize_text(value).lower()
+
+
+def _is_vr_code(value: str) -> bool:
+    return len(value) == 2 and value.isalpha() and value.isupper()
+
+
+def _binary_or_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.lower()
+    if "binary" in normalized:
+        return "binary"
+    if "text" in normalized or "character" in normalized or "string" in normalized:
+        return "text"
+    return None
 
 
 def _source_ref(edition: str, table: ParsedTable) -> SourceRef:
@@ -90,3 +195,29 @@ def _source_ref(edition: str, table: ParsedTable) -> SourceRef:
         xml_id=table.xml_id,
         title=table.title,
     )
+
+
+def _warning(table: ParsedTable, row: ParsedRow, message: str) -> ParserWarning:
+    return ParserWarning(
+        part="PS3.5",
+        table_id=table.xml_id,
+        row_index=row.row_index,
+        message=message,
+    )
+
+
+def _duplicate_warnings(records: list[VRDefinition]) -> list[ParserWarning]:
+    seen: set[str] = set()
+    warnings: list[ParserWarning] = []
+    for record in records:
+        if record.vr in seen:
+            warnings.append(
+                ParserWarning(
+                    part="PS3.5",
+                    table_id=record.source_ref.table_id,
+                    row_index=None,
+                    message=f"duplicate VR definition for {record.vr}",
+                )
+            )
+        seen.add(record.vr)
+    return warnings

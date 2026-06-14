@@ -16,6 +16,7 @@ from dicom_kb.db.importers import (
     import_part03,
     import_part04,
     import_part06,
+    import_vr_definitions,
 )
 from dicom_kb.db.models import apply_migrations, connect_sqlite
 from dicom_kb.docbook.parser import ParsedDocument, parse_docbook_file
@@ -320,6 +321,13 @@ def build_sqlite_database(
                 documents["PS3.5"], edition=manifest.edition
             )
             warnings.extend(_warning_messages(parsed_part05.warnings))
+            summaries.append(
+                import_vr_definitions(
+                    connection,
+                    edition=manifest.edition,
+                    vr_definitions=parsed_part05.vr_definitions,
+                )
+            )
         if "PS3.7" in documents:
             parsed_part07 = parse_part07(
                 documents["PS3.7"], edition=manifest.edition

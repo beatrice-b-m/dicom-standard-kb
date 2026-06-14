@@ -145,6 +145,11 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
             "ORDER BY part, table_id",
             ("2026b",),
         ).fetchall()
+        vr_rows = connection.execute(
+            "SELECT vr, name, binary_or_text FROM vr_definition "
+            "WHERE edition_id = ? ORDER BY vr",
+            ("2026b",),
+        ).fetchall()
 
     assert tag_response.status == "ok"
     assert sop_response.status == "ok"
@@ -163,6 +168,12 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
         "PS3.18",
     }
     assert len(v2_tables) == 12
+    assert [dict(row) for row in vr_rows] == [
+        {"vr": "OB", "name": "Other Byte", "binary_or_text": "binary"},
+        {"vr": "PN", "name": "Person Name", "binary_or_text": "text"},
+        {"vr": "SQ", "name": "Sequence of Items", "binary_or_text": "binary"},
+        {"vr": "UN", "name": "Unknown", "binary_or_text": "binary"},
+    ]
     assert set(payload["source_sha256"]) == {
         official_artifact_destination(
             "2026b",

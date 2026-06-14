@@ -30,7 +30,7 @@ Status values:
 | V1 baseline | Complete | See `IMPLEMENTATION_REVIEW.md`; v1 acceptance criteria are documented as met. |
 | Phase 0 - V2 contract baseline | Complete | V2 result payload builders, JSON schema coverage, canonical migration table names, and empty-database migration smoke coverage are in place. |
 | Phase 1 - New part acquisition/parser foundation | Complete | Default official DocBook fetch, synthetic build-fixture loading, parser scaffolds, raw table IR, source refs, and unsupported-table warning aggregation now cover PS3.5, PS3.7, PS3.8, PS3.10, PS3.16, and PS3.18. |
-| Phase 2 - PS3.5 VR and transfer syntax semantics | Not started | Satisfies v2 acceptance criterion 1. |
+| Phase 2 - PS3.5 VR and transfer syntax semantics | In progress | `vr_definition` import path is in place; transfer syntax detail import and public lookup surfaces remain pending. |
 | Phase 3 - PS3.10 file meta and media foundation | Not started | Prepares shared media-type model. |
 | Phase 4 - PS3.18 DICOMweb transactions | Not started | Satisfies v2 acceptance criterion 2. |
 | Phase 5 - PS3.16 SR templates, CIDs, and codes | Not started | Satisfies v2 acceptance criterion 3. |
@@ -58,10 +58,10 @@ Status values:
 | Current owner/agent | Codex |
 | Branch | main |
 | Last completed commit | Pending current commit |
-| Last verification | `uv run --dev pytest tests/unit/test_part18_parser.py tests/unit/test_build.py` passed with 6 passed; sandboxed `make lint` failed because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`, escalated `make lint` passed; sandboxed `make typecheck` failed for the same uv cache permission error, escalated `make typecheck` passed; sandboxed `make test` failed for the same uv cache permission error, escalated `make test` passed with 231 passed and 4 skipped. |
+| Last verification | `uv run --dev pytest tests/unit/test_part05_parser.py tests/unit/test_build.py` passed with 7 passed; sandboxed `make lint` failed because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`, escalated `make lint` passed; sandboxed `make typecheck` failed for the same uv cache permission error, escalated `make typecheck` passed; sandboxed `make test` failed for the same uv cache permission error, escalated `make test` passed with 232 passed and 4 skipped. |
 | Current blocker | None |
-| Commit-ready summary | Added the PS3.18 parser scaffold, direct fixture coverage for recognized DICOMweb transaction tables and unsupported-table warnings, generic PS3.18 document-node/source-ref/raw-table persistence coverage, and build warning aggregation for PS3.18 parser gaps without exposing query tools. |
-| Next recommended action | Start Phase 2 with the `vr_definition` import path: parse PS3.5 VR behavior rows into canonical storage and focused tests, without CLI/MCP exposure yet. |
+| Commit-ready summary | Added PS3.5 `vr_definition` parsing/import/build wiring with source refs and focused synthetic coverage for PN, OB, SQ, and UN, without exposing Python/CLI/MCP lookup surfaces yet. |
+| Next recommended action | Continue Phase 2 with the `transfer_syntax_detail` import path: enrich PS3.6 transfer syntax UID rows with deterministic PS3.5 encoding details and focused tests, without CLI/MCP exposure yet. |
 
 ## Phase 0 - V2 Contract Baseline
 
@@ -137,7 +137,7 @@ Commits:
 | eacda2e | Added the PS3.8 parser scaffold and fixture coverage for recognized association PDU tables, unsupported-table warnings, source refs, document nodes, and raw table IR. | `uv run --dev pytest tests/unit/test_part08_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
 | 5549b36 | Added the PS3.10 parser scaffold and fixture coverage for recognized file meta information tables, unsupported-table warnings, source refs, document nodes, and raw table IR. | `uv run --dev pytest tests/unit/test_part10_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
 | d277dd3 | Added the PS3.16 parser scaffold and fixture coverage for recognized SR template tables, unsupported-table warnings, source refs, document nodes, and raw table IR. | `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
-| Pending current commit | Added the PS3.18 parser scaffold and fixture coverage for recognized DICOMweb transaction tables, unsupported-table warnings, source refs, document nodes, raw table IR, and build warning aggregation. | `uv run --dev pytest tests/unit/test_part18_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
+| f7b0ce4 | Added the PS3.18 parser scaffold and fixture coverage for recognized DICOMweb transaction tables, unsupported-table warnings, source refs, document nodes, raw table IR, and build warning aggregation. | `uv run --dev pytest tests/unit/test_part18_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
 
 Notes:
 
@@ -172,7 +172,7 @@ Notes:
 
 ## Phase 2 - PS3.5 VR and Transfer Syntax Semantics
 
-Status: `Not started`
+Status: `In progress`
 
 Scope:
 
@@ -183,7 +183,7 @@ Scope:
 
 Completion checklist:
 
-- [ ] `vr_definition` import path exists.
+- [x] `vr_definition` import path exists.
 - [ ] `transfer_syntax_detail` import path exists.
 - [ ] Python resolver functions exist and are tested.
 - [ ] CLI commands exist and have snapshot tests.
@@ -195,11 +195,14 @@ Commits:
 
 | Commit | Summary | Verification |
 |---|---|---|
-| None | Not started. | None. |
+| Pending current commit | Added PS3.5 VR definition records, row parsing, SQLite import/build wiring, and synthetic fixture coverage for PN, OB, SQ, and UN. | `uv run --dev pytest tests/unit/test_part05_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
 
 Notes:
 
 - Retired status should continue to come from PS3.6 UID registry rows.
+- The current slice imports VR definitions only. `lookup_vr`, transfer syntax
+  detail enrichment, CLI commands, MCP tools, and official-edition goldens
+  remain pending.
 
 ## Phase 3 - PS3.10 File Meta and Media Foundation
 
