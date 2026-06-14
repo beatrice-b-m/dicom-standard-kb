@@ -29,7 +29,7 @@ Status values:
 |---|---|---|
 | V1 baseline | Complete | See `IMPLEMENTATION_REVIEW.md`; v1 acceptance criteria are documented as met. |
 | Phase 0 - V2 contract baseline | Complete | V2 result payload builders, JSON schema coverage, canonical migration table names, and empty-database migration smoke coverage are in place. |
-| Phase 1 - New part acquisition/parser foundation | In progress | Default official DocBook fetch and synthetic build-fixture loading now cover PS3.5, PS3.7, PS3.8, PS3.10, PS3.16, and PS3.18; parser modules still need to be added. |
+| Phase 1 - New part acquisition/parser foundation | In progress | Default official DocBook fetch and synthetic build-fixture loading now cover PS3.5, PS3.7, PS3.8, PS3.10, PS3.16, and PS3.18; PS3.5 and PS3.7 parser scaffolds are in place; remaining parser modules still need to be added. |
 | Phase 2 - PS3.5 VR and transfer syntax semantics | Not started | Satisfies v2 acceptance criterion 1. |
 | Phase 3 - PS3.10 file meta and media foundation | Not started | Prepares shared media-type model. |
 | Phase 4 - PS3.18 DICOMweb transactions | Not started | Satisfies v2 acceptance criterion 2. |
@@ -58,10 +58,10 @@ Status values:
 | Current owner/agent | Codex |
 | Branch | main |
 | Last completed commit | Pending current commit |
-| Last verification | `uv run --dev pytest tests/unit/test_part05_parser.py tests/unit/test_build.py` passed with 6 passed; sandboxed `make lint`, `make typecheck`, and `make test` failed because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed with no issues in 52 source files; escalated `make test` passed with 221 passed, 4 skipped. |
+| Last verification | `uv run --dev pytest tests/unit/test_part07_parser.py tests/unit/test_build.py` passed with 6 passed; sandboxed `make lint`, `make typecheck`, and `make test` failed because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed with no issues in 53 source files; escalated `make test` passed with 223 passed, 4 skipped. |
 | Current blocker | None |
-| Commit-ready summary | Added the PS3.5 parser scaffold, direct fixture coverage for recognized VR tables and unsupported-table warnings, generic PS3.5 document-node/source-ref/raw-table persistence coverage, and build warning aggregation for PS3.5 parser gaps without exposing query tools. |
-| Next recommended action | Add the PS3.7 parser module scaffold with synthetic fixture coverage for document nodes, source refs, raw table IR, and unsupported-table warnings, without exposing PS3.7 query tools yet. |
+| Commit-ready summary | Added the PS3.7 parser scaffold, direct fixture coverage for recognized DIMSE service tables and unsupported-table warnings, generic PS3.7 document-node/source-ref/raw-table persistence coverage, and build warning aggregation for PS3.7 parser gaps without exposing query tools. |
+| Next recommended action | Add the PS3.8 parser module scaffold with synthetic fixture coverage for document nodes, source refs, raw table IR, and unsupported-table warnings, without exposing PS3.8 query tools yet. |
 
 ## Phase 0 - V2 Contract Baseline
 
@@ -120,7 +120,7 @@ Completion checklist:
 
 - [x] Official artifact configuration supports all v2 parts.
 - [x] Parser module for PS3.5 exists and has fixture coverage.
-- [ ] Parser module for PS3.7 exists and has fixture coverage.
+- [x] Parser module for PS3.7 exists and has fixture coverage.
 - [ ] Parser module for PS3.8 exists and has fixture coverage.
 - [ ] Parser module for PS3.10 exists and has fixture coverage.
 - [ ] Parser module for PS3.16 exists and has fixture coverage.
@@ -132,7 +132,8 @@ Commits:
 
 | Commit | Summary | Verification |
 |---|---|---|
-| Pending current commit | Added the PS3.5 parser scaffold and fixture coverage for recognized VR tables, unsupported-table warnings, source refs, document nodes, and raw table IR. | `uv run --dev pytest tests/unit/test_part05_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
+| 3c88a26 | Added the PS3.5 parser scaffold and fixture coverage for recognized VR tables, unsupported-table warnings, source refs, document nodes, and raw table IR. | `uv run --dev pytest tests/unit/test_part05_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
+| Pending current commit | Added the PS3.7 parser scaffold and fixture coverage for recognized DIMSE service tables, unsupported-table warnings, source refs, document nodes, and raw table IR. | `uv run --dev pytest tests/unit/test_part07_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
 
 Notes:
 
@@ -144,6 +145,10 @@ Notes:
   unsupported PS3.5 table shapes as parser warnings. It intentionally does
   not import `vr_definition` or expose encoding query behavior; that remains
   Phase 2 work.
+- The PS3.7 parser scaffold classifies DIMSE service tables and reports
+  unsupported PS3.7 table shapes as parser warnings. It intentionally does
+  not expose messaging query behavior; selected PS3.7 semantics remain Phase
+  7 work.
 
 ## Phase 2 - PS3.5 VR and Transfer Syntax Semantics
 

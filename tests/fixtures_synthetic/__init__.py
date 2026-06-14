@@ -14,3 +14,6 @@ PS35_ENCODING_DOCBOOK = (
 PS36_REGISTRY_DOCBOOK = (
     FIXTURE_DIR / "synthetic_ps3_6_registry_docbook.xml"
 ).read_text(encoding="utf-8")
+PS37_MESSAGES_DOCBOOK = (
+    FIXTURE_DIR / "synthetic_ps3_7_messages_docbook.xml"
+).read_text(encoding="utf-8")
