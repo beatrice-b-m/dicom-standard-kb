@@ -37,7 +37,7 @@ Status values:
 | Phase 6 - Contextual enumerated values and defined terms | Complete | Existing `attribute_value_term` coverage is documented; deterministic IOD/SOP/module/macro context resolution works through the shared PS3.3/PS3.4 graph, and ambiguous contextual value-term matches now return candidates instead of a merged answer. |
 | Phase 7 - Selected PS3.7/PS3.8 semantics | Complete | Selected PS3.7 DIMSE service-behavior and PS3.8 association-PDU parser slices are in place for synthetic fixtures, with cited PS3.7/PS3.8 retrieval fallback coverage and agent regression traces through `retrieve_standard_text`. |
 | Phase 8 - Evaluation harness expansion | Complete | The final v2 workflow prompt batch raises the suite to 101 prompt cases; every implemented v2 public tool appears in deterministic expected traces, unsupported normative-claim checks cover the major v2 domains, and the full agent regression suite passes. |
-| Phase 9 - V2 release hardening | In progress | README, agent-tool docs, and architecture docs now cover v2 build defaults, CLI commands, MCP tool names, v2 storage entities, and contextual value-term resolution. Release checklist, integration goldens, metrics, and final gates remain. |
+| Phase 9 - V2 release hardening | In progress | README, agent-tool docs, architecture docs, and the release checklist now cover v2 build defaults, CLI commands, MCP tool names, v2 storage entities, contextual value-term resolution, v2 release gates, official-edition golden expectations, per-part metrics expectations, and distribution audits. Integration goldens, metrics implementation, and final gates remain. |
 
 ## Acceptance Criteria Tracker
 
@@ -57,11 +57,11 @@ Status values:
 | Current phase | Phase 9 - V2 Release Hardening |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed commit | Pending current commit. Previous completed Phase 9 commit: def0980. |
-| Last verification | `uv run --dev pytest tests/unit/test_metadata.py` initially failed on line-wrapped architecture wording assertions and passed after the wording was made explicit, with 6 passed. Sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
+| Last completed commit | Pending current commit. Previous completed Phase 9 commit: ba29b44. |
+| Last verification | `uv run --dev pytest tests/unit/test_metadata.py` passed with 7 passed. Sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
 | Current blocker | None |
-| Commit-ready summary | Updated `docs/architecture.md` so it documents the v2 storage entities and current contextual value-term resolution behavior, with metadata coverage guarding the documented architecture state. |
-| Next recommended action | Continue Phase 9 by updating `docs/release_checklist.md` with the v2 release gates and required verification commands. |
+| Commit-ready summary | Updated `docs/release_checklist.md` so Phase 9 release gates explicitly cover v2 public tool surfaces, official-edition golden expectations, per-part parser-warning/unresolved-reference metrics, final verification commands, and code-only distribution audits, with metadata coverage guarding the documented checklist state. |
+| Next recommended action | Continue Phase 9 by adding official-edition integration goldens for representative PS3.5, PS3.10, PS3.16, PS3.18, and contextual value-term queries. |
 
 ## Phase 0 - V2 Contract Baseline
 
@@ -548,7 +548,7 @@ Completion checklist:
 - [x] README documents v2 build and query commands.
 - [x] `docs/agent_tools.md` documents all v2 tools.
 - [x] `docs/architecture.md` documents v2 entities.
-- [ ] `docs/release_checklist.md` includes v2 gates.
+- [x] `docs/release_checklist.md` includes v2 gates.
 - [ ] Official-edition integration tests cover representative v2 queries.
 - [ ] Build metrics report v2 parser warning counts by part.
 - [ ] No official artifacts, generated databases, or terminology dumps are committed.
@@ -563,7 +563,8 @@ Commits:
 | Commit | Summary | Verification |
 |---|---|---|
 | def0980 | Documented the v2 default build parts, CLI query commands, and MCP tool names in README and `docs/agent_tools.md`, with focused metadata coverage. | `uv run --dev pytest tests/unit/test_metadata.py` passed with 5 passed after refreshing the stale Phase 8 next-action assertion; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
-| Pending current commit | Documented the v2 storage entities and current contextual value-term resolution behavior in `docs/architecture.md`, with focused metadata coverage. | `uv run --dev pytest tests/unit/test_metadata.py` initially failed on line-wrapped architecture wording assertions and passed after the wording was made explicit, with 6 passed. Sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
+| ba29b44 | Documented the v2 storage entities and current contextual value-term resolution behavior in `docs/architecture.md`, with focused metadata coverage. | `uv run --dev pytest tests/unit/test_metadata.py` initially failed on line-wrapped architecture wording assertions and passed after the wording was made explicit, with 6 passed. Sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
+| Pending current commit | Documented the v2 release checklist gates, including public tool coverage, official-edition golden expectations, per-part metrics expectations, final verification commands, and distribution audit requirements. | `uv run --dev pytest tests/unit/test_metadata.py` passed with 7 passed. Sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
 
 Notes:
 
