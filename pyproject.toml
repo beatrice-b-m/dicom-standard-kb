@@ -64,4 +64,5 @@ testpaths = ["tests"]
 addopts = "-q"
 markers = [
   "dicom_current: opt-in networked check that resolves the official current DICOM edition",
+  "dicom_release: opt-in strict official KB release readiness check",
 ]

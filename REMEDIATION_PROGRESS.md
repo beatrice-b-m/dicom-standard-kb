@@ -37,7 +37,7 @@ Status values:
 |---|---|---|
 | Planning scaffold | Complete | `REMEDIATION_PLAN.md` and this progress tracker exist. |
 | Phase R0 - Reproduce and inventory the gap | Complete | Local 2026b official cache contains only PS3.3/PS3.4/PS3.6; named v2 semantic lookups return `not_found`, while current official goldens pass with skips and agent regression passes. |
-| Phase R1 - Separate smoke tests from release gates | In progress | Strict release requirement helper now checks required DocBook parts, semantic rows, and citation-preserving DocBook structure; wiring into strict integration/Makefile gates remains. |
+| Phase R1 - Separate smoke tests from release gates | Complete | Strict release requirement helper checks required DocBook parts, semantic rows, and citation-preserving DocBook structure; `make test-dicom-release` now runs the strict opt-in gate and rejects the current PS3.3/PS3.4/PS3.6-only local official KB while smoke integration remains separate. |
 | Phase R2 - Repair official-shape PS3.16 ingestion | Not started | Parser/import/resolver behavior must handle official TID/CID/code table shapes, not only synthetic TID/CID columns. |
 | Phase R3 - Pin strict official goldens | Not started | Strict official positive tests must cover PN, application/dicom, RetrieveStudy, TID 1500, CID 29, and CT/DCM. |
 | Phase R4 - Harden agent regression scoring | Not started | Positive v2 prompt cases must require `ok` tool results with required-part citations. |
@@ -47,14 +47,14 @@ Status values:
 
 | Field | Value |
 |---|---|
-| Current phase | Phase R1 - Separate smoke tests from release gates |
+| Current phase | Phase R2 - Repair official-shape PS3.16 ingestion |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed remediation commit | Pending current commit. Previous completed R0 commit: bd87e30. |
-| Last verification | `uv run --dev pytest tests/unit/test_release_requirements.py` passed with 4 passed; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
+| Last completed remediation commit | Pending current commit. Previous completed R1 helper commit: 5aff662. |
+| Last verification | `uv run --dev pytest tests/unit/test_makefile.py tests/unit/test_metadata.py tests/unit/test_release_requirements.py tests/integration_requires_dicom_download/test_release_gate.py -rs` passed with 12 passed and 1 skipped; escalated `make test-dicom-release` failed as expected against the reduced local 2026b KB with missing v2 DocBook parts, semantic rows, and DocBook structure rows; sandboxed `make lint`, `make typecheck`, and `make test` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated reruns passed; escalated `make test-dicom-integration` passed with 46 passed and 11 skipped. |
 | Current blocker | None. |
-| Commit-ready summary | Added a strict official-KB release requirement helper for v2 gates, covering the full required DocBook part set, nonzero semantic rows, and per-part DocBook structure rows, with focused unit tests for complete, missing-part, missing-row, and missing-structure scenarios. |
-| Next recommended action | Continue Phase R1 by wiring the strict requirement helper into a dedicated release-gate integration test that rejects the current PS3.3/PS3.4/PS3.6-only local official KB while leaving reduced-cache smoke tests separate. |
+| Commit-ready summary | Added an opt-in strict `test-dicom-release` Makefile target and integration gate that calls the release requirement helper; documented the smoke-vs-release split and updated focused Makefile/metadata coverage. |
+| Next recommended action | Start Phase R2 with the smallest official-shape PS3.16 parser slice: add fixtures for official-style TID/CID metadata and code rows, then teach the parser to classify those table shapes without relying on synthetic `TID`/`CID` columns. |
 
 ## Phase R0 - Reproduce and Inventory the Gap
 
@@ -133,7 +133,7 @@ Notes:
 
 ## Phase R1 - Separate Smoke Tests from Release Gates
 
-Status: `In progress`
+Status: `Complete`
 
 Scope:
 
@@ -146,15 +146,16 @@ Completion checklist:
 - [x] Strict helper requires the full v2 official part set.
 - [x] Strict helper requires nonzero rows for all required v2 semantic tables.
 - [x] Strict helper checks citation-preserving DocBook structure for v2 parts.
-- [ ] Reduced-cache smoke tests remain available.
-- [ ] Release gate target rejects PS3.3/PS3.4/PS3.6-only official KBs.
-- [ ] Release checklist names the strict gate.
+- [x] Reduced-cache smoke tests remain available.
+- [x] Release gate target rejects PS3.3/PS3.4/PS3.6-only official KBs.
+- [x] Release checklist names the strict gate.
 
 Commits:
 
 | Commit | Summary | Verification |
 |---|---|---|
-| Pending current commit | Added the strict release requirement helper and focused unit tests. | `uv run --dev pytest tests/unit/test_release_requirements.py`; `make lint`; `make typecheck` |
+| 5aff662 | Added the strict release requirement helper and focused unit tests. | `uv run --dev pytest tests/unit/test_release_requirements.py`; `make lint`; `make typecheck` |
+| Pending current commit | Added the opt-in strict release-gate target and integration test while keeping smoke integration separate. | `uv run --dev pytest tests/unit/test_makefile.py tests/unit/test_metadata.py tests/unit/test_release_requirements.py tests/integration_requires_dicom_download/test_release_gate.py -rs`; `make test-dicom-release`; `make lint`; `make typecheck`; `make test`; `make test-dicom-integration` |
 
 ## Phase R2 - Repair Official-Shape PS3.16 Ingestion
 
@@ -285,3 +286,11 @@ Commits:
 | 2026-06-14 | `uv run --dev pytest tests/unit/test_release_requirements.py` | Passed | 4 passed; covers complete, missing DocBook part, missing semantic rows, and missing DocBook structure scenarios for the strict release requirement helper. |
 | 2026-06-14 | `make lint` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev ruff check .` with all checks passed. |
 | 2026-06-14 | `make typecheck` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev mypy` with no issues in 57 source files. |
+| 2026-06-14 | `uv run --dev pytest tests/unit/test_makefile.py tests/unit/test_metadata.py tests/unit/test_release_requirements.py tests/integration_requires_dicom_download/test_release_gate.py -rs` | Passed | 12 passed, 1 skipped; the strict release gate is skipped unless `DICOM_KB_RUN_RELEASE=1` is set. |
+| 2026-06-14 | `make test-dicom-release` | Failed as expected | Escalated rerun executed the strict release gate and rejected the reduced local 2026b KB: missing DocBook artifacts for PS3.10, PS3.16, PS3.18, PS3.5, PS3.7, and PS3.8; missing v2 semantic rows; missing DocBook structure rows for the same v2 parts. |
+| 2026-06-14 | `make lint` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev ruff check .` with all checks passed. |
+| 2026-06-14 | `make typecheck` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev mypy` with no issues in 57 source files. |
+| 2026-06-14 | `make test` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun passed with 318 passed and 11 skipped. |
+| 2026-06-14 | `make test-dicom-integration` | Passed escalated | Existing smoke integration remains separate from the strict release gate; 46 passed and 11 skipped. |
+| 2026-06-14 | `uv run --dev pytest tests/unit/test_metadata.py` | Passed | 7 passed after tracker reconciliation. |
+| 2026-06-14 | `uv run --dev ruff check tests/integration_requires_dicom_download/test_release_gate.py tests/unit/test_makefile.py tests/unit/test_metadata.py` | Passed | Focused lint pass after the final test/import edits. |

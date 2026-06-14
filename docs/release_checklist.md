@@ -77,6 +77,11 @@ locally built concrete edition. The representative set must include:
 - Contextual enumerated value or defined term lookup with a deterministic
   IOD, SOP Class, module, or macro context.
 
+The strict release gate is separate from smoke coverage. It requires a local
+official KB with DocBook artifacts for PS3.3, PS3.4, PS3.5, PS3.6, PS3.7,
+PS3.8, PS3.10, PS3.16, and PS3.18; nonzero rows for every v2 semantic table;
+and citation-preserving DocBook structure rows for each required part.
+
 ## Config Compatibility
 
 Validate both common profile shapes:
@@ -107,12 +112,16 @@ After fetching and building a local official edition:
 
 ```bash
 make test-dicom-integration
+make test-dicom-release
 make test-dicom-current
 ```
 
-If these checks are skipped, record the missing local prerequisite in the
-release notes, such as an absent official-edition cache or disabled current
-network resolution.
+`make test-dicom-integration` is smoke coverage for whatever official KB is
+available locally. `make test-dicom-release` is the strict v2 release gate and
+must fail rather than skip when a partial official KB is missing required v2
+parts or semantic rows. If these checks are skipped, record the missing local
+prerequisite in the release notes, such as an absent official-edition cache or
+disabled current network resolution.
 
 ## Distribution Audit
 

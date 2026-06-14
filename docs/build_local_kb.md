@@ -116,5 +116,10 @@ has been fetched and built in the local cache:
 
 ```bash
 make test-dicom-integration
+make test-dicom-release
 make test-dicom-current
 ```
+
+`make test-dicom-integration` provides smoke coverage for partial local
+official caches. Use `make test-dicom-release` before a release; it requires
+the full v2 official part set and semantic rows.
