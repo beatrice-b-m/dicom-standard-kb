@@ -38,7 +38,7 @@ Status values:
 | Planning scaffold | Complete | `REMEDIATION_PLAN.md` and this progress tracker exist. |
 | Phase R0 - Reproduce and inventory the gap | Complete | Local 2026b official cache contains only PS3.3/PS3.4/PS3.6; named v2 semantic lookups return `not_found`, while current official goldens pass with skips and agent regression passes. |
 | Phase R1 - Separate smoke tests from release gates | Complete | Strict release requirement helper checks required DocBook parts, semantic rows, and citation-preserving DocBook structure; `make test-dicom-release` now runs the strict opt-in gate and rejects the current PS3.3/PS3.4/PS3.6-only local official KB while smoke integration remains separate. |
-| Phase R2 - Repair official-shape PS3.16 ingestion | Not started | Parser/import/resolver behavior must handle official TID/CID/code table shapes, not only synthetic TID/CID columns. |
+| Phase R2 - Repair official-shape PS3.16 ingestion | In progress | Official-shape parser support now handles TID/CID metadata from section or table titles, official SR template row headers, CID code rows, and CID include xrefs; import/build/resolver coverage against the official-shape fixture remains pending. |
 | Phase R3 - Pin strict official goldens | Not started | Strict official positive tests must cover PN, application/dicom, RetrieveStudy, TID 1500, CID 29, and CT/DCM. |
 | Phase R4 - Harden agent regression scoring | Not started | Positive v2 prompt cases must require `ok` tool results with required-part citations. |
 | Phase R5 - Reconcile completion state and final gates | Not started | Final docs and progress must reflect the repaired release evidence and final verification. |
@@ -50,11 +50,11 @@ Status values:
 | Current phase | Phase R2 - Repair official-shape PS3.16 ingestion |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed remediation commit | Pending current commit. Previous completed R1 helper commit: 5aff662. |
-| Last verification | `uv run --dev pytest tests/unit/test_makefile.py tests/unit/test_metadata.py tests/unit/test_release_requirements.py tests/integration_requires_dicom_download/test_release_gate.py -rs` passed with 12 passed and 1 skipped; escalated `make test-dicom-release` failed as expected against the reduced local 2026b KB with missing v2 DocBook parts, semantic rows, and DocBook structure rows; sandboxed `make lint`, `make typecheck`, and `make test` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated reruns passed; escalated `make test-dicom-integration` passed with 46 passed and 11 skipped. |
+| Last completed remediation commit | Pending current commit. Previous completed R1 target commit: 87cd1be. |
+| Last verification | `uv run --dev pytest tests/unit/test_part16_parser.py -q` passed with 6 passed; `uv run --dev pytest tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'part16 or sr_template or context_group or code_meaning' -q` passed with 9 passed; `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'part16 or sr_template or context_group or code_meaning' -q` passed with 15 passed; `uv run --dev ruff check src/dicom_kb/parsers/part16_content_mapping.py tests/unit/test_part16_parser.py tests/fixtures_synthetic/__init__.py` passed; sandboxed `make lint` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; sandboxed `make typecheck` failed before running for the same uv cache permission reason and escalated `make typecheck` was rejected by the environment approval policy, so mypy did not run. |
 | Current blocker | None. |
-| Commit-ready summary | Added an opt-in strict `test-dicom-release` Makefile target and integration gate that calls the release requirement helper; documented the smoke-vs-release split and updated focused Makefile/metadata coverage. |
-| Next recommended action | Start Phase R2 with the smallest official-shape PS3.16 parser slice: add fixtures for official-style TID/CID metadata and code rows, then teach the parser to classify those table shapes without relying on synthetic `TID`/`CID` columns. |
+| Commit-ready summary | Added official-shape PS3.16 fixture coverage and parser support for TID/CID metadata in titles, official SR template row headers, CID code rows, CID include xrefs, and derived CT/DCM coded concepts while preserving synthetic PS3.16 parsing. |
+| Next recommended action | Continue Phase R2 with the import/build/resolver fixture slice: persist the official-shape PS3.16 fixture rows, then prove `lookup_sr_template("1500")`, `lookup_context_group("29")`, and `lookup_code_meaning("CT", scheme="DCM")` return `ok` against that fixture data. |
 
 ## Phase R0 - Reproduce and Inventory the Gap
 
@@ -155,11 +155,11 @@ Commits:
 | Commit | Summary | Verification |
 |---|---|---|
 | 5aff662 | Added the strict release requirement helper and focused unit tests. | `uv run --dev pytest tests/unit/test_release_requirements.py`; `make lint`; `make typecheck` |
-| Pending current commit | Added the opt-in strict release-gate target and integration test while keeping smoke integration separate. | `uv run --dev pytest tests/unit/test_makefile.py tests/unit/test_metadata.py tests/unit/test_release_requirements.py tests/integration_requires_dicom_download/test_release_gate.py -rs`; `make test-dicom-release`; `make lint`; `make typecheck`; `make test`; `make test-dicom-integration` |
+| 87cd1be | Added the opt-in strict release-gate target and integration test while keeping smoke integration separate. | `uv run --dev pytest tests/unit/test_makefile.py tests/unit/test_metadata.py tests/unit/test_release_requirements.py tests/integration_requires_dicom_download/test_release_gate.py -rs`; `make test-dicom-release`; `make lint`; `make typecheck`; `make test`; `make test-dicom-integration` |
 
 ## Phase R2 - Repair Official-Shape PS3.16 Ingestion
 
-Status: `Not started`
+Status: `In progress`
 
 Scope:
 
@@ -170,18 +170,18 @@ Scope:
 
 Completion checklist:
 
-- [ ] Official-shape TID 1500 fixture parses.
-- [ ] Official-shape CID 29 fixture parses.
-- [ ] Official-shape CT/DCM code row parses.
+- [x] Official-shape TID 1500 fixture parses.
+- [x] Official-shape CID 29 fixture parses.
+- [x] Official-shape CT/DCM code row parses.
 - [ ] Import/build tests persist PS3.16 rows with citations.
 - [ ] Resolver tests return `ok` for TID 1500, CID 29, and CT/DCM fixture data.
-- [ ] Existing synthetic PS3.16 tests still pass.
+- [x] Existing synthetic PS3.16 tests still pass.
 
 Commits:
 
 | Commit | Summary | Verification |
 |---|---|---|
-| Pending | No Phase R2 commit yet. | Pending |
+| Pending current commit | Added official-shape PS3.16 parser support for TID/CID metadata in section or table titles, official SR template row headers, CID code rows, and CID include xrefs. | `uv run --dev pytest tests/unit/test_part16_parser.py -q`; `uv run --dev pytest tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'part16 or sr_template or context_group or code_meaning' -q`; `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'part16 or sr_template or context_group or code_meaning' -q`; `uv run --dev ruff check src/dicom_kb/parsers/part16_content_mapping.py tests/unit/test_part16_parser.py tests/fixtures_synthetic/__init__.py`; `make lint`; `make typecheck` could not run because sandboxed uv cache access failed and escalated `make typecheck` was rejected. |
 
 ## Phase R3 - Pin Strict Official Goldens
 
@@ -294,3 +294,9 @@ Commits:
 | 2026-06-14 | `make test-dicom-integration` | Passed escalated | Existing smoke integration remains separate from the strict release gate; 46 passed and 11 skipped. |
 | 2026-06-14 | `uv run --dev pytest tests/unit/test_metadata.py` | Passed | 7 passed after tracker reconciliation. |
 | 2026-06-14 | `uv run --dev ruff check tests/integration_requires_dicom_download/test_release_gate.py tests/unit/test_makefile.py tests/unit/test_metadata.py` | Passed | Focused lint pass after the final test/import edits. |
+| 2026-06-14 | `uv run --dev pytest tests/unit/test_part16_parser.py -q` | Passed | 6 passed; covers the new official-shape TID 1500/CID 29/CT parser fixture plus existing synthetic PS3.16 parser/import tests. |
+| 2026-06-14 | `uv run --dev pytest tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'part16 or sr_template or context_group or code_meaning' -q` | Passed | 9 passed; adjacent synthetic build and resolver coverage still passes after the parser changes. |
+| 2026-06-14 | `uv run --dev ruff check src/dicom_kb/parsers/part16_content_mapping.py tests/unit/test_part16_parser.py tests/fixtures_synthetic/__init__.py` | Passed | Focused lint for the changed parser, fixture export, and parser tests. |
+| 2026-06-14 | `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'part16 or sr_template or context_group or code_meaning' -q` | Passed | 15 passed; combined focused parser/build/resolver check after final include-target handling. |
+| 2026-06-14 | `make lint` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev ruff check .` with all checks passed. |
+| 2026-06-14 | `make typecheck` | Could not run | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun was rejected by the environment approval policy, so `uv run --dev mypy` did not execute. |
