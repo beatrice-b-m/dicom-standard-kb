@@ -21,6 +21,7 @@ from dicom_kb.ir.models import (
     Condition,
     DataElement,
     DicomMediaType,
+    DicomwebTransaction,
     DocNode,
     FileMetaRequirement,
     IODFunctionalGroupUse,
@@ -68,6 +69,7 @@ class ImportSummary:
     transfer_syntax_details: int = 0
     file_meta_requirements: int = 0
     dicom_media_types: int = 0
+    dicomweb_transactions: int = 0
     include_rows_resolved: int = 0
     include_rows_unresolved: int = 0
 
@@ -489,6 +491,34 @@ def import_dicom_media_types(
         edition=edition,
         source_refs=len(source_refs),
         dicom_media_types=len(records),
+    )
+
+
+def import_dicomweb_transactions(
+    connection: sqlite3.Connection,
+    *,
+    edition: str,
+    transactions: Iterable[DicomwebTransaction],
+) -> ImportSummary:
+    """Import parsed PS3.18 DICOMweb transaction rows."""
+    records = tuple(transactions)
+    source_refs = _unique_source_refs(record.source_ref for record in records)
+
+    try:
+        with connection:
+            for source_ref in source_refs:
+                _insert_source_ref(connection, source_ref)
+            for record in records:
+                _insert_dicomweb_transaction(connection, record)
+    except sqlite3.IntegrityError as exc:
+        raise ImportError(
+            f"failed to import PS3.18 DICOMweb transactions for {edition}"
+        ) from exc
+
+    return ImportSummary(
+        edition=edition,
+        source_refs=len(source_refs),
+        dicomweb_transactions=len(records),
     )
 
 
@@ -1117,6 +1147,45 @@ def _insert_dicom_media_type(
                 separators=(",", ":"),
             ),
             json.dumps(record.directions, sort_keys=True, separators=(",", ":")),
+            record.source_ref.id,
+        ),
+    )
+
+
+def _insert_dicomweb_transaction(
+    connection: sqlite3.Connection, record: DicomwebTransaction
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO dicomweb_transaction (
+          id, edition_id, transaction_name, resource_category, http_method,
+          route_template, request_constraints_json, response_constraints_json,
+          status_codes_json, media_type_refs_json, source_ref_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            record.id,
+            record.edition_id,
+            record.transaction_name,
+            record.resource_category,
+            record.http_method,
+            record.route_template,
+            json.dumps(
+                record.request_constraints,
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+            json.dumps(
+                record.response_constraints,
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+            json.dumps(record.status_codes, sort_keys=True, separators=(",", ":")),
+            json.dumps(
+                record.media_type_refs,
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
             record.source_ref.id,
         ),
     )

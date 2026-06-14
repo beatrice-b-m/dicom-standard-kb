@@ -114,6 +114,10 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
         import_summary.dicom_media_types == 1
         for import_summary in summary.import_summaries
     )
+    assert any(
+        import_summary.dicomweb_transactions == 2
+        for import_summary in summary.import_summaries
+    )
     metrics = summary.metrics.as_jsonable()
     assert set(metrics) == {
         "edition",
@@ -203,6 +207,17 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
             FROM dicom_media_type
             WHERE edition_id = ?
             ORDER BY media_type, service_context
+            """,
+            ("2026b",),
+        ).fetchall()
+        dicomweb_rows = connection.execute(
+            """
+            SELECT transaction_name, resource_category, http_method, route_template,
+                   request_constraints_json, response_constraints_json,
+                   status_codes_json, media_type_refs_json
+            FROM dicomweb_transaction
+            WHERE edition_id = ?
+            ORDER BY transaction_name
             """,
             ("2026b",),
         ).fetchall()
@@ -316,6 +331,52 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
                 separators=(",", ":"),
             ),
             "directions_json": json.dumps(("file",), separators=(",", ":")),
+        },
+    ]
+    assert [dict(row) for row in dicomweb_rows] == [
+        {
+            "transaction_name": "RetrieveStudy",
+            "resource_category": "study",
+            "http_method": "GET",
+            "route_template": "/studies/{studyInstanceUID}",
+            "request_constraints_json": json.dumps(
+                ("Study Instance UID required",),
+                separators=(",", ":"),
+            ),
+            "response_constraints_json": json.dumps(
+                ("DICOM instances returned",),
+                separators=(",", ":"),
+            ),
+            "status_codes_json": json.dumps(
+                ("200", "400", "404"),
+                separators=(",", ":"),
+            ),
+            "media_type_refs_json": json.dumps(
+                ("application/dicom",),
+                separators=(",", ":"),
+            ),
+        },
+        {
+            "transaction_name": "StoreInstances",
+            "resource_category": "study",
+            "http_method": "POST",
+            "route_template": "/studies/{studyInstanceUID}",
+            "request_constraints_json": json.dumps(
+                ("Multipart request body required",),
+                separators=(",", ":"),
+            ),
+            "response_constraints_json": json.dumps(
+                ("Store response returned",),
+                separators=(",", ":"),
+            ),
+            "status_codes_json": json.dumps(
+                ("200", "202", "409"),
+                separators=(",", ":"),
+            ),
+            "media_type_refs_json": json.dumps(
+                ("multipart/related", "application/dicom"),
+                separators=(",", ":"),
+            ),
         },
     ]
     assert set(payload["source_sha256"]) == {

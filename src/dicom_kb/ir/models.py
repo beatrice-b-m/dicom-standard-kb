@@ -233,6 +233,24 @@ class DicomMediaType(BaseModel):
     source_ref: SourceRef
 
 
+class DicomwebTransaction(BaseModel):
+    """DICOMweb transaction row parsed from PS3.18."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    edition_id: str
+    transaction_name: str
+    resource_category: str | None = None
+    http_method: str
+    route_template: str
+    request_constraints: tuple[str, ...] = ()
+    response_constraints: tuple[str, ...] = ()
+    status_codes: tuple[str, ...] = ()
+    media_type_refs: tuple[str, ...] = ()
+    source_ref: SourceRef
+
+
 class Condition(BaseModel):
     """A preserved raw condition with machine-readability metadata."""
 

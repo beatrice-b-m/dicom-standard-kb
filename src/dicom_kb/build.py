@@ -12,6 +12,7 @@ from dicom_kb.db.importers import (
     import_attribute_value_terms,
     import_build_metadata,
     import_dicom_media_types,
+    import_dicomweb_transactions,
     import_docbook_structure,
     import_file_meta_requirements,
     import_manifest,
@@ -386,6 +387,13 @@ def build_sqlite_database(
                 documents["PS3.18"], edition=manifest.edition
             )
             warnings.extend(_warning_messages(parsed_part18.warnings))
+            summaries.append(
+                import_dicomweb_transactions(
+                    connection,
+                    edition=manifest.edition,
+                    transactions=parsed_part18.dicomweb_transactions,
+                )
+            )
 
         metrics = BuildMetrics.from_imports(
             edition=manifest.edition,

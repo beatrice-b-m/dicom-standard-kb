@@ -4,7 +4,7 @@ import json
 import sqlite3
 from pathlib import Path
 
-from dicom_kb.db.importers import import_docbook_structure
+from dicom_kb.db.importers import import_dicomweb_transactions, import_docbook_structure
 from dicom_kb.db.models import apply_migrations, connect_sqlite
 from dicom_kb.docbook.parser import parse_docbook_xml
 from dicom_kb.parsers.part18_web_services import parse_part18
@@ -29,8 +29,102 @@ def test_parse_part18_classifies_transaction_tables_and_warns_on_gaps() -> None:
     assert transaction_table.source_ref.section == "sect_18_1"
     assert transaction_table.source_ref.table_id == "table_18-1"
     assert transaction_table.source_ref.title == "Synthetic Transactions"
+    assert [
+        (record.transaction_name, record.http_method, record.route_template)
+        for record in result.dicomweb_transactions
+    ] == [
+        ("RetrieveStudy", "GET", "/studies/{studyInstanceUID}"),
+        ("StoreInstances", "POST", "/studies/{studyInstanceUID}"),
+    ]
+    retrieve_study = result.dicomweb_transactions[0]
+    assert retrieve_study.resource_category == "study"
+    assert retrieve_study.request_constraints == ("Study Instance UID required",)
+    assert retrieve_study.response_constraints == ("DICOM instances returned",)
+    assert retrieve_study.status_codes == ("200", "400", "404")
+    assert retrieve_study.media_type_refs == ("application/dicom",)
+    assert retrieve_study.source_ref.table_id == "table_18-1"
     assert [(warning.table_id, warning.message) for warning in result.warnings] == [
         ("table_18-2", "unsupported PS3.18 table shape")
+    ]
+
+
+def test_import_dicomweb_transactions_persists_rows_with_source_refs(
+    tmp_path: Path,
+) -> None:
+    connection = _connection(tmp_path)
+    document = parse_docbook_xml(PS318_WEB_SERVICES_DOCBOOK, part="PS3.18")
+    parsed = parse_part18(document, edition="2026b")
+
+    summary = import_dicomweb_transactions(
+        connection,
+        edition="2026b",
+        transactions=parsed.dicomweb_transactions,
+    )
+
+    assert summary.dicomweb_transactions == 2
+    assert summary.source_refs == 1
+    rows = connection.execute(
+        """
+        SELECT txn.transaction_name, txn.resource_category, txn.http_method,
+               txn.route_template, txn.request_constraints_json,
+               txn.response_constraints_json, txn.status_codes_json,
+               txn.media_type_refs_json, ref.part, ref.table_id
+        FROM dicomweb_transaction txn
+        JOIN source_ref ref ON ref.id = txn.source_ref_id
+        WHERE txn.edition_id = ?
+        ORDER BY txn.transaction_name
+        """,
+        ("2026b",),
+    ).fetchall()
+    assert [dict(row) for row in rows] == [
+        {
+            "transaction_name": "RetrieveStudy",
+            "resource_category": "study",
+            "http_method": "GET",
+            "route_template": "/studies/{studyInstanceUID}",
+            "request_constraints_json": json.dumps(
+                ("Study Instance UID required",),
+                separators=(",", ":"),
+            ),
+            "response_constraints_json": json.dumps(
+                ("DICOM instances returned",),
+                separators=(",", ":"),
+            ),
+            "status_codes_json": json.dumps(
+                ("200", "400", "404"),
+                separators=(",", ":"),
+            ),
+            "media_type_refs_json": json.dumps(
+                ("application/dicom",),
+                separators=(",", ":"),
+            ),
+            "part": "PS3.18",
+            "table_id": "table_18-1",
+        },
+        {
+            "transaction_name": "StoreInstances",
+            "resource_category": "study",
+            "http_method": "POST",
+            "route_template": "/studies/{studyInstanceUID}",
+            "request_constraints_json": json.dumps(
+                ("Multipart request body required",),
+                separators=(",", ":"),
+            ),
+            "response_constraints_json": json.dumps(
+                ("Store response returned",),
+                separators=(",", ":"),
+            ),
+            "status_codes_json": json.dumps(
+                ("200", "202", "409"),
+                separators=(",", ":"),
+            ),
+            "media_type_refs_json": json.dumps(
+                ("multipart/related", "application/dicom"),
+                separators=(",", ":"),
+            ),
+            "part": "PS3.18",
+            "table_id": "table_18-1",
+        },
     ]
 
 

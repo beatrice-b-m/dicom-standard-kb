@@ -6,12 +6,40 @@
       <para>Synthetic PS3.18 fixture for generic DocBook ingestion.</para>
       <table xml:id="table_18-1">
         <title>Synthetic Transactions</title>
-        <tgroup cols="3">
+        <tgroup cols="8">
           <thead>
-            <row><entry>Transaction</entry><entry>Method</entry><entry>Route</entry></row>
+            <row>
+              <entry>Transaction</entry>
+              <entry>Method</entry>
+              <entry>Route</entry>
+              <entry>Resource Category</entry>
+              <entry>Request Constraints</entry>
+              <entry>Response Constraints</entry>
+              <entry>Status Codes</entry>
+              <entry>Media Type Refs</entry>
+            </row>
           </thead>
           <tbody>
-            <row><entry>RetrieveStudy</entry><entry>GET</entry><entry>/studies/{study}</entry></row>
+            <row>
+              <entry>RetrieveStudy</entry>
+              <entry>GET</entry>
+              <entry>/studies/{studyInstanceUID}</entry>
+              <entry>study</entry>
+              <entry>Study Instance UID required</entry>
+              <entry>DICOM instances returned</entry>
+              <entry>200; 400; 404</entry>
+              <entry>application/dicom</entry>
+            </row>
+            <row>
+              <entry>StoreInstances</entry>
+              <entry>POST</entry>
+              <entry>/studies/{studyInstanceUID}</entry>
+              <entry>study</entry>
+              <entry>Multipart request body required</entry>
+              <entry>Store response returned</entry>
+              <entry>200; 202; 409</entry>
+              <entry>multipart/related; application/dicom</entry>
+            </row>
           </tbody>
         </tgroup>
       </table>
