@@ -32,7 +32,7 @@ from dicom_kb.sources.manifest import (
     utc_now,
 )
 
-SCHEMA_VERSION = "7"
+SCHEMA_VERSION = "8"
 DOCBOOK_XML_FORMAT = "docbook_xml"
 
 

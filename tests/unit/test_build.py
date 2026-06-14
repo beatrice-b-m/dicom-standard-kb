@@ -129,7 +129,7 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
     assert terms_response.status == "ok"
     assert terms_response.result is not None
     assert len(terms_response.result["terms"]) == 2
-    assert metadata["schema_version"] == "7"
+    assert metadata["schema_version"] == "8"
     payload = json.loads(metadata["metadata_json"])
     assert payload["edition"] == "2026b"
     assert set(payload["source_sha256"]) == {

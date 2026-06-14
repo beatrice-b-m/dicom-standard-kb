@@ -28,7 +28,7 @@ Status values:
 | Area | Status | Notes |
 |---|---|---|
 | V1 baseline | Complete | See `IMPLEMENTATION_REVIEW.md`; v1 acceptance criteria are documented as met. |
-| Phase 0 - V2 contract baseline | In progress | V2 result payload builders and JSON schema coverage are in place; migration design remains. |
+| Phase 0 - V2 contract baseline | Complete | V2 result payload builders, JSON schema coverage, canonical migration table names, and empty-database migration smoke coverage are in place. |
 | Phase 1 - New part acquisition/parser foundation | Not started | Needs PS3.5, PS3.7, PS3.8, PS3.10, PS3.16, PS3.18 fixture and parser scaffolding. |
 | Phase 2 - PS3.5 VR and transfer syntax semantics | Not started | Satisfies v2 acceptance criterion 1. |
 | Phase 3 - PS3.10 file meta and media foundation | Not started | Prepares shared media-type model. |
@@ -54,17 +54,18 @@ Status values:
 
 | Field | Value |
 |---|---|
-| Current phase | Phase 0 - V2 contract baseline |
+| Current phase | Phase 1 - New Part Acquisition and Parser Foundation |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed commit | d831ea9 |
-| Last verification | `uv run --dev pytest tests/unit/test_json_schemas.py` passed with 11 passed; `make lint` passed; `make typecheck` passed; `make test` passed with 215 passed, 4 skipped. |
+| Last completed commit | Pending current slice commit |
+| Last verification | `uv run --dev pytest tests/unit/test_db_migrations.py tests/unit/test_build.py` passed with 6 passed; `make lint` passed; `make typecheck` passed with no issues in 51 source files; `make test` passed with 217 passed, 4 skipped. |
 | Current blocker | None |
-| Next recommended action | Continue Phase 0 by adding canonical v2 migration table names plus an empty-database migration smoke test. |
+| Commit-ready summary | Added canonical v2 migration tables for planned Phase 2-5 entities, bumped the local build schema version to 8, and added empty-database migration smoke coverage. |
+| Next recommended action | Start Phase 1 by extending official artifact configuration/build loading for PS3.5, PS3.7, PS3.8, PS3.10, PS3.16, and PS3.18 without advertising v2 public tools. |
 
 ## Phase 0 - V2 Contract Baseline
 
-Status: `In progress`
+Status: `Complete`
 
 Scope:
 
@@ -77,7 +78,7 @@ Completion checklist:
 
 - [x] V2 result payload builders exist.
 - [x] JSON schema tests cover representative v2 responses.
-- [ ] Empty-database migration smoke test passes.
+- [x] Empty-database migration smoke test passes.
 - [x] v1 response contract tests still pass.
 - [x] `make lint` passes.
 - [x] `make typecheck` passes.
@@ -88,7 +89,8 @@ Commits:
 | Commit | Summary | Verification |
 |---|---|---|
 | d831ea9 | Added Pydantic-backed v2 result payload builders and classification defaults for planned v2 tools. | `uv run --dev pytest tests/unit/test_json_schemas.py`; `make lint`; `make typecheck`; `make test` |
-| Pending current slice commit | Added explicit JSON schema coverage for v2 result payloads and representative payload contract tests. | `uv run --dev pytest tests/unit/test_json_schemas.py`; `make lint`; `make typecheck`; `make test` |
+| 3fc8149 | Added explicit JSON schema coverage for v2 result payloads and representative payload contract tests. | `uv run --dev pytest tests/unit/test_json_schemas.py`; `make lint`; `make typecheck`; `make test` |
+| Pending current slice commit | Added canonical v2 migration table names and empty-database migration smoke coverage. | `uv run --dev pytest tests/unit/test_db_migrations.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
 
 Notes:
 
@@ -99,6 +101,9 @@ Notes:
   database behavior is advertised as complete.
 - Current schema slice added only contract schemas and tests; no v2 CLI, MCP,
   resolver, parser, or database behavior is advertised as complete.
+- Current migration slice added only canonical empty tables and smoke tests;
+  no v2 CLI, MCP, resolver, parser, importer, or query behavior is advertised
+  as complete.
 
 ## Phase 1 - New Part Acquisition and Parser Foundation
 
@@ -387,6 +392,7 @@ Notes:
 | Date | Decision | Rationale | Commit |
 |---|---|---|---|
 | 2026-06-14 | Start v2 from documented complete v1 baseline. | `IMPLEMENTATION_REVIEW.md` records all active v1 review findings as resolved. | Initial planning docs commit. |
+| 2026-06-14 | Use canonical v2 table names from `IMPLEMENTATION_PLAN.md`: `vr_definition`, `transfer_syntax_detail`, `file_meta_requirement`, `dicom_media_type`, `dicomweb_transaction`, `sr_template`, `sr_template_row`, `context_group`, `context_group_row`, and `coded_concept`. | Parser phases need stable storage targets before new part ingestion begins; JSON-array fields are stored as text for SQLite/PostgreSQL portability until importers add domain models. | Pending current slice commit. |
 
 ## Open Questions
 
