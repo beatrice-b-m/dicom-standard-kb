@@ -15,7 +15,6 @@ Every public resolver response uses the same envelope:
 - `classification`: deterministic normativity, evidence level, and machine
   decidability metadata.
 - `parse_confidence`: conservative parse confidence metadata.
-- `notice`: reminder to consult the official DICOM Standard.
 - `trace`: query id, resolution time, and optional source-manifest digest.
 
 Do not drop `classification`, `parse_confidence`, `warnings`, or `refs` when

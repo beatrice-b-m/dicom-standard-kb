@@ -8,7 +8,6 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 from dicom_kb.query.answer_contracts import (
-    NOTICE,
     CodeMeaningResult,
     ContextGroupResult,
     ContextGroupRowResult,
@@ -75,11 +74,14 @@ def test_standard_ref_schema_matches_public_contract_fields() -> None:
 def test_tool_response_schema_matches_public_envelope_contract() -> None:
     schema = _schema("tool_response.schema.json")
     properties = schema["properties"]
+    expected_required = [
+        name for name in ToolResponse.model_fields if name != "notice"
+    ]
 
     assert set(properties) == set(ToolResponse.model_fields)
     assert properties["status"]["enum"] == list(get_args(ResponseStatus))
-    assert properties["notice"]["const"] == NOTICE
-    assert schema["required"] == list(ToolResponse.model_fields)
+    assert properties["notice"]["type"] == ["string", "null"]
+    assert schema["required"] == expected_required
 
 
 def test_v2_payload_schema_matches_public_result_contracts() -> None:
@@ -197,6 +199,7 @@ def test_tool_response_factory_adds_deterministic_metadata() -> None:
         "level": "high",
         "source": "parsed_registry",
     }
+    assert response.notice is None
 
 
 def test_v2_tool_response_classification_metadata() -> None:

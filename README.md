@@ -94,9 +94,8 @@ uv run dicom-kb lookup tag '(0008,0060)' \
 ```
 
 Every query command returns a JSON envelope containing the result, citations,
-edition metadata, deterministic response classification, parse-confidence
-metadata, and a notice to consult the official DICOM Standard for authoritative
-text.
+edition metadata, deterministic response classification, and parse-confidence
+metadata.
 
 ## Build a Real Local Knowledge Base
 

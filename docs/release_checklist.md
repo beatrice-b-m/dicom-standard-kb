@@ -16,7 +16,6 @@ Confirm representative query envelopes include:
 - `parse_confidence`
 - `refs`
 - `warnings`
-- `notice`
 - `trace`
 
 ## Build and Verification Gates

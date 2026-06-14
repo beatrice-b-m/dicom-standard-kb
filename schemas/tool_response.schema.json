@@ -124,8 +124,7 @@
       "type": "object"
     },
     "notice": {
-      "const": "Consult the official DICOM Standard for authoritative text.",
-      "type": "string"
+      "type": ["string", "null"]
     },
     "parse_confidence": {
       "$ref": "#/$defs/parseConfidence"
@@ -167,7 +166,6 @@
     "parse_confidence",
     "refs",
     "warnings",
-    "notice",
     "trace"
   ],
   "title": "ToolResponse",

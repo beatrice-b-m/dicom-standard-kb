@@ -28,8 +28,6 @@ from dicom_kb.ir.models import (
     UIDRegistryEntry,
 )
 
-NOTICE = "Consult the official DICOM Standard for authoritative text."
-
 ResponseStatus = Literal["ok", "not_found", "validation_error"]
 Normativity = Literal["normative", "explanatory", "derived", "heuristic", "unsupported"]
 EvidenceLevel = Literal[
@@ -133,7 +131,7 @@ class ToolResponse(BaseModel):
     parse_confidence: ParseConfidence
     refs: list[StandardRef] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
-    notice: str = NOTICE
+    notice: str | None = None
     trace: ResponseTrace = Field(default_factory=ResponseTrace)
 
 

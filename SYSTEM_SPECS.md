@@ -750,7 +750,6 @@ All tool responses share a common envelope:
   "result": {},
   "refs": [],
   "warnings": [],
-  "notice": "Consult the official DICOM Standard for authoritative text.",
   "trace": {
     "query_id": "uuid",
     "resolved_at": "2026-06-11T00:00:00Z",

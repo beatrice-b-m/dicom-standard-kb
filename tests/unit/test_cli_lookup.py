@@ -11,6 +11,7 @@ from typer.testing import CliRunner
 from dicom_kb.cli.main import app
 from dicom_kb.db.importers import (
     import_attribute_value_terms,
+    import_dicom_media_types,
     import_docbook_structure,
     import_part03,
     import_part04,
@@ -27,6 +28,7 @@ from dicom_kb.parsers.part05_encoding import (
     transfer_syntax_details_from_uid_registry,
 )
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
+from dicom_kb.parsers.part10_media_storage import parse_part10
 from dicom_kb.sources.downloader import (
     DEFAULT_DOCBOOK_PARTS,
     official_archive_release_url,
@@ -40,6 +42,7 @@ from tests.fixtures_synthetic import (
     PS34_SOP_CLASSES_DOCBOOK,
     PS35_ENCODING_DOCBOOK,
     PS36_REGISTRY_DOCBOOK,
+    PS310_MEDIA_STORAGE_DOCBOOK,
 )
 
 
@@ -119,6 +122,15 @@ def _fixture_db(tmp_path: Path) -> Path:
         sop_classes=parsed_part04.sop_classes,
         sop_class_iods=parsed_part04.sop_class_iods,
     )
+    parsed_part10 = parse_part10(
+        parse_docbook_xml(PS310_MEDIA_STORAGE_DOCBOOK, part="PS3.10"),
+        edition="2026b",
+    )
+    import_dicom_media_types(
+        connection,
+        edition="2026b",
+        media_types=parsed_part10.media_types,
+    )
     connection.close()
     return db_path
 
@@ -160,6 +172,7 @@ def test_cli_lookup_tag_outputs_success_envelope(tmp_path: Path) -> None:
         "source": "parsed_registry",
     }
     assert payload["warnings"] == []
+    assert "notice" not in payload
     assert payload["trace"]["query_id"]
     assert payload["trace"]["resolved_at"]
 
@@ -265,6 +278,29 @@ def test_cli_lookup_transfer_syntax_outputs_encoding_details(
         "uid_value": "1.2.840.10008.1.2.1",
     }
     assert {ref["part"] for ref in payload["refs"]} == {"PS3.6"}
+
+
+def test_cli_lookup_media_type_outputs_ps310_constraints(tmp_path: Path) -> None:
+    payload = _invoke_json(
+        tmp_path,
+        "lookup",
+        "media-type",
+        "application/dicom",
+        "--edition",
+        "2026b",
+    )
+
+    assert payload["tool"] == "lookup_media_type"
+    assert payload["status"] == "ok"
+    assert payload["result"] == {
+        "media_type": "application/dicom",
+        "service_context": "PS3.10 file",
+        "transfer_syntax_constraints": [
+            "Encoded using the Transfer Syntax UID in the File Meta Information",
+        ],
+        "directions": ["file"],
+    }
+    assert payload["refs"][0]["part"] == "PS3.10"
 
 
 def test_cli_explain_encoding_outputs_structured_rule(tmp_path: Path) -> None:

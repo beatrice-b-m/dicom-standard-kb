@@ -70,6 +70,7 @@ def test_mcp_stdio_protocol_with_official_client(tmp_path: Path) -> None:
                 }
                 assert element_payload["refs"]
                 assert element_payload["warnings"] == []
+                assert "notice" not in element_payload
 
                 modules_result = await session.call_tool(
                     "dicom_list_modules_for_iod",
@@ -90,6 +91,7 @@ def test_mcp_stdio_protocol_with_official_client(tmp_path: Path) -> None:
                 }
                 assert modules_payload["refs"]
                 assert modules_payload["warnings"] == []
+                assert "notice" not in modules_payload
                 assert modules_payload["result"]["modules"][0]["module_name"] == (
                     "Patient"
                 )
