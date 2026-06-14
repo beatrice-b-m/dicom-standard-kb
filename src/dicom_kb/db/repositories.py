@@ -13,6 +13,8 @@ from dicom_kb.ir.models import (
     AttributeValueTerm,
     CodedConcept,
     Condition,
+    ContextGroup,
+    ContextGroupRow,
     DataElement,
     DicomMediaType,
     DicomwebTransaction,
@@ -103,6 +105,14 @@ class CodeMeaningRecord:
     context_groups: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True)
+class ContextGroupRecord:
+    """A PS3.16 context group with ordered coded and include rows."""
+
+    group: ContextGroup
+    rows: tuple[ContextGroupRow, ...] = ()
+
+
 class Part16Repository:
     """Lookup imported PS3.16 content mapping semantics."""
 
@@ -143,6 +153,59 @@ class Part16Repository:
             )
             for row in rows
         ]
+
+    def list_context_groups(
+        self, cid_or_name: str, *, edition: str
+    ) -> list[ContextGroupRecord]:
+        """Return context groups matching an exact CID, bare CID number, or name."""
+        normalized = cid_or_name.strip()
+        normalized_label = _context_group_label(normalized)
+        group_rows = self.connection.execute(
+            """
+            SELECT context_group.*, sr.part AS source_part,
+                   sr.section AS source_section,
+                   sr.table_id AS source_table_id,
+                   sr.xml_id AS source_xml_id,
+                   sr.title AS source_title, sr.canonical_url AS source_url
+            FROM context_group
+            JOIN source_ref sr ON sr.id = context_group.source_ref_id
+            WHERE context_group.edition_id = ?
+              AND (
+                lower(context_group.cid) = lower(?)
+                OR lower(context_group.cid) = lower(?)
+                OR lower(context_group.name) = lower(?)
+              )
+            ORDER BY context_group.cid, context_group.name, context_group.id
+            """,
+            (edition, normalized, normalized_label, normalized),
+        ).fetchall()
+        return [
+            ContextGroupRecord(
+                group=_context_group_from_row(row),
+                rows=self._rows_for_context_group(str(row["id"]), edition=edition),
+            )
+            for row in group_rows
+        ]
+
+    def _rows_for_context_group(
+        self, context_group_id: str, *, edition: str
+    ) -> tuple[ContextGroupRow, ...]:
+        rows = self.connection.execute(
+            """
+            SELECT row.*, sr.part AS source_part,
+                   sr.section AS source_section,
+                   sr.table_id AS source_table_id,
+                   sr.xml_id AS source_xml_id,
+                   sr.title AS source_title, sr.canonical_url AS source_url
+            FROM context_group_row row
+            JOIN source_ref sr ON sr.id = row.source_ref_id
+            WHERE row.edition_id = ?
+              AND row.context_group_id = ?
+            ORDER BY row.row_order, row.id
+            """,
+            (edition, context_group_id),
+        ).fetchall()
+        return tuple(_context_group_row_from_row(row) for row in rows)
 
     def _context_groups_for_code(
         self, row: sqlite3.Row, *, edition: str
@@ -1177,6 +1240,33 @@ def _coded_concept_from_row(row: sqlite3.Row) -> CodedConcept:
         coding_scheme_designator=str(row["coding_scheme_designator"]),
         coding_scheme_version=str(row["coding_scheme_version"]),
         code_meaning=str(row["code_meaning"]),
+        source_ref=_source_ref_from_row(row),
+    )
+
+
+def _context_group_from_row(row: sqlite3.Row) -> ContextGroup:
+    return ContextGroup(
+        id=str(row["id"]),
+        edition_id=str(row["edition_id"]),
+        cid=str(row["cid"]),
+        name=str(row["name"]),
+        extensibility=row["extensibility"],
+        version=row["version"],
+        source_ref=_source_ref_from_row(row),
+    )
+
+
+def _context_group_row_from_row(row: sqlite3.Row) -> ContextGroupRow:
+    return ContextGroupRow(
+        id=str(row["id"]),
+        edition_id=str(row["edition_id"]),
+        context_group_id=str(row["context_group_id"]),
+        row_order=int(row["row_order"]),
+        coding_scheme_designator=row["coding_scheme_designator"],
+        coding_scheme_version=row["coding_scheme_version"],
+        code_value=row["code_value"],
+        code_meaning=row["code_meaning"],
+        include_cid=row["include_cid"],
         source_ref=_source_ref_from_row(row),
     )
 

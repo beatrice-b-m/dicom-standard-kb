@@ -36,6 +36,7 @@ from dicom_kb.query.resolver import (
     list_attributes_for_module,
     list_modules_for_iod,
     lookup_code_meaning,
+    lookup_context_group,
     lookup_data_element,
     lookup_defined_terms,
     lookup_dicomweb_transaction,
@@ -1042,6 +1043,104 @@ def test_lookup_dicomweb_transaction_validates_empty_input_and_reports_not_found
     assert missing.result == {
         "message": "No DICOMweb transaction matched the input."
     }
+
+
+def test_lookup_context_group_returns_ps316_rows_and_include_rows(
+    tmp_path: Path,
+) -> None:
+    response = lookup_context_group(
+        _part16_connection(tmp_path),
+        cid_or_name="29",
+        edition="2026b",
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert response.status == "ok"
+    assert response.result == {
+        "cid": "CID 29",
+        "name": "Acquisition Modality",
+        "extensibility": "EXTENSIBLE",
+        "version": "20260101",
+        "rows": [
+            {
+                "order": 1,
+                "coding_scheme_designator": "DCM",
+                "coding_scheme_version": None,
+                "code_value": "CT",
+                "code_meaning": "Computed Tomography",
+                "include_cid": None,
+            },
+            {
+                "order": 2,
+                "coding_scheme_designator": None,
+                "coding_scheme_version": None,
+                "code_value": None,
+                "code_meaning": None,
+                "include_cid": "CID 30",
+            },
+        ],
+    }
+    assert response.refs[0].part == "PS3.16"
+    assert response.refs[0].table == "Synthetic Context Group Rows"
+    assert response.classification.evidence_level == "parsed_table"
+    assert response.trace.query_id == "query-1"
+
+
+def test_lookup_context_group_returns_candidates_for_ambiguous_name(
+    tmp_path: Path,
+) -> None:
+    connection = _part16_connection(tmp_path)
+    connection.execute(
+        """
+        INSERT INTO context_group (
+          id, edition_id, cid, name, extensibility, version, source_ref_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "2026b.PS3.16.context_group.cid_30",
+            "2026b",
+            "CID 30",
+            "Acquisition Modality",
+            "BASELINE",
+            "20260101",
+            "2026b.PS3.16.table_16-3",
+        ),
+    )
+
+    response = lookup_context_group(
+        connection,
+        cid_or_name="Acquisition Modality",
+        edition="2026b",
+    )
+
+    assert response.status == "validation_error"
+    assert response.result is not None
+    assert response.result["message"] == "Context group input matched multiple rows."
+    assert [
+        candidate["cid"] for candidate in response.result["candidates"]
+    ] == ["CID 29", "CID 30"]
+    assert response.result["candidates"][0]["rows"][1]["include_cid"] == "CID 30"
+    assert response.result["candidates"][1]["rows"] == []
+    assert {ref.part for ref in response.refs} == {"PS3.16"}
+
+
+def test_lookup_context_group_validates_input_and_reports_not_found(
+    tmp_path: Path,
+) -> None:
+    connection = _part16_connection(tmp_path)
+
+    empty = lookup_context_group(connection, cid_or_name="  ", edition="2026b")
+    missing = lookup_context_group(
+        connection,
+        cid_or_name="CID 9999",
+        edition="2026b",
+    )
+
+    assert empty.status == "validation_error"
+    assert empty.result == {"message": "cid_or_name must not be empty."}
+    assert missing.status == "not_found"
+    assert missing.result == {"message": "No PS3.16 context group matched the input."}
 
 
 def test_lookup_code_meaning_returns_ps316_coded_concept(tmp_path: Path) -> None:
