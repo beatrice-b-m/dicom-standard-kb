@@ -73,6 +73,7 @@ def test_mcp_tool_names_match_supported_spec() -> None:
         "dicom_lookup_dicomweb_transaction",
         "dicom_lookup_sr_template",
         "dicom_lookup_context_group",
+        "dicom_lookup_code_meaning",
         "dicom_list_modules_for_iod",
         "dicom_list_attributes_for_module",
         "dicom_resolve_attribute_context",
@@ -343,6 +344,25 @@ def test_execute_mcp_tool_returns_context_group(tmp_path: Path) -> None:
                 "include_cid": "CID 30",
             },
         ],
+    }
+    assert payload["refs"][0]["part"] == "PS3.16"
+
+
+def test_execute_mcp_tool_returns_code_meaning(tmp_path: Path) -> None:
+    payload = execute_mcp_tool(
+        "dicom_lookup_code_meaning",
+        {"code_value": "CT", "scheme": "DCM"},
+        config=MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)),
+    )
+
+    assert payload["tool"] == "lookup_code_meaning"
+    assert payload["status"] == "ok"
+    assert payload["result"] == {
+        "code_value": "CT",
+        "coding_scheme_designator": "DCM",
+        "coding_scheme_version": None,
+        "code_meaning": "Computed Tomography",
+        "context_groups": ["CID 29"],
     }
     assert payload["refs"][0]["part"] == "PS3.16"
 

@@ -33,7 +33,7 @@ Status values:
 | Phase 2 - PS3.5 VR and transfer syntax semantics | Complete | `vr_definition` and `transfer_syntax_detail` import paths plus Python resolver functions, CLI commands, MCP tools, and official-edition golden test coverage are in place. The local 2026b official KB was rebuilt with Phase 2 rows and the transfer-syntax goldens execute and pass. |
 | Phase 3 - PS3.10 file meta and media foundation | Complete | `file_meta_requirement` and PS3.10-derived `dicom_media_type` parser/import/build wiring are in place for synthetic PS3.10 rows. The Python resolver, CLI command, and MCP tool cover the PS3.10 `lookup_media_type` baseline, including bounded cited text fallback for prose-only PS3.10 file format rules. |
 | Phase 4 - PS3.18 DICOMweb transactions | Complete | Synthetic PS3.18 DICOMweb transaction rows parse into `dicomweb_transaction` with route template, method, resource category, constraints, status codes, media-type refs, source refs, and build/import smoke coverage. Python, CLI, and MCP transaction lookup behavior are in place, and PS3.18 media-type rows now expand the existing `lookup_media_type` surface with DICOMweb request/response contexts. |
-| Phase 5 - PS3.16 SR templates, CIDs, and codes | In progress | SR template, context group, and coded concept parsing/import/build wiring are in place for synthetic PS3.16 fixtures. Python resolver functions and CLI commands now cover code meaning, context group, and SR template lookups; MCP public exposure now covers SR template and context group lookup. |
+| Phase 5 - PS3.16 SR templates, CIDs, and codes | In progress | SR template, context group, and coded concept parsing/import/build wiring are in place for synthetic PS3.16 fixtures. Python resolver functions and CLI commands now cover code meaning, context group, and SR template lookups; MCP public exposure now covers SR template, context group, and code meaning lookup. |
 | Phase 6 - Contextual enumerated values and defined terms | Not started | Satisfies v2 acceptance criterion 4. |
 | Phase 7 - Selected PS3.7/PS3.8 semantics | Not started | Completes selected networking/messaging scope and text fallback. |
 | Phase 8 - Evaluation harness expansion | Not started | Satisfies v2 acceptance criterion 6. |
@@ -45,7 +45,7 @@ Status values:
 |---|---|---|---|
 | 1 | Transfer syntax UID lookups return UID metadata plus encoding refs. | Complete | Python, CLI, and MCP surfaces exist with synthetic coverage; representative official-edition transfer-syntax goldens execute against the rebuilt local 2026b official KB and pass. |
 | 2 | DICOMweb transaction lookups return route, method, resource type, request/response constraints, and standard references. | Complete | Python resolver, CLI command, and MCP tool return parsed PS3.18 transaction rows by exact name or route template with ambiguous route candidates. |
-| 3 | TID and CID lookups return structured rows and extensibility metadata. | In progress | Python resolvers now return structured TID and CID rows with extensibility metadata; CLI exposure exists for TID, CID, and code lookup, and MCP exposure now exists for TID and CID lookup. Code MCP exposure remains pending before completion. |
+| 3 | TID and CID lookups return structured rows and extensibility metadata. | In progress | Python resolvers now return structured TID and CID rows with extensibility metadata; CLI exposure exists for TID, CID, and code lookup, and MCP exposure now exists for TID, CID, and code lookup. Legal/distribution doc audit remains before Phase 5 completion. |
 | 4 | Enumerated values and defined terms link to their attribute context. | Not started | Pending Phase 6. |
 | 5 | Fallback text retrieval covers prose-only rules. | In progress | PS3.10 media/file-format fallback now returns bounded cited text when no parsed media-type row matches; pending Phases 5 and 7 audit against other v2 parts. |
 | 6 | At least 100 coding-task regression prompts pass through deterministic tool calls before answer synthesis. | Not started | Pending Phase 8. |
@@ -57,11 +57,11 @@ Status values:
 | Current phase | Phase 5 - PS3.16 SR Templates, Context Groups, and Codes |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed commit | Pending current commit; previous completed commit was 334edf4. |
-| Last verification | `uv run --dev pytest tests/unit/test_mcp_server.py tests/unit/test_mcp_protocol.py` passed with 20 passed; sandboxed `make lint` and `make typecheck` each failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed; escalated `make test` passed with 290 passed and 4 skipped. |
+| Last completed commit | Pending current commit; previous completed commit was 8cea1ee. |
+| Last verification | `uv run --dev pytest tests/unit/test_mcp_server.py tests/unit/test_mcp_protocol.py` passed with 21 passed; sandboxed `make lint`, `make typecheck`, and `make test` each failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed; escalated `make test` passed with 291 passed and 4 skipped. |
 | Current blocker | None |
-| Commit-ready summary | Added the MCP `dicom_lookup_context_group` tool for the existing Python `lookup_context_group` resolver, with focused direct server execution and stdio protocol coverage using the synthetic PS3.16 fixture. |
-| Next recommended action | Continue Phase 5 with the next smallest public exposure slice: add the MCP `dicom_lookup_code_meaning` tool for the existing Python resolver; do not add legal/docs updates in that slice. |
+| Commit-ready summary | Added the MCP `dicom_lookup_code_meaning` tool for the existing Python `lookup_code_meaning` resolver, with focused direct server execution and stdio protocol coverage using the synthetic PS3.16 fixture. |
+| Next recommended action | Continue Phase 5 with the legal/distribution documentation audit for PS3.16 terminology. If existing docs already cover locally built terminology without standalone redistribution, record that decision and mark Phase 5 acceptance criterion 3 complete; otherwise update only the needed legal/docs text. |
 
 ## Phase 0 - V2 Contract Baseline
 
@@ -338,7 +338,7 @@ Completion checklist:
 - [x] Code lookup handles ambiguous code values.
 - [x] Python resolver functions exist and are tested.
 - [x] CLI commands exist and have snapshot tests.
-- [ ] MCP tools exist and have schema tests.
+- [x] MCP tools exist and have schema tests.
 - [ ] Legal/distribution docs are updated if needed.
 - [ ] V2 acceptance criterion 3 is marked complete.
 
@@ -356,7 +356,8 @@ Commits:
 | cba86d9 | Added the CLI `lookup context-group` command for the existing Python resolver, with focused CLI coverage against the synthetic PS3.16 fixture. | `uv run --dev pytest tests/unit/test_cli_lookup.py -k context_group`; `uv run --dev pytest tests/unit/test_cli_lookup.py`; `make lint`; `make typecheck`; `make test` |
 | ad773ce | Added the CLI `lookup code` command for the existing Python resolver, with focused CLI coverage against the synthetic PS3.16 fixture. | `uv run --dev pytest tests/unit/test_cli_lookup.py -k code`; `uv run --dev pytest tests/unit/test_cli_lookup.py`; `make lint`; `make typecheck`; `make test` |
 | 334edf4 | Added the MCP `dicom_lookup_sr_template` tool for the existing Python resolver, with focused MCP server and protocol coverage against the synthetic PS3.16 fixture. | `uv run --dev pytest tests/unit/test_mcp_server.py tests/unit/test_mcp_protocol.py`; sandboxed `make lint`, `make typecheck`, and `make test` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint`; escalated `make typecheck`; escalated `make test` |
-| Pending current commit | Added the MCP `dicom_lookup_context_group` tool for the existing Python resolver, with focused MCP server and protocol coverage against the synthetic PS3.16 fixture. | `uv run --dev pytest tests/unit/test_mcp_server.py tests/unit/test_mcp_protocol.py`; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint`; escalated `make typecheck`; escalated `make test` |
+| 8cea1ee | Added the MCP `dicom_lookup_context_group` tool for the existing Python resolver, with focused MCP server and protocol coverage against the synthetic PS3.16 fixture. | `uv run --dev pytest tests/unit/test_mcp_server.py tests/unit/test_mcp_protocol.py`; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint`; escalated `make typecheck`; escalated `make test` |
+| Pending current commit | Added the MCP `dicom_lookup_code_meaning` tool for the existing Python resolver, with focused MCP server and protocol coverage against the synthetic PS3.16 fixture. | `uv run --dev pytest tests/unit/test_mcp_server.py tests/unit/test_mcp_protocol.py`; sandboxed `make lint`, `make typecheck`, and `make test` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint`; escalated `make typecheck`; escalated `make test` |
 
 Notes:
 
@@ -407,6 +408,9 @@ Notes:
 - The context-group MCP slice exposes only the existing Python resolver
   through `dicom_lookup_context_group`. It intentionally does not add the
   code MCP tool or legal/docs updates.
+- The code-meaning MCP slice exposes only the existing Python resolver
+  through `dicom_lookup_code_meaning`, including optional scheme filtering.
+  It intentionally does not add legal/docs updates.
 
 ## Phase 6 - Contextual Enumerated Values and Defined Terms
 

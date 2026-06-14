@@ -181,6 +181,23 @@ def test_mcp_stdio_protocol_with_official_client(tmp_path: Path) -> None:
                 ] == "Computed Tomography"
                 assert context_group_payload["refs"][0]["part"] == "PS3.16"
 
+                code_meaning_result = await session.call_tool(
+                    "dicom_lookup_code_meaning",
+                    {"code_value": "CT", "scheme": "DCM"},
+                )
+                code_meaning_payload = _tool_payload(code_meaning_result)
+                assert code_meaning_payload["edition"] == "2026b"
+                assert code_meaning_payload["tool"] == "lookup_code_meaning"
+                assert code_meaning_payload["status"] == "ok"
+                assert code_meaning_payload["result"] == {
+                    "code_value": "CT",
+                    "coding_scheme_designator": "DCM",
+                    "coding_scheme_version": None,
+                    "code_meaning": "Computed Tomography",
+                    "context_groups": ["CID 29"],
+                }
+                assert code_meaning_payload["refs"][0]["part"] == "PS3.16"
+
     anyio.run(run_client)
 
 

@@ -11,6 +11,7 @@ from dicom_kb.query.resolver import (
     explain_encoding_rule,
     list_attributes_for_module,
     list_modules_for_iod,
+    lookup_code_meaning,
     lookup_context_group,
     lookup_data_element,
     lookup_defined_terms,
@@ -109,6 +110,12 @@ def dispatch_mcp_tool(
         "dicom_lookup_context_group": lambda: lookup_context_group(
             connection,
             cid_or_name=str(arguments["cid_or_name"]),
+            edition=edition,
+        ),
+        "dicom_lookup_code_meaning": lambda: lookup_code_meaning(
+            connection,
+            code_value=str(arguments["code_value"]),
+            scheme=_optional_string(arguments.get("scheme")),
             edition=edition,
         ),
         "dicom_list_modules_for_iod": lambda: list_modules_for_iod(
@@ -252,6 +259,17 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
                 return executor(
                     "dicom_lookup_context_group",
                     {"cid_or_name": cid_or_name},
+                )
+
+        elif spec["name"] == "dicom_lookup_code_meaning":
+            @_tool(server, name=spec["name"], description=spec["description"])
+            def dicom_lookup_code_meaning(
+                code_value: str,
+                scheme: str | None = None,
+            ) -> dict[str, Any]:
+                return executor(
+                    "dicom_lookup_code_meaning",
+                    {"code_value": code_value, "scheme": scheme},
                 )
 
         elif spec["name"] == "dicom_list_modules_for_iod":
