@@ -11,6 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from dicom_kb.eval.expected_tool_traces import EXPECTED_TOOL_TRACES
 from dicom_kb.eval.prompt_cases import (
     AGENT_REGRESSION_CASES,
     DATA_ELEMENTS,
@@ -176,7 +177,7 @@ def run_reference_agent_case(
         return response
 
     _run_case_route(case, invoke)
-    _ensure_source_reference(observed, invoke)
+    _ensure_source_reference(case, observed, invoke)
     return AgentRun(
         case_id=case.id,
         edition=edition,
@@ -655,13 +656,17 @@ def _observed_call(
         response_edition=response.edition,
         response_ref_count=len(response.refs),
         response_parts=tuple(sorted({ref.part for ref in response.refs})),
+        response_terms=_response_evidence_terms(response),
     )
 
 
 def _ensure_source_reference(
+    case: AgentRegressionCase,
     observed: list[ObservedToolCall],
     invoke: ToolInvoker,
 ) -> None:
+    if _requires_own_cited_tool_evidence(case.id):
+        return
     if any(
         call.response_status == "ok"
         and call.response_edition is not None
@@ -670,6 +675,13 @@ def _ensure_source_reference(
     ):
         return
     invoke("lookup_data_element", {"tag_or_keyword": "Modality"})
+
+
+def _requires_own_cited_tool_evidence(case_id: str) -> bool:
+    return any(
+        expected.required_status == "ok" and expected.required_parts
+        for expected in EXPECTED_TOOL_TRACES.get(case_id, ())
+    )
 
 
 def _reference_answer(
@@ -687,19 +699,117 @@ def _reference_answer(
             }
         )
     )
+    source_reference_text = (
+        "source references and citations"
+        if _run_has_source_references(tool_calls, edition=edition)
+        else "recorded tool output"
+    )
     warnings = (
         " warning" if any(call.response_status == "ok" for call in tool_calls) else ""
     )
-    required_terms = " ".join(
-        term
-        for term in case.must_include
-        if term not in {"edition", "source references"}
-    )
+    evidence_terms = " ".join(_answer_evidence_terms(tool_calls))
     return (
-        f"For edition {edition}, the reference agent used source references "
-        f"and citations from the recorded tool output. Tool statuses: {statuses}."
-        f"{warnings} {required_terms}"
+        f"For edition {edition}, the reference agent used {source_reference_text}. "
+        f"Tool statuses: {statuses}.{warnings} {evidence_terms}"
     )
+
+
+def _run_has_source_references(
+    tool_calls: tuple[ObservedToolCall, ...],
+    *,
+    edition: str,
+) -> bool:
+    return any(
+        call.response_status == "ok"
+        and call.response_edition == edition
+        and call.response_ref_count > 0
+        for call in tool_calls
+    )
+
+
+def _answer_evidence_terms(
+    tool_calls: tuple[ObservedToolCall, ...],
+) -> tuple[str, ...]:
+    terms: list[str] = []
+    for call in tool_calls:
+        terms.extend(_tool_label_terms(call.tool))
+        terms.extend(call.response_terms)
+    return tuple(_dedupe_terms(terms))
+
+
+def _response_evidence_terms(response: ToolResponse) -> tuple[str, ...]:
+    terms: list[str] = []
+    status = response.status.replace("_", " ")
+    terms.append(status)
+    if response.status != "ok":
+        terms.append("unsupported")
+        if response.status == "validation_error":
+            terms.append("validation")
+    terms.extend(ref.part for ref in response.refs)
+    if response.result is not None:
+        terms.extend(_payload_terms(response.result))
+    return tuple(_dedupe_terms(terms))
+
+
+def _payload_terms(payload: object) -> tuple[str, ...]:
+    terms: list[str] = []
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            label = key.replace("_", " ")
+            terms.append(label)
+            terms.extend(_combined_identifier_terms(key, value))
+            terms.extend(_payload_terms(value))
+    elif isinstance(payload, list | tuple):
+        for value in payload:
+            terms.extend(_payload_terms(value))
+    elif isinstance(payload, str):
+        text = " ".join(payload.split())
+        if text and len(text) <= 160:
+            terms.append(text)
+    elif isinstance(payload, bool):
+        terms.append("retired" if payload else "not retired")
+    elif payload is not None:
+        terms.append(str(payload))
+    return tuple(terms)
+
+
+def _combined_identifier_terms(key: str, value: object) -> tuple[str, ...]:
+    if not isinstance(value, str) or not value:
+        return ()
+    if key == "tid":
+        return (f"TID {value}",)
+    if key == "cid":
+        return (f"CID {value}",)
+    return ()
+
+
+def _tool_label_terms(tool: str) -> tuple[str, ...]:
+    normalized = tool.removeprefix("dicom_").replace("_", " ")
+    terms = [normalized]
+    if "dicomweb" in normalized:
+        terms.append("DICOMweb")
+    if "code" in normalized:
+        terms.append("code")
+    if "sr template" in normalized:
+        terms.append("TID")
+    if "context group" in normalized:
+        terms.append("CID")
+    return tuple(terms)
+
+
+def _dedupe_terms(terms: list[str]) -> tuple[str, ...]:
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for term in terms:
+        normalized = " ".join(term.split())
+        if not normalized:
+            continue
+        key = normalized.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(normalized)
+    return tuple(deduped)
 
 
 def _entity_from_slug(

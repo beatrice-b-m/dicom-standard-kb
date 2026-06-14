@@ -78,7 +78,7 @@
             <row><entry>Topic</entry><entry>Rule</entry></row>
           </thead>
           <tbody>
-            <row><entry>File Preamble</entry><entry>Prose-only rule.</entry></row>
+            <row><entry>File Preamble</entry><entry>Fallback Prose-only rule.</entry></row>
           </tbody>
         </tgroup>
       </table>

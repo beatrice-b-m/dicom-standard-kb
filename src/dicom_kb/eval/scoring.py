@@ -19,6 +19,7 @@ class ObservedToolCall(BaseModel):
     response_edition: str | None = None
     response_ref_count: int = 0
     response_parts: tuple[str, ...] = ()
+    response_terms: tuple[str, ...] = ()
 
 
 class AgentRun(BaseModel):
