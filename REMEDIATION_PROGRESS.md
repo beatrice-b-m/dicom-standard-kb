@@ -35,8 +35,8 @@ Status values:
 
 | Area | Status | Notes |
 |---|---|---|
-| Planning scaffold | Complete | `REMEDIATION_PLAN.md`, this progress tracker, and ignored `scripts/run_codex_remediation.sh` are being introduced in the current commit. |
-| Phase R0 - Reproduce and inventory the gap | Not started | First remediation slice should record manifest parts, semantic row counts, CLI spot checks, current official-golden skips, and current agent-regression behavior. |
+| Planning scaffold | Complete | `REMEDIATION_PLAN.md` and this progress tracker exist. |
+| Phase R0 - Reproduce and inventory the gap | Complete | Local 2026b official cache contains only PS3.3/PS3.4/PS3.6; named v2 semantic lookups return `not_found`, while current official goldens pass with skips and agent regression passes. |
 | Phase R1 - Separate smoke tests from release gates | Not started | Strict release gates must reject reduced PS3.3/PS3.4/PS3.6 official KBs while preserving smoke coverage. |
 | Phase R2 - Repair official-shape PS3.16 ingestion | Not started | Parser/import/resolver behavior must handle official TID/CID/code table shapes, not only synthetic TID/CID columns. |
 | Phase R3 - Pin strict official goldens | Not started | Strict official positive tests must cover PN, application/dicom, RetrieveStudy, TID 1500, CID 29, and CT/DCM. |
@@ -47,18 +47,18 @@ Status values:
 
 | Field | Value |
 |---|---|
-| Current phase | Planning scaffold |
+| Current phase | Phase R0 - Reproduce and inventory the gap |
 | Current owner/agent | Codex |
 | Branch | main |
 | Last completed remediation commit | Pending current commit. |
-| Last verification | `bash -n scripts/run_codex_remediation.sh` passed; bounded `scripts/run_codex_remediation.sh --dry-run --output-dir /tmp/dicom-kb-remediation-dry-run2` printed the generated remediation prompt. |
+| Last verification | `jq -r '.edition as $edition \| .resolved_from as $resolved \| "edition=\\($edition) resolved_from=\\($resolved)", (.artifacts \| group_by(.part)[] \| "\\(.[0].part): " + (map(.format) \| unique \| join(",")))' /Users/beatrice/.cache/dicom-standard-kb/artifacts/2026b/manifest.json` passed and reported only PS3.3, PS3.4, and PS3.6 DocBook XML; `sqlite3 /Users/beatrice/.cache/dicom-standard-kb/db/2026b.sqlite "SELECT ..."` passed and recorded the required row counts below; six named CLI spot checks passed as commands and returned structured `not_found`; `uv run --dev pytest tests/integration_requires_dicom_download/test_real_kb_goldens.py -rs` passed with 40 passed and 6 skipped; `uv run --dev pytest tests/agent_regression` passed with 21 passed. |
 | Current blocker | None. |
-| Commit-ready summary | Created the concrete phased remediation plan and durable progress tracker that convert `IMPLEMENTATION_PLAN_REVIEW.md` findings into scoped follow-up work. |
-| Next recommended action | Start Phase R0 by recording the current official manifest parts, required semantic table row counts, named CLI spot checks, current official-golden skip behavior, and current agent-regression behavior. |
+| Commit-ready summary | Recorded the R0 false-positive baseline showing that the current reduced official KB lacks required v2 semantic facts but still satisfies the current official-golden and agent-regression gates. |
+| Next recommended action | Start Phase R1 with the smallest strict-gate slice: add a shared official-KB requirement helper and focused unit tests for complete, missing-part, and missing-row scenarios before wiring it into Makefile targets or broad integration gates. |
 
 ## Phase R0 - Reproduce and Inventory the Gap
 
-Status: `Not started`
+Status: `Complete`
 
 Scope:
 
@@ -69,24 +69,67 @@ Scope:
 
 Completion checklist:
 
-- [ ] Manifest part inventory recorded.
-- [ ] Required semantic table row counts recorded.
-- [ ] CLI spot checks recorded for PN, application/dicom, RetrieveStudy,
+- [x] Manifest part inventory recorded.
+- [x] Required semantic table row counts recorded.
+- [x] CLI spot checks recorded for PN, application/dicom, RetrieveStudy,
       TID 1500, CID 29, and CT/DCM.
-- [ ] Current official golden skip/pass behavior recorded.
-- [ ] Current agent regression behavior recorded.
-- [ ] Next code slice selected.
+- [x] Current official golden skip/pass behavior recorded.
+- [x] Current agent regression behavior recorded.
+- [x] Next code slice selected.
+
+Evidence:
+
+- Local cache selected by the integration fixtures: edition `2026b` from
+  `/Users/beatrice/.cache/dicom-standard-kb`, resolved from `current`.
+- Manifest part inventory:
+  - `PS3.3`: `docbook_xml`
+  - `PS3.4`: `docbook_xml`
+  - `PS3.6`: `docbook_xml`
+  - Missing required v2 release parts: `PS3.5`, `PS3.7`, `PS3.8`,
+    `PS3.10`, `PS3.16`, and `PS3.18`.
+- Required semantic row counts in
+  `/Users/beatrice/.cache/dicom-standard-kb/db/2026b.sqlite`:
+  - `vr_definition`: 0
+  - `transfer_syntax_detail`: 63
+  - `file_meta_requirement`: 0
+  - `dicom_media_type`: 0
+  - `dicomweb_transaction`: 0
+  - `sr_template`: 0
+  - `sr_template_row`: 0
+  - `context_group`: 0
+  - `context_group_row`: 0
+  - `coded_concept`: 0
+  - `attribute_value_term`: 4644
+- CLI spot checks against edition `2026b`:
+  - `uv run --dev dicom-kb lookup vr PN --edition 2026b`: `not_found`
+    with message `No PS3.5 VR definition matched the input.`
+  - `uv run --dev dicom-kb lookup media-type application/dicom --edition 2026b`:
+    `not_found` with message `No DICOM media type matched the input.`
+  - `uv run --dev dicom-kb lookup dicomweb RetrieveStudy --edition 2026b`:
+    `not_found` with message `No DICOMweb transaction matched the input.`
+  - `uv run --dev dicom-kb lookup sr-template 1500 --edition 2026b`:
+    `not_found` with message `No PS3.16 SR template matched the input.`
+  - `uv run --dev dicom-kb lookup context-group 29 --edition 2026b`:
+    `not_found` with message `No PS3.16 context group matched the input.`
+  - `uv run --dev dicom-kb lookup code CT --scheme DCM --edition 2026b`:
+    `not_found` with message `No PS3.16 coded concept matched the input.`
+- Current gate behavior:
+  - `uv run --dev pytest tests/integration_requires_dicom_download/test_real_kb_goldens.py -rs`:
+    passed with 40 passed and 6 skipped. The skipped prerequisites were
+    missing `vr_definition`, missing PS3.10 `dicom_media_type`, missing
+    PS3.18 `dicomweb_transaction`, missing PS3.16 `sr_template`, missing
+    PS3.16 `context_group`, and missing PS3.16 `coded_concept` rows.
+  - `uv run --dev pytest tests/agent_regression`: passed with 21 passed.
 
 Commits:
 
 | Commit | Summary | Verification |
 |---|---|---|
-| Pending | No Phase R0 commit yet. | Pending |
+| Pending current commit | Recorded manifest, row-count, CLI spot-check, official-golden skip, and agent-regression baseline evidence. | `uv run --dev pytest tests/integration_requires_dicom_download/test_real_kb_goldens.py -rs`; `uv run --dev pytest tests/agent_regression` |
 
 Notes:
 
-- This phase should not change production behavior unless a tiny diagnostic
-  helper is required.
+- This phase did not change production behavior.
 
 ## Phase R1 - Separate Smoke Tests from Release Gates
 
@@ -229,3 +272,13 @@ Commits:
 |---|---|---|---|
 | 2026-06-14 | `bash -n scripts/run_codex_remediation.sh` | Passed | Validated the ignored remediation runner syntax. |
 | 2026-06-14 | `/usr/bin/perl -e 'alarm 5; exec @ARGV' scripts/run_codex_remediation.sh --dry-run --output-dir /tmp/dicom-kb-remediation-dry-run2` | Passed | Bounded dry run printed the generated remediation prompt. |
+| 2026-06-14 | `jq -r '.edition as $edition \| .resolved_from as $resolved \| "edition=\\($edition) resolved_from=\\($resolved)", (.artifacts \| group_by(.part)[] \| "\\(.[0].part): " + (map(.format) \| unique \| join(",")))' /Users/beatrice/.cache/dicom-standard-kb/artifacts/2026b/manifest.json` | Passed | Reported edition `2026b`, resolved from `current`, with only PS3.3, PS3.4, and PS3.6 DocBook XML artifacts. |
+| 2026-06-14 | `sqlite3 /Users/beatrice/.cache/dicom-standard-kb/db/2026b.sqlite "SELECT 'vr_definition', COUNT(*) FROM vr_definition UNION ALL ..."` | Passed | Recorded required v2 semantic table row counts in Phase R0 evidence. |
+| 2026-06-14 | `uv run --dev dicom-kb lookup vr PN --edition 2026b` | Passed command; returned `not_found` | Missing PS3.5 VR definition. |
+| 2026-06-14 | `uv run --dev dicom-kb lookup media-type application/dicom --edition 2026b` | Passed command; returned `not_found` | Missing PS3.10/PS3.18 media-type rows. |
+| 2026-06-14 | `uv run --dev dicom-kb lookup dicomweb RetrieveStudy --edition 2026b` | Passed command; returned `not_found` | Missing PS3.18 DICOMweb transaction rows. |
+| 2026-06-14 | `uv run --dev dicom-kb lookup sr-template 1500 --edition 2026b` | Passed command; returned `not_found` | Missing PS3.16 SR template rows. |
+| 2026-06-14 | `uv run --dev dicom-kb lookup context-group 29 --edition 2026b` | Passed command; returned `not_found` | Missing PS3.16 context group rows. |
+| 2026-06-14 | `uv run --dev dicom-kb lookup code CT --scheme DCM --edition 2026b` | Passed command; returned `not_found` | Missing PS3.16 coded concept rows. |
+| 2026-06-14 | `uv run --dev pytest tests/integration_requires_dicom_download/test_real_kb_goldens.py -rs` | Passed | 40 passed, 6 skipped; skipped v2 goldens for missing VR, media-type, DICOMweb, SR template, context group, and coded-concept rows. |
+| 2026-06-14 | `uv run --dev pytest tests/agent_regression` | Passed | 21 passed, confirming current agent regression still passes against the reduced official KB. |
