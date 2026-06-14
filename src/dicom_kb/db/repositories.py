@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from dataclasses import dataclass
 from typing import cast
@@ -21,7 +22,9 @@ from dicom_kb.ir.models import (
     SOPClass,
     SOPClassIOD,
     SourceRef,
+    TransferSyntaxDetail,
     UIDRegistryEntry,
+    VRDefinition,
 )
 from dicom_kb.ir.validators import IdentifierValidationError, normalize_tag, tag_matches
 
@@ -79,6 +82,14 @@ class AttributeValueTermRecord:
 
     term: AttributeValueTerm
     data_element: DataElement | None = None
+
+
+@dataclass(frozen=True)
+class TransferSyntaxDetailRecord:
+    """A transfer-syntax detail row joined to its PS3.6 UID registry entry."""
+
+    detail: TransferSyntaxDetail
+    uid: UIDRegistryEntry
 
 
 class DocumentRepository:
@@ -280,6 +291,87 @@ class UIDRepository:
             (edition, uid_or_keyword, uid_or_keyword),
         ).fetchone()
         return _uid_from_row(row) if row else None
+
+
+class Part05Repository:
+    """Lookup imported PS3.5 encoding semantics."""
+
+    def __init__(self, connection: sqlite3.Connection) -> None:
+        self.connection = connection
+
+    def find_vr(self, vr: str, *, edition: str) -> VRDefinition | None:
+        """Return a VR definition by exact VR code."""
+        row = self.connection.execute(
+            """
+            SELECT vr.*, sr.part AS source_part, sr.section AS source_section,
+                   sr.table_id AS source_table_id, sr.xml_id AS source_xml_id,
+                   sr.title AS source_title, sr.canonical_url AS source_url
+            FROM vr_definition vr
+            JOIN source_ref sr ON sr.id = vr.source_ref_id
+            WHERE vr.edition_id = ? AND upper(vr.vr) = upper(?)
+            """,
+            (edition, vr),
+        ).fetchone()
+        return _vr_definition_from_row(row) if row else None
+
+    def find_transfer_syntax(
+        self, uid_or_keyword: str, *, edition: str
+    ) -> TransferSyntaxDetailRecord | None:
+        """Return encoding details joined to a transfer syntax UID row."""
+        row = self.connection.execute(
+            """
+            SELECT
+              detail.id AS detail_id,
+              detail.edition_id AS detail_edition_id,
+              detail.uid_registry_entry_id AS detail_uid_registry_entry_id,
+              detail.uid_value AS detail_uid_value,
+              detail.explicit_vr AS detail_explicit_vr,
+              detail.endian AS detail_endian,
+              detail.encapsulated AS detail_encapsulated,
+              detail.compression_family AS detail_compression_family,
+              detail.encoding_notes_json AS detail_encoding_notes_json,
+              detail.source_ref_id AS detail_source_ref_id,
+              detail_sr.part AS detail_source_part,
+              detail_sr.section AS detail_source_section,
+              detail_sr.table_id AS detail_source_table_id,
+              detail_sr.xml_id AS detail_source_xml_id,
+              detail_sr.title AS detail_source_title,
+              detail_sr.canonical_url AS detail_source_url,
+              uid.id AS uid_id,
+              uid.edition_id AS uid_edition_id,
+              uid.uid_value AS uid_uid_value,
+              uid.uid_name AS uid_uid_name,
+              uid.uid_keyword AS uid_uid_keyword,
+              uid.uid_type AS uid_uid_type,
+              uid.part AS uid_part,
+              uid.retired AS uid_retired,
+              uid.retired_in_or_last_seen AS uid_retired_in_or_last_seen,
+              uid.source_ref_id AS uid_source_ref_id,
+              uid_sr.part AS uid_source_part,
+              uid_sr.section AS uid_source_section,
+              uid_sr.table_id AS uid_source_table_id,
+              uid_sr.xml_id AS uid_source_xml_id,
+              uid_sr.title AS uid_source_title,
+              uid_sr.canonical_url AS uid_source_url
+            FROM transfer_syntax_detail detail
+            JOIN source_ref detail_sr ON detail_sr.id = detail.source_ref_id
+            JOIN uid_registry_entry uid ON uid.id = detail.uid_registry_entry_id
+            JOIN source_ref uid_sr ON uid_sr.id = uid.source_ref_id
+            WHERE detail.edition_id = ?
+              AND (
+                detail.uid_value = ?
+                OR lower(uid.uid_keyword) = lower(?)
+                OR lower(uid.uid_name) = lower(?)
+              )
+            """,
+            (edition, uid_or_keyword, uid_or_keyword, uid_or_keyword),
+        ).fetchone()
+        if row is None:
+            return None
+        return TransferSyntaxDetailRecord(
+            detail=_transfer_syntax_detail_from_prefixed_row(row),
+            uid=_uid_from_prefixed_row(row, "uid"),
+        )
 
 
 class AttributeValueTermRepository:
@@ -880,6 +972,23 @@ def _uid_from_row(row: sqlite3.Row) -> UIDRegistryEntry:
     )
 
 
+def _vr_definition_from_row(row: sqlite3.Row) -> VRDefinition:
+    return VRDefinition(
+        id=str(row["id"]),
+        edition_id=str(row["edition_id"]),
+        vr=str(row["vr"]),
+        name=str(row["name"]),
+        value_representation_class=row["value_representation_class"],
+        length_notes=tuple(json.loads(str(row["length_notes_json"]))),
+        padding_behavior=row["padding_behavior"],
+        character_repertoire_notes=tuple(
+            json.loads(str(row["character_repertoire_notes_json"]))
+        ),
+        binary_or_text=row["binary_or_text"],
+        source_ref=_source_ref_from_row(row),
+    )
+
+
 def _id_order(value: str) -> int:
     suffix = value.rsplit(".", maxsplit=1)[-1]
     return int(suffix) if suffix.isdigit() else 0
@@ -949,6 +1058,42 @@ def _data_element_from_prefixed_row(row: sqlite3.Row, prefix: str) -> DataElemen
         retired=bool(row[f"{prefix}_retired"]),
         retired_in_or_last_seen=row[f"{prefix}_retired_in_or_last_seen"],
         source_ref=_source_ref_from_prefixed_row(row, prefix),
+    )
+
+
+def _uid_from_prefixed_row(row: sqlite3.Row, prefix: str) -> UIDRegistryEntry:
+    return UIDRegistryEntry(
+        id=str(row[f"{prefix}_id"]),
+        edition_id=str(row[f"{prefix}_edition_id"]),
+        uid_value=str(row[f"{prefix}_uid_value"]),
+        uid_name=str(row[f"{prefix}_uid_name"]),
+        uid_keyword=row[f"{prefix}_uid_keyword"],
+        uid_type=str(row[f"{prefix}_uid_type"]),
+        part=row[f"{prefix}_part"],
+        retired=bool(row[f"{prefix}_retired"]),
+        retired_in_or_last_seen=row[f"{prefix}_retired_in_or_last_seen"],
+        source_ref=_source_ref_from_prefixed_row(row, prefix),
+    )
+
+
+def _optional_bool(value: object) -> bool | None:
+    return None if value is None else bool(value)
+
+
+def _transfer_syntax_detail_from_prefixed_row(
+    row: sqlite3.Row,
+) -> TransferSyntaxDetail:
+    return TransferSyntaxDetail(
+        id=str(row["detail_id"]),
+        edition_id=str(row["detail_edition_id"]),
+        uid_registry_entry_id=str(row["detail_uid_registry_entry_id"]),
+        uid_value=str(row["detail_uid_value"]),
+        explicit_vr=_optional_bool(row["detail_explicit_vr"]),
+        endian=row["detail_endian"],
+        encapsulated=_optional_bool(row["detail_encapsulated"]),
+        compression_family=row["detail_compression_family"],
+        encoding_notes=tuple(json.loads(str(row["detail_encoding_notes_json"]))),
+        source_ref=_source_ref_from_prefixed_row(row, "detail"),
     )
 
 

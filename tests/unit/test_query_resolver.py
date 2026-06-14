@@ -10,14 +10,21 @@ from dicom_kb.db.importers import (
     import_part03,
     import_part04,
     import_part06,
+    import_transfer_syntax_details,
+    import_vr_definitions,
 )
 from dicom_kb.db.models import apply_migrations, connect_sqlite
 from dicom_kb.docbook.parser import parse_docbook_xml
 from dicom_kb.ir.models import AttributeUse, Macro, SourceRef
 from dicom_kb.parsers.part03_iods import parse_part03
 from dicom_kb.parsers.part04_sop_classes import parse_part04
+from dicom_kb.parsers.part05_encoding import (
+    parse_part05,
+    transfer_syntax_details_from_uid_registry,
+)
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
 from dicom_kb.query.resolver import (
+    explain_encoding_rule,
     list_attributes_for_module,
     list_modules_for_iod,
     lookup_data_element,
@@ -25,7 +32,9 @@ from dicom_kb.query.resolver import (
     lookup_enumerated_values,
     lookup_iod,
     lookup_sop_class,
+    lookup_transfer_syntax,
     lookup_uid,
+    lookup_vr,
     resolve_attribute_context,
     retrieve_standard_text,
     search_standard_text,
@@ -33,6 +42,7 @@ from dicom_kb.query.resolver import (
 from tests.fixtures_synthetic import (
     PS33_CT_IMAGE_DOCBOOK,
     PS34_SOP_CLASSES_DOCBOOK,
+    PS35_ENCODING_DOCBOOK,
     PS36_REGISTRY_DOCBOOK,
 )
 
@@ -100,6 +110,37 @@ def _part034_connection(tmp_path: Path) -> sqlite3.Connection:
         service_classes=parsed.service_classes,
         sop_classes=parsed.sop_classes,
         sop_class_iods=parsed.sop_class_iods,
+    )
+    return connection
+
+
+def _part05_connection(tmp_path: Path) -> sqlite3.Connection:
+    connection = _connection(tmp_path)
+    parsed_part05 = parse_part05(
+        parse_docbook_xml(PS35_ENCODING_DOCBOOK, part="PS3.5"),
+        edition="2026b",
+    )
+    import_docbook_structure(
+        connection,
+        edition="2026b",
+        document=parse_docbook_xml(PS35_ENCODING_DOCBOOK, part="PS3.5"),
+    )
+    import_vr_definitions(
+        connection,
+        edition="2026b",
+        vr_definitions=parsed_part05.vr_definitions,
+    )
+    parsed_part06 = parse_part06(
+        parse_docbook_xml(PS36_REGISTRY_DOCBOOK, part="PS3.6"),
+        edition="2026b",
+    )
+    import_transfer_syntax_details(
+        connection,
+        edition="2026b",
+        transfer_syntax_details=transfer_syntax_details_from_uid_registry(
+            edition="2026b",
+            uid_registry_entries=parsed_part06.uid_registry_entries,
+        ),
     )
     return connection
 
@@ -487,6 +528,166 @@ def test_lookup_uid_reports_retired_entry(tmp_path: Path) -> None:
         "retired": True,
     }
     assert response.refs[0].part == "PS3.6"
+
+
+def test_lookup_vr_returns_ps35_definition(tmp_path: Path) -> None:
+    response = lookup_vr(
+        _part05_connection(tmp_path),
+        vr="pn",
+        edition="2026b",
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert response.status == "ok"
+    assert response.result == {
+        "vr": "PN",
+        "name": "Person Name",
+        "value_representation_class": "character string",
+        "length_notes": ["variable length"],
+        "padding_behavior": "space padded",
+        "character_repertoire_notes": [
+            "uses the default character repertoire",
+        ],
+        "binary_or_text": "text",
+    }
+    assert response.refs[0].part == "PS3.5"
+    assert response.refs[0].table == "Synthetic VR Behaviors"
+    assert response.classification.evidence_level == "parsed_table"
+    assert response.trace.query_id == "query-1"
+
+
+def test_lookup_vr_validates_code_and_reports_not_found(tmp_path: Path) -> None:
+    connection = _part05_connection(tmp_path)
+
+    malformed = lookup_vr(connection, vr="PERSON", edition="2026b")
+    missing = lookup_vr(connection, vr="AE", edition="2026b")
+
+    assert malformed.status == "validation_error"
+    assert malformed.result is not None
+    assert "two-letter" in str(malformed.result["message"])
+    assert missing.status == "not_found"
+    assert missing.result == {"message": "No PS3.5 VR definition matched the input."}
+
+
+def test_lookup_transfer_syntax_returns_uid_metadata_and_encoding_details(
+    tmp_path: Path,
+) -> None:
+    response = lookup_transfer_syntax(
+        _part05_connection(tmp_path),
+        uid_or_keyword="ExplicitVRLittleEndian",
+        edition="2026b",
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert response.status == "ok"
+    assert response.result == {
+        "uid_value": "1.2.840.10008.1.2.1",
+        "uid_name": "Explicit VR Little Endian",
+        "uid_keyword": "ExplicitVRLittleEndian",
+        "explicit_vr": True,
+        "endian": "little",
+        "encapsulated": False,
+        "compression_family": None,
+        "retired": False,
+        "encoding_notes": [],
+    }
+    assert {ref.part for ref in response.refs} == {"PS3.6"}
+    assert response.classification.evidence_level == "parsed_cross_reference"
+    assert response.trace.query_id == "query-1"
+
+
+def test_lookup_transfer_syntax_validates_uid_and_reports_not_found(
+    tmp_path: Path,
+) -> None:
+    connection = _part05_connection(tmp_path)
+
+    malformed = lookup_transfer_syntax(
+        connection,
+        uid_or_keyword="1.2.bad",
+        edition="2026b",
+    )
+    missing = lookup_transfer_syntax(
+        connection,
+        uid_or_keyword="1.2.840.10008.999",
+        edition="2026b",
+    )
+
+    assert malformed.status == "validation_error"
+    assert malformed.result is not None
+    assert "malformed DICOM UID" in malformed.result["message"]
+    assert missing.status == "not_found"
+    assert missing.result == {"message": "No transfer syntax detail matched the input."}
+
+
+def test_explain_encoding_rule_uses_structured_vr_rows(tmp_path: Path) -> None:
+    response = explain_encoding_rule(
+        _part05_connection(tmp_path),
+        topic="OB",
+        edition="2026b",
+        query_id="query-1",
+        resolved_at=RESOLVED_AT,
+    )
+
+    assert response.status == "ok"
+    assert response.result is not None
+    assert response.result["summary"] == "OB is the Other Byte VR."
+    assert response.result["structured_facts"] == [
+        "name: Other Byte",
+        "value representation class: byte string",
+        "binary or text: binary",
+        "padding behavior: null padded",
+        "length note: variable length",
+    ]
+    assert response.refs[0].part == "PS3.5"
+    assert response.classification.evidence_level == "retrieved_text"
+
+
+def test_explain_encoding_rule_uses_transfer_syntax_details(
+    tmp_path: Path,
+) -> None:
+    response = explain_encoding_rule(
+        _part05_connection(tmp_path),
+        topic="JPEG Baseline (Process 1)",
+        edition="2026b",
+    )
+
+    assert response.status == "ok"
+    assert response.result is not None
+    assert response.result["structured_facts"] == [
+        "encapsulated: true",
+        "compression family: jpeg",
+        "encoding note: jpeg compressed transfer syntax",
+        "encoding note: encapsulated pixel data",
+    ]
+    assert response.refs[0].part == "PS3.6"
+
+
+def test_explain_encoding_rule_falls_back_to_cited_ps35_text(
+    tmp_path: Path,
+) -> None:
+    response = explain_encoding_rule(
+        _part05_connection(tmp_path),
+        topic="Encoding Overview",
+        edition="2026b",
+    )
+
+    assert response.status == "ok"
+    assert response.result is not None
+    assert response.result["text_excerpt"]
+    assert response.refs[0].part == "PS3.5"
+
+
+def test_explain_encoding_rule_validates_empty_topic(tmp_path: Path) -> None:
+    response = explain_encoding_rule(
+        _part05_connection(tmp_path),
+        topic="   ",
+        edition="2026b",
+    )
+
+    assert response.status == "validation_error"
+    assert response.result == {"message": "topic must not be empty."}
 
 
 def test_retrieve_standard_text_returns_capped_excerpt_and_tables(
