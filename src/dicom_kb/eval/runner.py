@@ -401,7 +401,7 @@ def _run_v2_tool_case(case_id: str, invoke: ToolInvoker) -> None:
     elif case_key == "encoding_rule.sequence":
         invoke("explain_encoding_rule", {"topic": "SQ"})
     elif case_key == "media_type.dicom_file":
-        invoke("lookup_media_type", {"media_type_or_context": "application/dicom"})
+        invoke("lookup_media_type", {"media_type_or_context": "file"})
     elif case_key == "dicomweb.retrieve_study":
         invoke("lookup_dicomweb_transaction", {"name_or_route": "RetrieveStudy"})
     elif case_key == "sr_template.measurement_report":
@@ -470,7 +470,7 @@ def _run_v2_tool_case(case_id: str, invoke: ToolInvoker) -> None:
         invoke("lookup_transfer_syntax", {"uid_or_keyword": uid})
     elif case_key == "workflow.dicomweb_retrieve_media_type":
         invoke("lookup_dicomweb_transaction", {"name_or_route": "RetrieveStudy"})
-        invoke("lookup_media_type", {"media_type_or_context": "application/dicom"})
+        invoke("lookup_media_type", {"media_type_or_context": "WADO-RS response"})
     elif case_key == "workflow.dicomweb_store_media_type":
         invoke("lookup_dicomweb_transaction", {"name_or_route": "StoreInstances"})
         invoke("lookup_media_type", {"media_type_or_context": "STOW-RS request"})
@@ -654,6 +654,7 @@ def _observed_call(
         response_status=response.status,
         response_edition=response.edition,
         response_ref_count=len(response.refs),
+        response_parts=tuple(sorted({ref.part for ref in response.refs})),
     )
 
 

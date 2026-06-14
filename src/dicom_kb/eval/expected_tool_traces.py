@@ -12,6 +12,23 @@ class ExpectedToolCall(BaseModel):
 
     tool: str
     arguments: dict[str, str] = Field(default_factory=dict)
+    required_status: str | None = None
+    required_parts: tuple[str, ...] = ()
+
+
+def cited_ok(
+    tool: str,
+    *,
+    arguments: dict[str, str],
+    required_parts: tuple[str, ...],
+) -> ExpectedToolCall:
+    """Declare a positive expected call that must return cited evidence."""
+    return ExpectedToolCall(
+        tool=tool,
+        arguments=arguments,
+        required_status="ok",
+        required_parts=required_parts,
+    )
 
 
 EXPECTED_TOOL_TRACES: dict[str, tuple[ExpectedToolCall, ...]] = {
@@ -66,48 +83,59 @@ EXPECTED_TOOL_TRACES: dict[str, tuple[ExpectedToolCall, ...]] = {
         ),
     ),
     "agent.v2.vr.person_name": (
-        ExpectedToolCall(tool="lookup_vr", arguments={"vr": "PN"}),
+        cited_ok(
+            "lookup_vr",
+            arguments={"vr": "PN"},
+            required_parts=("PS3.5",),
+        ),
     ),
     "agent.v2.transfer_syntax.explicit_little": (
-        ExpectedToolCall(
-            tool="lookup_transfer_syntax",
+        cited_ok(
+            "lookup_transfer_syntax",
             arguments={"uid_or_keyword": "1.2.840.10008.1.2.1"},
+            required_parts=("PS3.6",),
         ),
     ),
     "agent.v2.encoding_rule.sequence": (
-        ExpectedToolCall(
-            tool="explain_encoding_rule",
+        cited_ok(
+            "explain_encoding_rule",
             arguments={"topic": "SQ"},
+            required_parts=("PS3.5",),
         ),
     ),
     "agent.v2.media_type.dicom_file": (
-        ExpectedToolCall(
-            tool="lookup_media_type",
-            arguments={"media_type_or_context": "application/dicom"},
+        cited_ok(
+            "lookup_media_type",
+            arguments={"media_type_or_context": "file"},
+            required_parts=("PS3.10",),
         ),
     ),
     "agent.v2.dicomweb.retrieve_study": (
-        ExpectedToolCall(
-            tool="lookup_dicomweb_transaction",
+        cited_ok(
+            "lookup_dicomweb_transaction",
             arguments={"name_or_route": "RetrieveStudy"},
+            required_parts=("PS3.18",),
         ),
     ),
     "agent.v2.sr_template.measurement_report": (
-        ExpectedToolCall(
-            tool="lookup_sr_template",
+        cited_ok(
+            "lookup_sr_template",
             arguments={"tid_or_name": "1500"},
+            required_parts=("PS3.16",),
         ),
     ),
     "agent.v2.context_group.acquisition_modality": (
-        ExpectedToolCall(
-            tool="lookup_context_group",
+        cited_ok(
+            "lookup_context_group",
             arguments={"cid_or_name": "29"},
+            required_parts=("PS3.16",),
         ),
     ),
     "agent.v2.code_meaning.ct": (
-        ExpectedToolCall(
-            tool="lookup_code_meaning",
+        cited_ok(
+            "lookup_code_meaning",
             arguments={"code_value": "CT", "scheme": "DCM"},
+            required_parts=("PS3.16",),
         ),
     ),
     "agent.v2.unsupported.transfer_syntax.unknown_uid": (
@@ -183,7 +211,11 @@ EXPECTED_TOOL_TRACES: dict[str, tuple[ExpectedToolCall, ...]] = {
         ),
     ),
     "agent.v2.workflow.person_name_vr_defined_terms": (
-        ExpectedToolCall(tool="lookup_vr", arguments={"vr": "PN"}),
+        cited_ok(
+            "lookup_vr",
+            arguments={"vr": "PN"},
+            required_parts=("PS3.5",),
+        ),
         ExpectedToolCall(
             tool="lookup_data_element",
             arguments={"tag_or_keyword": "Patient's Name"},
@@ -194,28 +226,49 @@ EXPECTED_TOOL_TRACES: dict[str, tuple[ExpectedToolCall, ...]] = {
         ),
     ),
     "agent.v2.workflow.sequence_vr_encoding": (
-        ExpectedToolCall(tool="lookup_vr", arguments={"vr": "SQ"}),
-        ExpectedToolCall(tool="explain_encoding_rule", arguments={"topic": "SQ"}),
+        cited_ok(
+            "lookup_vr",
+            arguments={"vr": "SQ"},
+            required_parts=("PS3.5",),
+        ),
+        cited_ok(
+            "explain_encoding_rule",
+            arguments={"topic": "SQ"},
+            required_parts=("PS3.5",),
+        ),
     ),
     "agent.v2.workflow.ob_pixel_data_encoding": (
-        ExpectedToolCall(tool="lookup_vr", arguments={"vr": "OB"}),
+        cited_ok(
+            "lookup_vr",
+            arguments={"vr": "OB"},
+            required_parts=("PS3.5",),
+        ),
         ExpectedToolCall(
             tool="lookup_data_element",
             arguments={"tag_or_keyword": "(7FE0,0010)"},
         ),
     ),
     "agent.v2.workflow.un_vr_encoding": (
-        ExpectedToolCall(tool="lookup_vr", arguments={"vr": "UN"}),
-        ExpectedToolCall(tool="explain_encoding_rule", arguments={"topic": "UN"}),
+        cited_ok(
+            "lookup_vr",
+            arguments={"vr": "UN"},
+            required_parts=("PS3.5",),
+        ),
+        cited_ok(
+            "explain_encoding_rule",
+            arguments={"topic": "UN"},
+            required_parts=("PS3.5",),
+        ),
     ),
     "agent.v2.workflow.implicit_transfer_syntax_uid": (
         ExpectedToolCall(
             tool="lookup_uid",
             arguments={"uid_or_keyword": "1.2.840.10008.1.2"},
         ),
-        ExpectedToolCall(
-            tool="lookup_transfer_syntax",
+        cited_ok(
+            "lookup_transfer_syntax",
             arguments={"uid_or_keyword": "1.2.840.10008.1.2"},
+            required_parts=("PS3.6",),
         ),
     ),
     "agent.v2.workflow.deflated_transfer_syntax_encoding": (
@@ -223,9 +276,10 @@ EXPECTED_TOOL_TRACES: dict[str, tuple[ExpectedToolCall, ...]] = {
             tool="lookup_uid",
             arguments={"uid_or_keyword": "1.2.840.10008.1.2.1.99"},
         ),
-        ExpectedToolCall(
-            tool="lookup_transfer_syntax",
+        cited_ok(
+            "lookup_transfer_syntax",
             arguments={"uid_or_keyword": "1.2.840.10008.1.2.1.99"},
+            required_parts=("PS3.6",),
         ),
     ),
     "agent.v2.workflow.big_endian_transfer_syntax_retired": (
@@ -233,29 +287,34 @@ EXPECTED_TOOL_TRACES: dict[str, tuple[ExpectedToolCall, ...]] = {
             tool="lookup_uid",
             arguments={"uid_or_keyword": "1.2.840.10008.1.2.2"},
         ),
-        ExpectedToolCall(
-            tool="lookup_transfer_syntax",
+        cited_ok(
+            "lookup_transfer_syntax",
             arguments={"uid_or_keyword": "1.2.840.10008.1.2.2"},
+            required_parts=("PS3.6",),
         ),
     ),
     "agent.v2.workflow.dicomweb_retrieve_media_type": (
-        ExpectedToolCall(
-            tool="lookup_dicomweb_transaction",
+        cited_ok(
+            "lookup_dicomweb_transaction",
             arguments={"name_or_route": "RetrieveStudy"},
+            required_parts=("PS3.18",),
         ),
-        ExpectedToolCall(
-            tool="lookup_media_type",
-            arguments={"media_type_or_context": "application/dicom"},
+        cited_ok(
+            "lookup_media_type",
+            arguments={"media_type_or_context": "WADO-RS response"},
+            required_parts=("PS3.18",),
         ),
     ),
     "agent.v2.workflow.dicomweb_store_media_type": (
-        ExpectedToolCall(
-            tool="lookup_dicomweb_transaction",
+        cited_ok(
+            "lookup_dicomweb_transaction",
             arguments={"name_or_route": "StoreInstances"},
+            required_parts=("PS3.18",),
         ),
-        ExpectedToolCall(
-            tool="lookup_media_type",
+        cited_ok(
+            "lookup_media_type",
             arguments={"media_type_or_context": "STOW-RS request"},
+            required_parts=("PS3.18",),
         ),
     ),
     "agent.v2.workflow.dicomweb_ambiguous_route_candidates": (
@@ -265,17 +324,20 @@ EXPECTED_TOOL_TRACES: dict[str, tuple[ExpectedToolCall, ...]] = {
         ),
     ),
     "agent.v2.workflow.sr_template_context_group_code": (
-        ExpectedToolCall(
-            tool="lookup_sr_template",
+        cited_ok(
+            "lookup_sr_template",
             arguments={"tid_or_name": "1500"},
+            required_parts=("PS3.16",),
         ),
-        ExpectedToolCall(
-            tool="lookup_context_group",
+        cited_ok(
+            "lookup_context_group",
             arguments={"cid_or_name": "29"},
+            required_parts=("PS3.16",),
         ),
-        ExpectedToolCall(
-            tool="lookup_code_meaning",
+        cited_ok(
+            "lookup_code_meaning",
             arguments={"code_value": "CT", "scheme": "DCM"},
+            required_parts=("PS3.16",),
         ),
     ),
     "agent.v2.workflow.media_file_preamble_fallback": (
