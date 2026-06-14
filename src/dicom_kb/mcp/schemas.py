@@ -14,6 +14,7 @@ MCPToolName = Literal[
     "dicom_lookup_vr",
     "dicom_lookup_transfer_syntax",
     "dicom_explain_encoding_rule",
+    "dicom_lookup_media_type",
     "dicom_list_modules_for_iod",
     "dicom_list_attributes_for_module",
     "dicom_resolve_attribute_context",
@@ -31,6 +32,7 @@ MCP_TOOL_NAMES: tuple[MCPToolName, ...] = (
     "dicom_lookup_vr",
     "dicom_lookup_transfer_syntax",
     "dicom_explain_encoding_rule",
+    "dicom_lookup_media_type",
     "dicom_list_modules_for_iod",
     "dicom_list_attributes_for_module",
     "dicom_resolve_attribute_context",
@@ -86,6 +88,12 @@ MCP_TOOL_SPECS: tuple[MCPToolSpec, ...] = (
     {
         "name": "dicom_explain_encoding_rule",
         "description": "Explain a DICOM PS3.5 encoding rule with citations.",
+    },
+    {
+        "name": "dicom_lookup_media_type",
+        "description": (
+            "Look up PS3.10 DICOM media-type constraints by media type or context."
+        ),
     },
     {
         "name": "dicom_list_modules_for_iod",

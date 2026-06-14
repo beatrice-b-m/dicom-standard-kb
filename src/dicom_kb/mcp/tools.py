@@ -15,6 +15,7 @@ from dicom_kb.query.resolver import (
     lookup_defined_terms,
     lookup_enumerated_values,
     lookup_iod,
+    lookup_media_type,
     lookup_sop_class,
     lookup_transfer_syntax,
     lookup_uid,
@@ -85,6 +86,11 @@ def dispatch_mcp_tool(
         "dicom_explain_encoding_rule": lambda: explain_encoding_rule(
             connection,
             topic=str(arguments["topic"]),
+            edition=edition,
+        ),
+        "dicom_lookup_media_type": lambda: lookup_media_type(
+            connection,
+            media_type_or_context=str(arguments["media_type_or_context"]),
             edition=edition,
         ),
         "dicom_list_modules_for_iod": lambda: list_modules_for_iod(
@@ -193,6 +199,16 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
             @_tool(server, name=spec["name"], description=spec["description"])
             def dicom_explain_encoding_rule(topic: str) -> dict[str, Any]:
                 return executor("dicom_explain_encoding_rule", {"topic": topic})
+
+        elif spec["name"] == "dicom_lookup_media_type":
+            @_tool(server, name=spec["name"], description=spec["description"])
+            def dicom_lookup_media_type(
+                media_type_or_context: str,
+            ) -> dict[str, Any]:
+                return executor(
+                    "dicom_lookup_media_type",
+                    {"media_type_or_context": media_type_or_context},
+                )
 
         elif spec["name"] == "dicom_list_modules_for_iod":
             @_tool(server, name=spec["name"], description=spec["description"])

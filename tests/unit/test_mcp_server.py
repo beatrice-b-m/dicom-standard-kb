@@ -69,6 +69,7 @@ def test_mcp_tool_names_match_supported_spec() -> None:
         "dicom_lookup_vr",
         "dicom_lookup_transfer_syntax",
         "dicom_explain_encoding_rule",
+        "dicom_lookup_media_type",
         "dicom_list_modules_for_iod",
         "dicom_list_attributes_for_module",
         "dicom_resolve_attribute_context",
@@ -204,6 +205,26 @@ def test_execute_mcp_tool_explains_encoding_rule(tmp_path: Path) -> None:
     assert "value representation class: character string" in (
         payload["result"]["structured_facts"]
     )
+
+
+def test_execute_mcp_tool_returns_media_type_constraints(tmp_path: Path) -> None:
+    payload = execute_mcp_tool(
+        "dicom_lookup_media_type",
+        {"media_type_or_context": "application/dicom"},
+        config=MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)),
+    )
+
+    assert payload["tool"] == "lookup_media_type"
+    assert payload["status"] == "ok"
+    assert payload["result"] == {
+        "media_type": "application/dicom",
+        "service_context": "PS3.10 file",
+        "transfer_syntax_constraints": [
+            "Encoded using the Transfer Syntax UID in the File Meta Information",
+        ],
+        "directions": ["file"],
+    }
+    assert payload["refs"][0]["part"] == "PS3.10"
 
 
 def test_execute_mcp_tool_returns_defined_terms(tmp_path: Path) -> None:
