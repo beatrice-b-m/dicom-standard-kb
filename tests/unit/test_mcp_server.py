@@ -71,6 +71,7 @@ def test_mcp_tool_names_match_supported_spec() -> None:
         "dicom_explain_encoding_rule",
         "dicom_lookup_media_type",
         "dicom_lookup_dicomweb_transaction",
+        "dicom_lookup_sr_template",
         "dicom_list_modules_for_iod",
         "dicom_list_attributes_for_module",
         "dicom_resolve_attribute_context",
@@ -270,6 +271,43 @@ def test_execute_mcp_tool_returns_dicomweb_transaction(tmp_path: Path) -> None:
         "media_type_refs": ["application/dicom"],
     }
     assert payload["refs"][0]["part"] == "PS3.18"
+
+
+def test_execute_mcp_tool_returns_sr_template(tmp_path: Path) -> None:
+    payload = execute_mcp_tool(
+        "dicom_lookup_sr_template",
+        {"tid_or_name": "TID 1500"},
+        config=MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)),
+    )
+
+    assert payload["tool"] == "lookup_sr_template"
+    assert payload["status"] == "ok"
+    assert payload["result"] == {
+        "tid": "TID 1500",
+        "name": "Measurement Report",
+        "extensibility": "EXTENSIBLE",
+        "rows": [
+            {
+                "order": 1,
+                "relationship_type": "CONTAINS",
+                "value_type": "CONTAINER",
+                "concept_name": "Measurement Report",
+                "cardinality": "1",
+                "condition": "Root container is required.",
+                "include_tid": None,
+            },
+            {
+                "order": 2,
+                "relationship_type": "CONTAINS",
+                "value_type": "INCLUDE",
+                "concept_name": None,
+                "cardinality": "1-n",
+                "condition": "Include measurements when present.",
+                "include_tid": "TID 1501",
+            },
+        ],
+    }
+    assert payload["refs"][0]["part"] == "PS3.16"
 
 
 def test_execute_mcp_tool_returns_defined_terms(tmp_path: Path) -> None:

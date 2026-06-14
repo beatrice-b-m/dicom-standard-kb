@@ -16,6 +16,7 @@ MCPToolName = Literal[
     "dicom_explain_encoding_rule",
     "dicom_lookup_media_type",
     "dicom_lookup_dicomweb_transaction",
+    "dicom_lookup_sr_template",
     "dicom_list_modules_for_iod",
     "dicom_list_attributes_for_module",
     "dicom_resolve_attribute_context",
@@ -35,6 +36,7 @@ MCP_TOOL_NAMES: tuple[MCPToolName, ...] = (
     "dicom_explain_encoding_rule",
     "dicom_lookup_media_type",
     "dicom_lookup_dicomweb_transaction",
+    "dicom_lookup_sr_template",
     "dicom_list_modules_for_iod",
     "dicom_list_attributes_for_module",
     "dicom_resolve_attribute_context",
@@ -102,6 +104,10 @@ MCP_TOOL_SPECS: tuple[MCPToolSpec, ...] = (
         "description": (
             "Look up a PS3.18 DICOMweb transaction by name or route template."
         ),
+    },
+    {
+        "name": "dicom_lookup_sr_template",
+        "description": "Look up a DICOM PS3.16 SR template by TID or name.",
     },
     {
         "name": "dicom_list_modules_for_iod",

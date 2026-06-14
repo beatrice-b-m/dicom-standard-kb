@@ -147,6 +147,23 @@ def test_mcp_stdio_protocol_with_official_client(tmp_path: Path) -> None:
                 )
                 assert dicomweb_payload["refs"][0]["part"] == "PS3.18"
 
+                sr_template_result = await session.call_tool(
+                    "dicom_lookup_sr_template",
+                    {"tid_or_name": "TID 1500"},
+                )
+                sr_template_payload = _tool_payload(sr_template_result)
+                assert sr_template_payload["edition"] == "2026b"
+                assert sr_template_payload["tool"] == "lookup_sr_template"
+                assert sr_template_payload["status"] == "ok"
+                assert sr_template_payload["result"]["tid"] == "TID 1500"
+                assert sr_template_payload["result"]["name"] == (
+                    "Measurement Report"
+                )
+                assert sr_template_payload["result"]["rows"][1]["include_tid"] == (
+                    "TID 1501"
+                )
+                assert sr_template_payload["refs"][0]["part"] == "PS3.16"
+
     anyio.run(run_client)
 
 
