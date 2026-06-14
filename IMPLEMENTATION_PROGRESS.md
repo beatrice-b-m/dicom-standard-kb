@@ -34,7 +34,7 @@ Status values:
 | Phase 3 - PS3.10 file meta and media foundation | Complete | `file_meta_requirement` and PS3.10-derived `dicom_media_type` parser/import/build wiring are in place for synthetic PS3.10 rows. The Python resolver, CLI command, and MCP tool cover the PS3.10 `lookup_media_type` baseline, including bounded cited text fallback for prose-only PS3.10 file format rules. |
 | Phase 4 - PS3.18 DICOMweb transactions | Complete | Synthetic PS3.18 DICOMweb transaction rows parse into `dicomweb_transaction` with route template, method, resource category, constraints, status codes, media-type refs, source refs, and build/import smoke coverage. Python, CLI, and MCP transaction lookup behavior are in place, and PS3.18 media-type rows now expand the existing `lookup_media_type` surface with DICOMweb request/response contexts. |
 | Phase 5 - PS3.16 SR templates, CIDs, and codes | Complete | SR template, context group, and coded concept parsing/import/build wiring are in place for synthetic PS3.16 fixtures. Python resolver functions, CLI commands, and MCP tools cover code meaning, context group, and SR template lookups. Legal and distribution docs now explicitly preserve the no-standalone-terminology-dump invariant for PS3.16 content. |
-| Phase 6 - Contextual enumerated values and defined terms | Not started | Satisfies v2 acceptance criterion 4. |
+| Phase 6 - Contextual enumerated values and defined terms | In progress | Existing `attribute_value_term` coverage is documented; deterministic IOD/SOP context resolution remains pending. |
 | Phase 7 - Selected PS3.7/PS3.8 semantics | Not started | Completes selected networking/messaging scope and text fallback. |
 | Phase 8 - Evaluation harness expansion | Not started | Satisfies v2 acceptance criterion 6. |
 | Phase 9 - V2 release hardening | Not started | Final docs, integration goldens, metrics, and release gates. |
@@ -46,7 +46,7 @@ Status values:
 | 1 | Transfer syntax UID lookups return UID metadata plus encoding refs. | Complete | Python, CLI, and MCP surfaces exist with synthetic coverage; representative official-edition transfer-syntax goldens execute against the rebuilt local 2026b official KB and pass. |
 | 2 | DICOMweb transaction lookups return route, method, resource type, request/response constraints, and standard references. | Complete | Python resolver, CLI command, and MCP tool return parsed PS3.18 transaction rows by exact name or route template with ambiguous route candidates. |
 | 3 | TID and CID lookups return structured rows and extensibility metadata. | Complete | Python resolvers return structured TID and CID rows with extensibility metadata; CLI and MCP exposure exists for TID, CID, and code lookup; legal/distribution docs explicitly forbid standalone PS3.16 terminology dumps and bulk context-group/code exports. |
-| 4 | Enumerated values and defined terms link to their attribute context. | Not started | Pending Phase 6. |
+| 4 | Enumerated values and defined terms link to their attribute context. | In progress | Existing import and lookup coverage is documented; IOD/SOP context expansion is pending. |
 | 5 | Fallback text retrieval covers prose-only rules. | In progress | PS3.10 media/file-format fallback now returns bounded cited text when no parsed media-type row matches; pending Phases 5 and 7 audit against other v2 parts. |
 | 6 | At least 100 coding-task regression prompts pass through deterministic tool calls before answer synthesis. | Not started | Pending Phase 8. |
 
@@ -57,11 +57,11 @@ Status values:
 | Current phase | Phase 6 - Contextual Enumerated Values and Defined Terms |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed commit | Pending current commit; previous completed commit was a9d2574. |
-| Last verification | `uv run --dev pytest tests/unit/test_metadata.py` passed with 2 passed; sandboxed `make lint` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` was rejected by the environment approval policy; safer sandboxed `uv run --dev ruff check tests/unit/test_metadata.py` passed; sandboxed `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make typecheck` passed. |
+| Last completed commit | Pending current commit; previous completed commit was a63a71e. |
+| Last verification | Initial `uv run --dev pytest tests/unit/test_metadata.py` failed on a line-wrapped documentation assertion and was fixed; final `uv run --dev pytest tests/unit/test_metadata.py` passed with 3 passed; `uv run --dev ruff check tests/unit/test_metadata.py` passed; sandboxed `make lint` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; sandboxed `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make typecheck` passed. |
 | Current blocker | None |
-| Commit-ready summary | Completed the Phase 5 PS3.16 legal/distribution audit by documenting that locally built SR template, context group, coded concept, and code-meaning data must not be redistributed as standalone terminology dumps or bulk exports. Added a focused regression test for the policy text. |
-| Next recommended action | Start Phase 6 by auditing existing `attribute_value_term` import coverage, then document the deterministic contexts already supported before extending contextual enumerated-value and defined-term resolution. |
+| Commit-ready summary | Documented the existing `attribute_value_term` importer and resolver coverage, including the deterministic PS3.6 data-element link, PS3.3 attribute-use link, text context matching, and unresolved IOD/SOP/TID/CID/DICOMweb context gaps. Added a focused regression test for the audit text. |
+| Next recommended action | Extend contextual value-term resolution for deterministic PS3.3 IOD and SOP Class inputs by resolving those contexts to applicable module or macro attribute uses before falling back to text context matching. |
 
 ## Phase 0 - V2 Contract Baseline
 
@@ -320,7 +320,7 @@ Notes:
 
 ## Phase 5 - PS3.16 SR Templates, Context Groups, and Codes
 
-Status: `In progress`
+Status: `Complete`
 
 Scope:
 
@@ -358,7 +358,7 @@ Commits:
 | 334edf4 | Added the MCP `dicom_lookup_sr_template` tool for the existing Python resolver, with focused MCP server and protocol coverage against the synthetic PS3.16 fixture. | `uv run --dev pytest tests/unit/test_mcp_server.py tests/unit/test_mcp_protocol.py`; sandboxed `make lint`, `make typecheck`, and `make test` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint`; escalated `make typecheck`; escalated `make test` |
 | 8cea1ee | Added the MCP `dicom_lookup_context_group` tool for the existing Python resolver, with focused MCP server and protocol coverage against the synthetic PS3.16 fixture. | `uv run --dev pytest tests/unit/test_mcp_server.py tests/unit/test_mcp_protocol.py`; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint`; escalated `make typecheck`; escalated `make test` |
 | a9d2574 | Added the MCP `dicom_lookup_code_meaning` tool for the existing Python resolver, with focused MCP server and protocol coverage against the synthetic PS3.16 fixture. | `uv run --dev pytest tests/unit/test_mcp_server.py tests/unit/test_mcp_protocol.py`; sandboxed `make lint`, `make typecheck`, and `make test` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint`; escalated `make typecheck`; escalated `make test` |
-| Pending current commit | Completed the legal/distribution documentation audit for locally built PS3.16 terminology and added regression coverage that the policy remains documented. | `uv run --dev pytest tests/unit/test_metadata.py`; sandboxed `make lint` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` was rejected by the environment approval policy; `uv run --dev ruff check tests/unit/test_metadata.py`; sandboxed `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make typecheck` |
+| a63a71e | Completed the legal/distribution documentation audit for locally built PS3.16 terminology and added regression coverage that the policy remains documented. | `uv run --dev pytest tests/unit/test_metadata.py`; sandboxed `make lint` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` was rejected by the environment approval policy; `uv run --dev ruff check tests/unit/test_metadata.py`; sandboxed `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make typecheck` |
 
 Notes:
 
@@ -415,7 +415,7 @@ Notes:
 
 ## Phase 6 - Contextual Enumerated Values and Defined Terms
 
-Status: `Not started`
+Status: `In progress`
 
 Scope:
 
@@ -425,7 +425,7 @@ Scope:
 
 Completion checklist:
 
-- [ ] Existing value-term coverage is documented.
+- [x] Existing value-term coverage is documented.
 - [ ] Context resolver supports deterministic IOD/SOP/module/macro context.
 - [ ] Ambiguous contexts return candidates or warnings.
 - [ ] Python, CLI, and MCP tests cover contextual lookups.
@@ -435,11 +435,14 @@ Commits:
 
 | Commit | Summary | Verification |
 |---|---|---|
-| None | Not started. | None. |
+| Pending current commit | Documented the current `attribute_value_term` import and lookup coverage, including deterministic context links already supported and Phase 6 context gaps. | Initial `uv run --dev pytest tests/unit/test_metadata.py` failed on a line-wrapped documentation assertion and was fixed; final `uv run --dev pytest tests/unit/test_metadata.py` passed with 3 passed; `uv run --dev ruff check tests/unit/test_metadata.py` passed; sandboxed `make lint` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; sandboxed `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make typecheck` passed. |
 
 Notes:
 
 - Do not silently convert defined terms into enumerated values.
+- Current value-term lookup supports exact PS3.3 module and macro names in the
+  optional text context, but does not yet resolve IOD or SOP Class inputs to
+  their applicable module/macro attribute uses.
 
 ## Phase 7 - Selected PS3.7 and PS3.8 Semantics
 

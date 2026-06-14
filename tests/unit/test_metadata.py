@@ -25,3 +25,21 @@ def test_ps316_terminology_distribution_policy_is_documented() -> None:
     assert "standalone terminology" in legal
     assert "bulk context-group/code exports" in distribution
     assert "does not vendor" in notices
+
+
+def test_attribute_value_term_coverage_audit_is_documented() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+
+    architecture = (repo_root / "docs" / "architecture.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "attribute_value_term" in architecture
+    assert "Enumerated Values" in architecture
+    assert "Defined Terms" in architecture
+    assert "term_kind" in architecture
+    assert "data_element" in architecture
+    assert "attribute_use" in architecture
+    assert "module or macro names" in architecture
+    assert "IOD, SOP Class, TID, CID, and DICOMweb" in architecture
+    assert "contexts are not yet resolved" in architecture
