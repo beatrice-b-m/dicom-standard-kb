@@ -1,0 +1,394 @@
+{
+  "$id": "https://dicom-standard-kb.local/schemas/v2_payloads.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "codeMeaningResult": {
+      "additionalProperties": false,
+      "properties": {
+        "code_meaning": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "code_value": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "coding_scheme_designator": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "coding_scheme_version": {
+          "type": ["string", "null"]
+        },
+        "context_groups": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "code_value",
+        "coding_scheme_designator",
+        "coding_scheme_version",
+        "code_meaning",
+        "context_groups"
+      ],
+      "type": "object"
+    },
+    "contextGroupResult": {
+      "additionalProperties": false,
+      "properties": {
+        "cid": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "extensibility": {
+          "type": ["string", "null"]
+        },
+        "name": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/contextGroupRowResult"
+          },
+          "type": "array"
+        },
+        "version": {
+          "type": ["string", "null"]
+        }
+      },
+      "required": ["cid", "name", "extensibility", "version", "rows"],
+      "type": "object"
+    },
+    "contextGroupRowResult": {
+      "additionalProperties": false,
+      "properties": {
+        "code_meaning": {
+          "type": ["string", "null"]
+        },
+        "code_value": {
+          "type": ["string", "null"]
+        },
+        "coding_scheme_designator": {
+          "type": ["string", "null"]
+        },
+        "coding_scheme_version": {
+          "type": ["string", "null"]
+        },
+        "include_cid": {
+          "type": ["string", "null"]
+        },
+        "order": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "order",
+        "coding_scheme_designator",
+        "coding_scheme_version",
+        "code_value",
+        "code_meaning",
+        "include_cid"
+      ],
+      "type": "object"
+    },
+    "dicomMediaTypeResult": {
+      "additionalProperties": false,
+      "properties": {
+        "directions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "media_type": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "service_context": {
+          "type": ["string", "null"]
+        },
+        "transfer_syntax_constraints": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "media_type",
+        "service_context",
+        "transfer_syntax_constraints",
+        "directions"
+      ],
+      "type": "object"
+    },
+    "dicomwebTransactionResult": {
+      "additionalProperties": false,
+      "properties": {
+        "http_method": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "media_type_refs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "request_constraints": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "resource_category": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "response_constraints": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "route_template": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "status_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "transaction_name": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "transaction_name",
+        "resource_category",
+        "http_method",
+        "route_template",
+        "request_constraints",
+        "response_constraints",
+        "status_codes",
+        "media_type_refs"
+      ],
+      "type": "object"
+    },
+    "encodingRuleExplanationResult": {
+      "additionalProperties": false,
+      "properties": {
+        "structured_facts": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "text_excerpt": {
+          "type": ["string", "null"]
+        },
+        "topic": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": ["topic", "summary", "structured_facts", "text_excerpt"],
+      "type": "object"
+    },
+    "srTemplateResult": {
+      "additionalProperties": false,
+      "properties": {
+        "extensibility": {
+          "type": ["string", "null"]
+        },
+        "name": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/srTemplateRowResult"
+          },
+          "type": "array"
+        },
+        "tid": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": ["tid", "name", "extensibility", "rows"],
+      "type": "object"
+    },
+    "srTemplateRowResult": {
+      "additionalProperties": false,
+      "properties": {
+        "cardinality": {
+          "type": ["string", "null"]
+        },
+        "concept_name": {
+          "type": ["string", "null"]
+        },
+        "condition": {
+          "type": ["string", "null"]
+        },
+        "include_tid": {
+          "type": ["string", "null"]
+        },
+        "order": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "relationship_type": {
+          "type": ["string", "null"]
+        },
+        "value_type": {
+          "type": ["string", "null"]
+        }
+      },
+      "required": [
+        "order",
+        "relationship_type",
+        "value_type",
+        "concept_name",
+        "cardinality",
+        "condition",
+        "include_tid"
+      ],
+      "type": "object"
+    },
+    "transferSyntaxDetailResult": {
+      "additionalProperties": false,
+      "properties": {
+        "compression_family": {
+          "type": ["string", "null"]
+        },
+        "encapsulated": {
+          "type": ["boolean", "null"]
+        },
+        "encoding_notes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "endian": {
+          "type": ["string", "null"]
+        },
+        "explicit_vr": {
+          "type": ["boolean", "null"]
+        },
+        "retired": {
+          "type": "boolean"
+        },
+        "uid_keyword": {
+          "type": ["string", "null"]
+        },
+        "uid_name": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "uid_value": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "uid_value",
+        "uid_name",
+        "uid_keyword",
+        "explicit_vr",
+        "endian",
+        "encapsulated",
+        "compression_family",
+        "retired",
+        "encoding_notes"
+      ],
+      "type": "object"
+    },
+    "vrDefinitionResult": {
+      "additionalProperties": false,
+      "properties": {
+        "binary_or_text": {
+          "type": ["string", "null"]
+        },
+        "character_repertoire_notes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "length_notes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "name": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "padding_behavior": {
+          "type": ["string", "null"]
+        },
+        "value_representation_class": {
+          "type": ["string", "null"]
+        },
+        "vr": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "vr",
+        "name",
+        "value_representation_class",
+        "length_notes",
+        "padding_behavior",
+        "character_repertoire_notes",
+        "binary_or_text"
+      ],
+      "type": "object"
+    }
+  },
+  "description": "Explicit result payload schemas for planned v2 public tools.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/vrDefinitionResult"
+    },
+    {
+      "$ref": "#/$defs/transferSyntaxDetailResult"
+    },
+    {
+      "$ref": "#/$defs/encodingRuleExplanationResult"
+    },
+    {
+      "$ref": "#/$defs/dicomwebTransactionResult"
+    },
+    {
+      "$ref": "#/$defs/dicomMediaTypeResult"
+    },
+    {
+      "$ref": "#/$defs/srTemplateResult"
+    },
+    {
+      "$ref": "#/$defs/contextGroupResult"
+    },
+    {
+      "$ref": "#/$defs/codeMeaningResult"
+    }
+  ],
+  "title": "V2ToolPayload",
+  "type": "object"
+}

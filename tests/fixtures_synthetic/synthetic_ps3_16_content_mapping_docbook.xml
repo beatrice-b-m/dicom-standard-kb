@@ -1,0 +1,110 @@
+<book xmlns="http://docbook.org/ns/docbook" xmlns:xml="http://www.w3.org/XML/1998/namespace" xml:id="ps3_16">
+  <chapter xml:id="chapter_16">
+    <title>PS3.16 Synthetic Content Mapping</title>
+    <section xml:id="sect_16_1">
+      <title>Template Overview</title>
+      <para>Synthetic PS3.16 fixture for generic DocBook ingestion.</para>
+      <table xml:id="table_16-1">
+        <title>Synthetic Template Rows</title>
+        <tgroup cols="10">
+          <thead>
+            <row>
+              <entry>TID</entry>
+              <entry>Name</entry>
+              <entry>Extensibility</entry>
+              <entry>Row</entry>
+              <entry>Relationship Type</entry>
+              <entry>Value Type</entry>
+              <entry>Concept Name</entry>
+              <entry>Cardinality</entry>
+              <entry>Condition</entry>
+              <entry>Include TID</entry>
+            </row>
+          </thead>
+          <tbody>
+            <row>
+              <entry>1500</entry>
+              <entry>Measurement Report</entry>
+              <entry>EXTENSIBLE</entry>
+              <entry>1</entry>
+              <entry>CONTAINS</entry>
+              <entry>CONTAINER</entry>
+              <entry>Measurement Report</entry>
+              <entry>1</entry>
+              <entry>Root container is required.</entry>
+              <entry></entry>
+            </row>
+            <row>
+              <entry>1500</entry>
+              <entry>Measurement Report</entry>
+              <entry>EXTENSIBLE</entry>
+              <entry>2</entry>
+              <entry>CONTAINS</entry>
+              <entry>INCLUDE</entry>
+              <entry></entry>
+              <entry>1-n</entry>
+              <entry>Include measurements when present.</entry>
+              <entry>TID 1501</entry>
+            </row>
+          </tbody>
+        </tgroup>
+      </table>
+      <table xml:id="table_16-2">
+        <title>Synthetic Coding Scheme Notes</title>
+        <tgroup cols="2">
+          <thead>
+            <row><entry>Scheme</entry><entry>Rule</entry></row>
+          </thead>
+          <tbody>
+            <row><entry>99TEST</entry><entry>Prose-only coding rule.</entry></row>
+          </tbody>
+        </tgroup>
+      </table>
+      <table xml:id="table_16-3">
+        <title>Synthetic Context Group Rows</title>
+        <tgroup cols="10">
+          <thead>
+            <row>
+              <entry>CID</entry>
+              <entry>Name</entry>
+              <entry>Extensibility</entry>
+              <entry>Version</entry>
+              <entry>Row</entry>
+              <entry>Coding Scheme Designator</entry>
+              <entry>Coding Scheme Version</entry>
+              <entry>Code Value</entry>
+              <entry>Code Meaning</entry>
+              <entry>Include CID</entry>
+            </row>
+          </thead>
+          <tbody>
+            <row>
+              <entry>29</entry>
+              <entry>Acquisition Modality</entry>
+              <entry>EXTENSIBLE</entry>
+              <entry>20260101</entry>
+              <entry>1</entry>
+              <entry>DCM</entry>
+              <entry></entry>
+              <entry>CT</entry>
+              <entry>Computed Tomography</entry>
+              <entry></entry>
+            </row>
+            <row>
+              <entry>29</entry>
+              <entry>Acquisition Modality</entry>
+              <entry>EXTENSIBLE</entry>
+              <entry>20260101</entry>
+              <entry>2</entry>
+              <entry></entry>
+              <entry></entry>
+              <entry></entry>
+              <entry></entry>
+              <entry>CID 30</entry>
+            </row>
+          </tbody>
+        </tgroup>
+      </table>
+    </section>
+  </chapter>
+</book>
