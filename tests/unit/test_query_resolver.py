@@ -153,9 +153,12 @@ def _part05_connection(tmp_path: Path) -> sqlite3.Connection:
 def _part10_connection(tmp_path: Path) -> sqlite3.Connection:
     connection = connect_sqlite(tmp_path / "kb.sqlite")
     apply_migrations(connection)
-    parsed_part10 = parse_part10(
-        parse_docbook_xml(PS310_MEDIA_STORAGE_DOCBOOK, part="PS3.10"),
+    document = parse_docbook_xml(PS310_MEDIA_STORAGE_DOCBOOK, part="PS3.10")
+    parsed_part10 = parse_part10(document, edition="2026b")
+    import_docbook_structure(
+        connection,
         edition="2026b",
+        document=document,
     )
     import_dicom_media_types(
         connection,
@@ -767,6 +770,30 @@ def test_lookup_media_type_validates_empty_input_and_reports_not_found(
     assert empty.result == {"message": "media_type_or_context must not be empty."}
     assert missing.status == "not_found"
     assert missing.result == {"message": "No DICOM media type matched the input."}
+
+
+def test_lookup_media_type_falls_back_to_cited_ps310_text_for_prose_rule(
+    tmp_path: Path,
+) -> None:
+    response = lookup_media_type(
+        _part10_connection(tmp_path),
+        media_type_or_context="File Preamble",
+        edition="2026b",
+    )
+
+    assert response.status == "ok"
+    assert response.result is not None
+    assert response.result["part"] == "PS3.10"
+    assert response.result["section"] == "table_10-3"
+    assert response.result["title"] == "Synthetic Media Storage Notes"
+    assert "Prose-only rule" in str(response.result["text_excerpt"])
+    assert response.refs[0].part == "PS3.10"
+    assert response.classification.evidence_level == "retrieved_text"
+    assert response.classification.machine_decidability == "not_applicable"
+    assert response.parse_confidence.level == "low"
+    assert response.warnings == [
+        "No parsed media-type row matched; returning bounded PS3.10 text fallback."
+    ]
 
 
 def test_lookup_media_type_returns_candidates_for_multiple_contexts(

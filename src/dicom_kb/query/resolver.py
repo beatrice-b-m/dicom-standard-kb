@@ -22,6 +22,9 @@ from dicom_kb.ir.validators import (
     normalize_uid,
 )
 from dicom_kb.query.answer_contracts import (
+    ParseConfidence,
+    ResponseClassification,
+    ResponseTrace,
     ToolResponse,
     attribute_context_result,
     attribute_value_terms_result,
@@ -434,6 +437,15 @@ def lookup_media_type(
         edition=edition,
     )
     if not records:
+        fallback = _ps310_media_text_fallback(
+            connection,
+            edition=edition,
+            topic=normalized_input,
+            response_input=response_input,
+            trace=trace,
+        )
+        if fallback is not None:
+            return fallback
         return tool_response(
             edition=edition,
             tool="lookup_media_type",
@@ -1199,6 +1211,67 @@ def _media_type_result(record: DicomMediaType) -> dict[str, object]:
         service_context=record.service_context,
         transfer_syntax_constraints=list(record.transfer_syntax_constraints),
         directions=list(record.directions),
+    )
+
+
+def _ps310_media_text_fallback(
+    connection: sqlite3.Connection,
+    *,
+    edition: str,
+    topic: str,
+    response_input: dict[str, str],
+    trace: ResponseTrace,
+) -> ToolResponse | None:
+    fts_query = build_fts_query(topic)
+    if fts_query is None:
+        return None
+
+    repository = DocumentRepository(connection)
+    matches = repository.search_text(
+        fts_query=fts_query,
+        edition=edition,
+        part_filter="PS3.10",
+        limit=5,
+    )
+    if not matches:
+        return None
+
+    match = next(
+        (candidate for candidate in matches if candidate.node.node_type == "table"),
+        matches[0],
+    )
+    node = match.node
+    tables = repository.list_tables_under_node(node, edition=edition)
+    plain_text = node.plain_text or match.snippet
+    max_chars = 800
+    warnings = [
+        "No parsed media-type row matched; returning bounded PS3.10 text fallback."
+    ]
+    if len(plain_text) > max_chars:
+        warnings.append(f"text excerpt truncated to {max_chars} characters")
+
+    return tool_response(
+        edition=edition,
+        tool="lookup_media_type",
+        input=response_input,
+        status="ok",
+        result=standard_text_result(
+            node,
+            tables,
+            text_excerpt=plain_text[:max_chars],
+        ),
+        refs=citation_refs(
+            (node.source_ref,),
+            (table.source_ref for table in tables),
+        ),
+        warnings=warnings,
+        trace=trace,
+        classification=ResponseClassification(
+            normativity="explanatory",
+            evidence_level="retrieved_text",
+            machine_decidability="not_applicable",
+        ),
+        parse_confidence=ParseConfidence(level="low", source="retrieved_text"),
     )
 
 
