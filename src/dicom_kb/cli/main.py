@@ -50,6 +50,7 @@ from dicom_kb.query.resolver import (
     list_modules_for_iod,
     lookup_data_element,
     lookup_defined_terms,
+    lookup_dicomweb_transaction,
     lookup_enumerated_values,
     lookup_iod,
     lookup_media_type,
@@ -1027,6 +1028,41 @@ def lookup_media_type_command(
             lookup_media_type(
                 connection,
                 media_type_or_context=media_type_or_context,
+                edition=resolved_edition,
+            )
+        )
+
+
+@lookup_app.command("dicomweb")
+def lookup_dicomweb_command(
+    name_or_route: Annotated[
+        str,
+        typer.Argument(help="DICOMweb transaction name or route template."),
+    ],
+    edition: Annotated[
+        str | None,
+        typer.Option("--edition", help="Concrete DICOM edition label."),
+    ] = None,
+    db: Annotated[
+        Path | None,
+        typer.Option("--db", help="Path to a locally built dicom-kb SQLite file."),
+    ] = None,
+    cache_dir: Annotated[
+        Path | None,
+        typer.Option("--cache-dir", help="Local dicom-kb cache directory."),
+    ] = None,
+) -> None:
+    """Look up a PS3.18 DICOMweb transaction by name or route."""
+    resolved_edition = _resolve_edition(edition)
+    with _connect_query_db(
+        _resolve_db_path(db),
+        cache_dir=_resolve_cache_dir(cache_dir),
+        edition=resolved_edition,
+    ) as connection:
+        _echo_response(
+            lookup_dicomweb_transaction(
+                connection,
+                name_or_route=name_or_route,
                 edition=resolved_edition,
             )
         )

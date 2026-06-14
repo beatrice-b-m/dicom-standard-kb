@@ -12,6 +12,7 @@ from dicom_kb.cli.main import app
 from dicom_kb.db.importers import (
     import_attribute_value_terms,
     import_dicom_media_types,
+    import_dicomweb_transactions,
     import_docbook_structure,
     import_part03,
     import_part04,
@@ -29,6 +30,7 @@ from dicom_kb.parsers.part05_encoding import (
 )
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
 from dicom_kb.parsers.part10_media_storage import parse_part10
+from dicom_kb.parsers.part18_web_services import parse_part18
 from dicom_kb.sources.downloader import (
     DEFAULT_DOCBOOK_PARTS,
     official_archive_release_url,
@@ -43,6 +45,7 @@ from tests.fixtures_synthetic import (
     PS35_ENCODING_DOCBOOK,
     PS36_REGISTRY_DOCBOOK,
     PS310_MEDIA_STORAGE_DOCBOOK,
+    PS318_WEB_SERVICES_DOCBOOK,
 )
 
 
@@ -130,6 +133,18 @@ def _fixture_db(tmp_path: Path) -> Path:
         connection,
         edition="2026b",
         media_types=parsed_part10.media_types,
+    )
+    part18_document = parse_docbook_xml(PS318_WEB_SERVICES_DOCBOOK, part="PS3.18")
+    import_docbook_structure(
+        connection,
+        edition="2026b",
+        document=part18_document,
+    )
+    parsed_part18 = parse_part18(part18_document, edition="2026b")
+    import_dicomweb_transactions(
+        connection,
+        edition="2026b",
+        transactions=parsed_part18.dicomweb_transactions,
     )
     connection.close()
     return db_path
@@ -301,6 +316,31 @@ def test_cli_lookup_media_type_outputs_ps310_constraints(tmp_path: Path) -> None
         "directions": ["file"],
     }
     assert payload["refs"][0]["part"] == "PS3.10"
+
+
+def test_cli_lookup_dicomweb_outputs_ps318_transaction(tmp_path: Path) -> None:
+    payload = _invoke_json(
+        tmp_path,
+        "lookup",
+        "dicomweb",
+        "RetrieveStudy",
+        "--edition",
+        "2026b",
+    )
+
+    assert payload["tool"] == "lookup_dicomweb_transaction"
+    assert payload["status"] == "ok"
+    assert payload["result"] == {
+        "transaction_name": "RetrieveStudy",
+        "resource_category": "study",
+        "http_method": "GET",
+        "route_template": "/studies/{studyInstanceUID}",
+        "request_constraints": ["Study Instance UID required"],
+        "response_constraints": ["DICOM instances returned"],
+        "status_codes": ["200", "400", "404"],
+        "media_type_refs": ["application/dicom"],
+    }
+    assert payload["refs"][0]["part"] == "PS3.18"
 
 
 def test_cli_explain_encoding_outputs_structured_rule(tmp_path: Path) -> None:
