@@ -171,6 +171,7 @@ def test_release_checklist_documents_v2_gates() -> None:
         "make typecheck",
         "make test",
         "make test-dicom-integration",
+        "make test-dicom-release",
         "make test-dicom-current",
     ):
         assert command in checklist
@@ -202,6 +203,7 @@ def test_release_checklist_documents_v2_gates() -> None:
 
     assert "at least 100 prompt cases" in checklist
     assert "V2 Official-Edition Goldens" in checklist
+    assert "strict v2 release gate" in checklist
     assert "Distribution Audit" in checklist
     assert "parser-warning and unresolved-reference metrics" in checklist_words
     assert "No standalone PS3.16 terminology dump" in checklist
