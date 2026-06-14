@@ -219,6 +219,20 @@ class FileMetaRequirement(BaseModel):
     source_ref: SourceRef
 
 
+class DicomMediaType(BaseModel):
+    """DICOM media type rule row from PS3.10 or PS3.18."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    edition_id: str
+    media_type: str
+    service_context: str | None = None
+    transfer_syntax_constraints: tuple[str, ...] = ()
+    directions: tuple[str, ...] = ()
+    source_ref: SourceRef
+
+
 class Condition(BaseModel):
     """A preserved raw condition with machine-readability metadata."""
 

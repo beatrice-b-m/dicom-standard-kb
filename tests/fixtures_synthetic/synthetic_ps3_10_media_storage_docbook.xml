@@ -53,6 +53,25 @@
         </tgroup>
       </table>
       <table xml:id="table_10-2">
+        <title>Synthetic Media Types</title>
+        <tgroup cols="4">
+          <thead>
+            <row>
+              <entry>Media Type</entry><entry>Service Context</entry>
+              <entry>Transfer Syntax Constraints</entry><entry>Direction</entry>
+            </row>
+          </thead>
+          <tbody>
+            <row>
+              <entry>application/dicom</entry>
+              <entry>PS3.10 file</entry>
+              <entry>Encoded using the Transfer Syntax UID in the File Meta Information</entry>
+              <entry>file</entry>
+            </row>
+          </tbody>
+        </tgroup>
+      </table>
+      <table xml:id="table_10-3">
         <title>Synthetic Media Storage Notes</title>
         <tgroup cols="2">
           <thead>

@@ -5,6 +5,7 @@ import sqlite3
 from pathlib import Path
 
 from dicom_kb.db.importers import (
+    import_dicom_media_types,
     import_docbook_structure,
     import_file_meta_requirements,
 )
@@ -25,7 +26,10 @@ def test_parse_part10_classifies_file_meta_tables_and_warns_on_gaps() -> None:
 
     result = parse_part10(document, edition="2026b")
 
-    assert [table.table_id for table in result.recognized_tables] == ["table_10-1"]
+    assert [table.table_id for table in result.recognized_tables] == [
+        "table_10-1",
+        "table_10-2",
+    ]
     file_meta_table = result.recognized_tables[0]
     assert file_meta_table.table_kind == "file_meta_information"
     assert file_meta_table.source_ref.part == "PS3.10"
@@ -46,8 +50,17 @@ def test_parse_part10_classifies_file_meta_tables_and_warns_on_gaps() -> None:
     ]
     assert result.file_meta_requirements[3].rule_context == "file_meta_information"
     assert result.file_meta_requirements[3].source_ref.table_id == "table_10-1"
+    assert result.recognized_tables[1].table_kind == "media_type"
+    assert [record.media_type for record in result.media_types] == ["application/dicom"]
+    media_type = result.media_types[0]
+    assert media_type.service_context == "PS3.10 file"
+    assert media_type.transfer_syntax_constraints == (
+        "Encoded using the Transfer Syntax UID in the File Meta Information",
+    )
+    assert media_type.directions == ("file",)
+    assert media_type.source_ref.table_id == "table_10-2"
     assert [(warning.table_id, warning.message) for warning in result.warnings] == [
-        ("table_10-2", "unsupported PS3.10 table shape")
+        ("table_10-3", "unsupported PS3.10 table shape")
     ]
 
 
@@ -127,6 +140,45 @@ def test_import_file_meta_requirements_persists_rows_and_data_element_links(
     }
 
 
+def test_import_dicom_media_types_persists_ps310_rows_with_source_refs(
+    tmp_path: Path,
+) -> None:
+    connection = _connection(tmp_path)
+    document = parse_docbook_xml(PS310_MEDIA_STORAGE_DOCBOOK, part="PS3.10")
+    parsed = parse_part10(document, edition="2026b")
+
+    summary = import_dicom_media_types(
+        connection,
+        edition="2026b",
+        media_types=parsed.media_types,
+    )
+
+    assert summary.dicom_media_types == 1
+    assert summary.source_refs == 1
+    row = connection.execute(
+        """
+        SELECT media.media_type, media.service_context,
+               media.transfer_syntax_constraints_json, media.directions_json,
+               ref.part, ref.table_id
+        FROM dicom_media_type media
+        JOIN source_ref ref ON ref.id = media.source_ref_id
+        WHERE media.edition_id = ?
+        """,
+        ("2026b",),
+    ).fetchone()
+    assert dict(row) == {
+        "media_type": "application/dicom",
+        "service_context": "PS3.10 file",
+        "transfer_syntax_constraints_json": json.dumps(
+            ("Encoded using the Transfer Syntax UID in the File Meta Information",),
+            separators=(",", ":"),
+        ),
+        "directions_json": json.dumps(("file",), separators=(",", ":")),
+        "part": "PS3.10",
+        "table_id": "table_10-2",
+    }
+
+
 def test_part10_docbook_structure_persists_nodes_refs_and_raw_table_ir(
     tmp_path: Path,
 ) -> None:
@@ -139,8 +191,8 @@ def test_part10_docbook_structure_persists_nodes_refs_and_raw_table_ir(
         document=document,
     )
 
-    assert summary.doc_nodes == 5
-    assert summary.raw_table_irs == 2
+    assert summary.doc_nodes == 6
+    assert summary.raw_table_irs == 3
     section = connection.execute(
         """
         SELECT node.title, ref.part, ref.xml_id

@@ -20,6 +20,7 @@ from dicom_kb.ir.models import (
     AttributeValueTerm,
     Condition,
     DataElement,
+    DicomMediaType,
     DocNode,
     FileMetaRequirement,
     IODFunctionalGroupUse,
@@ -66,6 +67,7 @@ class ImportSummary:
     vr_definitions: int = 0
     transfer_syntax_details: int = 0
     file_meta_requirements: int = 0
+    dicom_media_types: int = 0
     include_rows_resolved: int = 0
     include_rows_unresolved: int = 0
 
@@ -461,6 +463,32 @@ def import_file_meta_requirements(
         edition=edition,
         source_refs=len(source_refs),
         file_meta_requirements=len(records),
+    )
+
+
+def import_dicom_media_types(
+    connection: sqlite3.Connection,
+    *,
+    edition: str,
+    media_types: Iterable[DicomMediaType],
+) -> ImportSummary:
+    """Import parsed DICOM media type rows."""
+    records = tuple(media_types)
+    source_refs = _unique_source_refs(record.source_ref for record in records)
+
+    try:
+        with connection:
+            for source_ref in source_refs:
+                _insert_source_ref(connection, source_ref)
+            for record in records:
+                _insert_dicom_media_type(connection, record)
+    except sqlite3.IntegrityError as exc:
+        raise ImportError(f"failed to import DICOM media types for {edition}") from exc
+
+    return ImportSummary(
+        edition=edition,
+        source_refs=len(source_refs),
+        dicom_media_types=len(records),
     )
 
 
@@ -1063,6 +1091,32 @@ def _insert_file_meta_requirement(
             record.attribute_keyword,
             record.type_designation,
             record.rule_context,
+            record.source_ref.id,
+        ),
+    )
+
+
+def _insert_dicom_media_type(
+    connection: sqlite3.Connection, record: DicomMediaType
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO dicom_media_type (
+          id, edition_id, media_type, service_context,
+          transfer_syntax_constraints_json, directions_json, source_ref_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            record.id,
+            record.edition_id,
+            record.media_type,
+            record.service_context,
+            json.dumps(
+                record.transfer_syntax_constraints,
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+            json.dumps(record.directions, sort_keys=True, separators=(",", ":")),
             record.source_ref.id,
         ),
     )

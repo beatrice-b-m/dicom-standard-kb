@@ -103,11 +103,15 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
     assert any("PS3.5 table_5-2" in warning for warning in summary.warnings)
     assert any("PS3.7 table_7-2" in warning for warning in summary.warnings)
     assert any("PS3.8 table_8-2" in warning for warning in summary.warnings)
-    assert any("PS3.10 table_10-2" in warning for warning in summary.warnings)
+    assert any("PS3.10 table_10-3" in warning for warning in summary.warnings)
     assert any("PS3.16 table_16-2" in warning for warning in summary.warnings)
     assert any("PS3.18 table_18-2" in warning for warning in summary.warnings)
     assert any(
         import_summary.file_meta_requirements == 7
+        for import_summary in summary.import_summaries
+    )
+    assert any(
+        import_summary.dicom_media_types == 1
         for import_summary in summary.import_summaries
     )
     metrics = summary.metrics.as_jsonable()
@@ -192,6 +196,16 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
             """,
             ("2026b",),
         ).fetchall()
+        media_type_rows = connection.execute(
+            """
+            SELECT media_type, service_context, transfer_syntax_constraints_json,
+                   directions_json
+            FROM dicom_media_type
+            WHERE edition_id = ?
+            ORDER BY media_type, service_context
+            """,
+            ("2026b",),
+        ).fetchall()
 
     assert tag_response.status == "ok"
     assert sop_response.status == "ok"
@@ -209,7 +223,7 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
         "PS3.16",
         "PS3.18",
     }
-    assert len(v2_tables) == 12
+    assert len(v2_tables) == 13
     assert [dict(row) for row in vr_rows] == [
         {"vr": "OB", "name": "Other Byte", "binary_or_text": "binary"},
         {"vr": "PN", "name": "Person Name", "binary_or_text": "text"},
@@ -288,6 +302,20 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
             "attribute_tag": "(0002,0016)",
             "type_designation": "3",
             "rule_context": "file_meta_information",
+        },
+    ]
+    assert [dict(row) for row in media_type_rows] == [
+        {
+            "media_type": "application/dicom",
+            "service_context": "PS3.10 file",
+            "transfer_syntax_constraints_json": json.dumps(
+                (
+                    "Encoded using the Transfer Syntax UID in the "
+                    "File Meta Information",
+                ),
+                separators=(",", ":"),
+            ),
+            "directions_json": json.dumps(("file",), separators=(",", ":")),
         },
     ]
     assert set(payload["source_sha256"]) == {

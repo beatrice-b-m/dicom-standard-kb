@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from dicom_kb.docbook.parser import ParsedDocument
 from dicom_kb.docbook.tables import ParsedRow, ParsedTable
 from dicom_kb.docbook.text_chunks import normalize_text
-from dicom_kb.ir.models import FileMetaRequirement, ParserWarning, SourceRef
+from dicom_kb.ir.models import (
+    DicomMediaType,
+    FileMetaRequirement,
+    ParserWarning,
+    SourceRef,
+)
 from dicom_kb.ir.validators import IdentifierValidationError, normalize_tag
 
 
@@ -27,6 +33,7 @@ class Part10ParseResult:
 
     recognized_tables: tuple[Part10TableSummary, ...]
     file_meta_requirements: tuple[FileMetaRequirement, ...]
+    media_types: tuple[DicomMediaType, ...]
     warnings: tuple[ParserWarning, ...]
 
 
@@ -34,6 +41,7 @@ def parse_part10(document: ParsedDocument, *, edition: str) -> Part10ParseResult
     """Classify PS3.10 tables without exposing public media-storage facts yet."""
     recognized: list[Part10TableSummary] = []
     file_meta_requirements: list[FileMetaRequirement] = []
+    media_types: list[DicomMediaType] = []
     warnings: list[ParserWarning] = []
 
     for table in document.tables:
@@ -50,6 +58,18 @@ def parse_part10(document: ParsedDocument, *, edition: str) -> Part10ParseResult
             file_meta_requirements.extend(
                 _parse_file_meta_requirement_table(table, headers, edition, warnings)
             )
+        elif _is_media_type_table(headers):
+            recognized.append(
+                Part10TableSummary(
+                    table_id=table.xml_id,
+                    title=table.title,
+                    table_kind="media_type",
+                    source_ref=_source_ref(edition, table),
+                )
+            )
+            media_types.extend(
+                _parse_media_type_table(table, headers, edition, warnings)
+            )
         else:
             warnings.append(
                 ParserWarning(
@@ -63,6 +83,7 @@ def parse_part10(document: ParsedDocument, *, edition: str) -> Part10ParseResult
     return Part10ParseResult(
         recognized_tables=tuple(recognized),
         file_meta_requirements=tuple(file_meta_requirements),
+        media_types=tuple(media_types),
         warnings=tuple(warnings),
     )
 
@@ -79,6 +100,12 @@ def _headers(table: ParsedTable) -> dict[str, int]:
 def _is_file_meta_table(headers: dict[str, int]) -> bool:
     return bool(headers.keys() & {"attribute", "attribute name"}) and bool(
         headers.keys() & {"type", "description", "tag", "file meta information"}
+    )
+
+
+def _is_media_type_table(headers: dict[str, int]) -> bool:
+    return "media type" in headers and bool(
+        headers.keys() & {"service context", "context"}
     )
 
 
@@ -131,6 +158,62 @@ def _parse_file_meta_requirement_table(
     return records
 
 
+def _parse_media_type_table(
+    table: ParsedTable,
+    headers: dict[str, int],
+    edition: str,
+    warnings: list[ParserWarning],
+) -> list[DicomMediaType]:
+    records: list[DicomMediaType] = []
+    media_type_column = headers.get("media type")
+    context_column = _first_header(headers, "service context", "context")
+    if media_type_column is None or context_column is None:
+        warnings.append(
+            ParserWarning(
+                part="PS3.10",
+                table_id=table.xml_id,
+                row_index=None,
+                message="skipped media type table without media type and context",
+            )
+        )
+        return records
+
+    constraints_column = _first_header(
+        headers,
+        "transfer syntax constraints",
+        "transfer syntax constraint",
+        "constraints",
+    )
+    directions_column = _first_header(headers, "direction", "directions")
+    for row in _data_rows(table):
+        media_type = _cell(row, media_type_column)
+        service_context = _cell(row, context_column)
+        if not media_type or not service_context:
+            warnings.append(_warning(table, row, "skipped incomplete media type row"))
+            continue
+
+        constraints = _optional_tuple(row, constraints_column)
+        directions = tuple(
+            part.lower() for part in _optional_tuple(row, directions_column)
+        )
+        records.append(
+            DicomMediaType(
+                id=(
+                    f"{edition}.PS3.10.media_type."
+                    f"{_identifier_fragment(service_context)}."
+                    f"{_identifier_fragment(media_type)}"
+                ),
+                edition_id=edition,
+                media_type=media_type,
+                service_context=service_context,
+                transfer_syntax_constraints=constraints,
+                directions=directions,
+                source_ref=_source_ref(edition, table),
+            )
+        )
+    return records
+
+
 def _data_rows(table: ParsedTable) -> list[ParsedRow]:
     return [
         row for row in table.rows if row.section != "thead" and row.row_kind == "data"
@@ -151,6 +234,13 @@ def _optional_cell(row: ParsedRow, column: int | None) -> str | None:
     return value or None
 
 
+def _optional_tuple(row: ParsedRow, column: int | None) -> tuple[str, ...]:
+    value = _optional_cell(row, column)
+    if value is None:
+        return ()
+    return tuple(part.strip() for part in value.split(";") if part.strip())
+
+
 def _first_header(headers: dict[str, int], *names: str) -> int | None:
     for name in names:
         if name in headers:
@@ -160,6 +250,11 @@ def _first_header(headers: dict[str, int], *names: str) -> int | None:
 
 def _key(value: str) -> str:
     return normalize_text(value).lower()
+
+
+def _identifier_fragment(value: str) -> str:
+    normalized = normalize_text(value).lower().replace("+", "_plus_")
+    return re.sub(r"[^a-z0-9]+", "_", normalized).strip("_")
 
 
 def _warning(table: ParsedTable, row: ParsedRow, message: str) -> ParserWarning:

@@ -11,6 +11,7 @@ from dicom_kb.db.importers import (
     ImportSummary,
     import_attribute_value_terms,
     import_build_metadata,
+    import_dicom_media_types,
     import_docbook_structure,
     import_file_meta_requirements,
     import_manifest,
@@ -366,6 +367,13 @@ def build_sqlite_database(
                     connection,
                     edition=manifest.edition,
                     file_meta_requirements=parsed_part10.file_meta_requirements,
+                )
+            )
+            summaries.append(
+                import_dicom_media_types(
+                    connection,
+                    edition=manifest.edition,
+                    media_types=parsed_part10.media_types,
                 )
             )
         if "PS3.16" in documents:

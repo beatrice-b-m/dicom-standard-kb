@@ -31,7 +31,7 @@ Status values:
 | Phase 0 - V2 contract baseline | Complete | V2 result payload builders, JSON schema coverage, canonical migration table names, and empty-database migration smoke coverage are in place. |
 | Phase 1 - New part acquisition/parser foundation | Complete | Default official DocBook fetch, synthetic build-fixture loading, parser scaffolds, raw table IR, source refs, and unsupported-table warning aggregation now cover PS3.5, PS3.7, PS3.8, PS3.10, PS3.16, and PS3.18. |
 | Phase 2 - PS3.5 VR and transfer syntax semantics | Complete | `vr_definition` and `transfer_syntax_detail` import paths plus Python resolver functions, CLI commands, MCP tools, and official-edition golden test coverage are in place. The local 2026b official KB was rebuilt with Phase 2 rows and the transfer-syntax goldens execute and pass. |
-| Phase 3 - PS3.10 file meta and media foundation | In progress | `file_meta_requirement` parser/import/build wiring is in place for synthetic PS3.10 file meta rows. Media-type rows and public lookup surfaces remain pending. |
+| Phase 3 - PS3.10 file meta and media foundation | In progress | `file_meta_requirement` and PS3.10-derived `dicom_media_type` parser/import/build wiring are in place for synthetic PS3.10 rows. Public lookup surfaces remain pending. |
 | Phase 4 - PS3.18 DICOMweb transactions | Not started | Satisfies v2 acceptance criterion 2. |
 | Phase 5 - PS3.16 SR templates, CIDs, and codes | Not started | Satisfies v2 acceptance criterion 3. |
 | Phase 6 - Contextual enumerated values and defined terms | Not started | Satisfies v2 acceptance criterion 4. |
@@ -57,11 +57,11 @@ Status values:
 | Current phase | Phase 3 - PS3.10 File Meta and Media Foundation |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed commit | Pending current commit; previous completed commit was 899c73c. |
-| Last verification | `uv run --dev pytest tests/unit/test_part10_parser.py tests/unit/test_build.py` passed with 8 passed. Sandboxed `make lint`, `make typecheck`, and `make test` failed because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed after fixing one E501 line-length finding; escalated `make typecheck` passed; escalated `make test` passed with 254 passed and 4 skipped. |
+| Last completed commit | Pending current commit; previous completed commit was 83a20d3. |
+| Last verification | `uv run --dev pytest tests/unit/test_part10_parser.py tests/unit/test_build.py` passed with 9 passed. Sandboxed `make lint`, `make typecheck`, and `make test` failed because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed; escalated `make test` passed with 255 passed and 4 skipped. |
 | Current blocker | None |
-| Commit-ready summary | Parsed PS3.10 file meta information rows into `FileMetaRequirement`, persisted them through `file_meta_requirement`, opportunistically linked rows to PS3.6 data elements by tag, and added parser/import/build coverage using the expanded synthetic PS3.10 fixture. |
-| Next recommended action | Continue Phase 3 with the smallest media foundation slice: parse PS3.10-derived `dicom_media_type` rows from the synthetic PS3.10 fixture, persist them through the SQLite importer, and add focused parser/build tests without exposing public lookup behavior yet. |
+| Commit-ready summary | Parsed PS3.10-derived media type rows into `DicomMediaType`, persisted them through `dicom_media_type`, wired them into synthetic builds, and added parser/import/build coverage without exposing public lookup behavior yet. |
+| Next recommended action | Continue Phase 3 with the smallest public query slice: add the Python `lookup_media_type(media_type_or_context)` resolver path for PS3.10-derived `dicom_media_type` rows, with focused resolver tests and no CLI or MCP exposure yet. |
 
 ## Phase 0 - V2 Contract Baseline
 
@@ -229,7 +229,7 @@ Scope:
 Completion checklist:
 
 - [x] File meta requirements are imported with type designations and refs.
-- [ ] Media-type model has PS3.10 coverage.
+- [x] Media-type model has PS3.10 coverage.
 - [ ] Python lookup path exists.
 - [ ] CLI command exists.
 - [ ] MCP tool exists.
@@ -239,13 +239,16 @@ Commits:
 
 | Commit | Summary | Verification |
 |---|---|---|
-| Pending current commit | Added PS3.10 file meta requirement parsing, SQLite import/build wiring, and synthetic fixture coverage for required and optional file meta rows. | `uv run --dev pytest tests/unit/test_part10_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
+| 83a20d3 | Added PS3.10 file meta requirement parsing, SQLite import/build wiring, and synthetic fixture coverage for required and optional file meta rows. | `uv run --dev pytest tests/unit/test_part10_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
+| Pending current commit | Added PS3.10-derived media type parsing, SQLite import/build wiring, and synthetic fixture coverage for `dicom_media_type` rows. | `uv run --dev pytest tests/unit/test_part10_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
 
 Notes:
 
 - Keep PS3.10 file meta lookup separate from full dataset validation.
 - The file meta requirement slice imports table rows only. It intentionally
   does not add the `lookup_media_type` resolver, CLI command, or MCP tool.
+- The PS3.10 media-type slice imports table rows only. It intentionally does
+  not add the `lookup_media_type` resolver, CLI command, or MCP tool.
 
 ## Phase 4 - PS3.18 DICOMweb Transactions
 
