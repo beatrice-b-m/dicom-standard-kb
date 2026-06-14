@@ -18,6 +18,7 @@ from dicom_kb.ir.models import (
     IOD,
     AttributeUse,
     AttributeValueTerm,
+    CodedConcept,
     Condition,
     ContextGroup,
     ContextGroupRow,
@@ -78,6 +79,7 @@ class ImportSummary:
     sr_template_rows: int = 0
     context_groups: int = 0
     context_group_rows: int = 0
+    coded_concepts: int = 0
     include_rows_resolved: int = 0
     include_rows_unresolved: int = 0
 
@@ -599,6 +601,34 @@ def import_context_groups(
         source_refs=len(source_refs),
         context_groups=len(group_records),
         context_group_rows=len(row_records),
+    )
+
+
+def import_coded_concepts(
+    connection: sqlite3.Connection,
+    *,
+    edition: str,
+    coded_concepts: Iterable[CodedConcept],
+) -> ImportSummary:
+    """Import unique PS3.16 coded concepts derived from context group rows."""
+    records = tuple(coded_concepts)
+    source_refs = _unique_source_refs(record.source_ref for record in records)
+
+    try:
+        with connection:
+            for source_ref in source_refs:
+                _insert_source_ref(connection, source_ref)
+            for record in records:
+                _insert_coded_concept(connection, record)
+    except sqlite3.IntegrityError as exc:
+        raise ImportError(
+            f"failed to import PS3.16 coded concepts for {edition}"
+        ) from exc
+
+    return ImportSummary(
+        edition=edition,
+        source_refs=len(source_refs),
+        coded_concepts=len(records),
     )
 
 
@@ -1359,6 +1389,28 @@ def _insert_context_group_row(
             record.code_value,
             record.code_meaning,
             record.include_cid,
+            record.source_ref.id,
+        ),
+    )
+
+
+def _insert_coded_concept(
+    connection: sqlite3.Connection, record: CodedConcept
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO coded_concept (
+          id, edition_id, code_value, coding_scheme_designator,
+          coding_scheme_version, code_meaning, source_ref_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            record.id,
+            record.edition_id,
+            record.code_value,
+            record.coding_scheme_designator,
+            record.coding_scheme_version,
+            record.code_meaning,
             record.source_ref.id,
         ),
     )

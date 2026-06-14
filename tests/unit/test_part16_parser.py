@@ -5,6 +5,7 @@ import sqlite3
 from pathlib import Path
 
 from dicom_kb.db.importers import (
+    import_coded_concepts,
     import_context_groups,
     import_docbook_structure,
     import_sr_templates,
@@ -96,6 +97,15 @@ def test_parse_part16_classifies_sr_template_tables_and_warns_on_gaps() -> None:
         (1, "DCM", None, "CT", "Computed Tomography", None),
         (2, None, None, None, None, "CID 30"),
     ]
+    assert [
+        (
+            record.code_value,
+            record.coding_scheme_designator,
+            record.coding_scheme_version,
+            record.code_meaning,
+        )
+        for record in result.coded_concepts
+    ] == [("CT", "DCM", "", "Computed Tomography")]
     assert result.context_group_rows[0].source_ref.table_id == "table_16-3"
     assert [(warning.table_id, warning.message) for warning in result.warnings] == [
         ("table_16-2", "unsupported PS3.16 table shape")
@@ -223,6 +233,45 @@ def test_import_context_groups_persists_metadata_and_rows_with_source_refs(
             "code_value": None,
             "code_meaning": None,
             "include_cid": "CID 30",
+            "part": "PS3.16",
+            "table_id": "table_16-3",
+        },
+    ]
+
+
+def test_import_coded_concepts_persists_complete_context_group_codes(
+    tmp_path: Path,
+) -> None:
+    connection = _connection(tmp_path)
+    document = parse_docbook_xml(PS316_CONTENT_MAPPING_DOCBOOK, part="PS3.16")
+    parsed = parse_part16(document, edition="2026b")
+
+    summary = import_coded_concepts(
+        connection,
+        edition="2026b",
+        coded_concepts=parsed.coded_concepts,
+    )
+
+    assert summary.coded_concepts == 1
+    assert summary.source_refs == 1
+    rows = connection.execute(
+        """
+        SELECT concept.code_value, concept.coding_scheme_designator,
+               concept.coding_scheme_version, concept.code_meaning,
+               ref.part, ref.table_id
+        FROM coded_concept concept
+        JOIN source_ref ref ON ref.id = concept.source_ref_id
+        WHERE concept.edition_id = ?
+        ORDER BY concept.code_value
+        """,
+        ("2026b",),
+    ).fetchall()
+    assert [dict(row) for row in rows] == [
+        {
+            "code_value": "CT",
+            "coding_scheme_designator": "DCM",
+            "coding_scheme_version": "",
+            "code_meaning": "Computed Tomography",
             "part": "PS3.16",
             "table_id": "table_16-3",
         },

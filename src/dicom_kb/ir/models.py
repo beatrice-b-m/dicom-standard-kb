@@ -314,6 +314,20 @@ class ContextGroupRow(BaseModel):
     source_ref: SourceRef
 
 
+class CodedConcept(BaseModel):
+    """PS3.16 coded concept derived from context group coded rows."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    edition_id: str
+    code_value: str
+    coding_scheme_designator: str
+    coding_scheme_version: str = ""
+    code_meaning: str
+    source_ref: SourceRef
+
+
 class Condition(BaseModel):
     """A preserved raw condition with machine-readability metadata."""
 

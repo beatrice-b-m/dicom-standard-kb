@@ -138,6 +138,10 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
         import_summary.context_group_rows == 2
         for import_summary in summary.import_summaries
     )
+    assert any(
+        import_summary.coded_concepts == 1
+        for import_summary in summary.import_summaries
+    )
     metrics = summary.metrics.as_jsonable()
     assert set(metrics) == {
         "edition",
@@ -265,6 +269,16 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
             JOIN context_group_row row ON row.context_group_id = context_group.id
             WHERE context_group.edition_id = ?
             ORDER BY row.row_order
+            """,
+            ("2026b",),
+        ).fetchall()
+        coded_concept_rows = connection.execute(
+            """
+            SELECT code_value, coding_scheme_designator, coding_scheme_version,
+                   code_meaning
+            FROM coded_concept
+            WHERE edition_id = ?
+            ORDER BY code_value
             """,
             ("2026b",),
         ).fetchall()
@@ -494,6 +508,14 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
             "code_value": None,
             "code_meaning": None,
             "include_cid": "CID 30",
+        },
+    ]
+    assert [dict(row) for row in coded_concept_rows] == [
+        {
+            "code_value": "CT",
+            "coding_scheme_designator": "DCM",
+            "coding_scheme_version": "",
+            "code_meaning": "Computed Tomography",
         },
     ]
     assert set(payload["source_sha256"]) == {

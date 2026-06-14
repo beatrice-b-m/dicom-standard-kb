@@ -33,7 +33,7 @@ Status values:
 | Phase 2 - PS3.5 VR and transfer syntax semantics | Complete | `vr_definition` and `transfer_syntax_detail` import paths plus Python resolver functions, CLI commands, MCP tools, and official-edition golden test coverage are in place. The local 2026b official KB was rebuilt with Phase 2 rows and the transfer-syntax goldens execute and pass. |
 | Phase 3 - PS3.10 file meta and media foundation | Complete | `file_meta_requirement` and PS3.10-derived `dicom_media_type` parser/import/build wiring are in place for synthetic PS3.10 rows. The Python resolver, CLI command, and MCP tool cover the PS3.10 `lookup_media_type` baseline, including bounded cited text fallback for prose-only PS3.10 file format rules. |
 | Phase 4 - PS3.18 DICOMweb transactions | Complete | Synthetic PS3.18 DICOMweb transaction rows parse into `dicomweb_transaction` with route template, method, resource category, constraints, status codes, media-type refs, source refs, and build/import smoke coverage. Python, CLI, and MCP transaction lookup behavior are in place, and PS3.18 media-type rows now expand the existing `lookup_media_type` surface with DICOMweb request/response contexts. |
-| Phase 5 - PS3.16 SR templates, CIDs, and codes | In progress | SR template and context group metadata/row parsing/import/build wiring are in place for synthetic PS3.16 fixtures. Coded concepts, lookup surfaces, and public tool exposure remain pending. |
+| Phase 5 - PS3.16 SR templates, CIDs, and codes | In progress | SR template, context group, and coded concept parsing/import/build wiring are in place for synthetic PS3.16 fixtures. Lookup surfaces and public tool exposure remain pending. |
 | Phase 6 - Contextual enumerated values and defined terms | Not started | Satisfies v2 acceptance criterion 4. |
 | Phase 7 - Selected PS3.7/PS3.8 semantics | Not started | Completes selected networking/messaging scope and text fallback. |
 | Phase 8 - Evaluation harness expansion | Not started | Satisfies v2 acceptance criterion 6. |
@@ -57,11 +57,11 @@ Status values:
 | Current phase | Phase 5 - PS3.16 SR Templates, Context Groups, and Codes |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed commit | Pending current commit; previous completed commit was 453ab0f. |
-| Last verification | `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py` passed with 9 passed. Initial sandboxed `make lint`, `make typecheck`, and `make test` each failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make test` initially passed with 275 passed and 4 skipped before final lint/type fixes; final escalated `make lint` passed; final escalated `make typecheck` passed; final escalated `make test` passed with 275 passed and 4 skipped. |
+| Last completed commit | Pending current commit; previous completed commit was 00fc28e. |
+| Last verification | `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py` passed with 10 passed. Initial sandboxed `make lint`, `make typecheck`, and `make test` each failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make typecheck` passed before lint import fixes; escalated `make test` passed with 276 passed and 4 skipped; escalated `make lint` passed after ruff fixed import ordering; final escalated `make typecheck` passed. |
 | Current blocker | None |
-| Commit-ready summary | Added PS3.16 context group metadata and row IR models, parser extraction from the synthetic fixture, SQLite import/build wiring, and focused parser/import/build coverage. |
-| Next recommended action | Continue Phase 5 with the next smallest parser/import slice: derive PS3.16 coded concepts into `coded_concept` from parsed context group coded rows, with SQLite import/build tests only. |
+| Commit-ready summary | Derived PS3.16 coded concepts from complete context group coded rows, added SQLite import/build wiring for `coded_concept`, and covered the path with focused parser/import/build tests. |
+| Next recommended action | Continue Phase 5 with the next smallest lookup slice: add Python resolver coverage for PS3.16 lookups, starting with `lookup_code_meaning` against imported `coded_concept` rows and ambiguous code-value candidates; do not add CLI or MCP exposure in that slice. |
 
 ## Phase 0 - V2 Contract Baseline
 
@@ -347,7 +347,8 @@ Commits:
 | Commit | Summary | Verification |
 |---|---|---|
 | 453ab0f | Added PS3.16 SR template metadata and row parsing/import/build wiring from the synthetic fixture. | `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
-| Pending current commit | Added PS3.16 context group metadata and row parsing/import/build wiring from the synthetic fixture. | `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
+| 00fc28e | Added PS3.16 context group metadata and row parsing/import/build wiring from the synthetic fixture. | `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
+| Pending current commit | Derived PS3.16 coded concepts from parsed context group coded rows, with SQLite import/build wiring and focused coverage. | `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
 
 Notes:
 
@@ -363,6 +364,11 @@ Notes:
   It only populates `context_group` and `context_group_row` rows with source
   references so later Phase 5 slices can build lookup behavior against stable
   table data.
+- The coded concept parser/import slice intentionally does not add
+  `lookup_code_meaning`, CLI commands, or MCP tools. It derives unique
+  `coded_concept` rows only from complete context group coded rows and skips
+  CID include rows so later lookup slices can handle code-value ambiguity
+  against stable table data.
 
 ## Phase 6 - Contextual Enumerated Values and Defined Terms
 

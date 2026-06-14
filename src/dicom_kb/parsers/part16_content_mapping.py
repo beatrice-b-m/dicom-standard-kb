@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 from dicom_kb.docbook.parser import ParsedDocument
 from dicom_kb.docbook.tables import ParsedRow, ParsedTable
 from dicom_kb.docbook.text_chunks import normalize_text
 from dicom_kb.ir.models import (
+    CodedConcept,
     ContextGroup,
     ContextGroupRow,
     ParserWarning,
@@ -37,6 +39,7 @@ class Part16ParseResult:
     sr_template_rows: tuple[SRTemplateRow, ...]
     context_groups: tuple[ContextGroup, ...]
     context_group_rows: tuple[ContextGroupRow, ...]
+    coded_concepts: tuple[CodedConcept, ...]
     warnings: tuple[ParserWarning, ...]
 
 
@@ -97,8 +100,48 @@ def parse_part16(document: ParsedDocument, *, edition: str) -> Part16ParseResult
         sr_template_rows=tuple(template_rows),
         context_groups=tuple(context_groups.values()),
         context_group_rows=tuple(context_group_rows),
+        coded_concepts=coded_concepts_from_context_group_rows(context_group_rows),
         warnings=tuple(warnings),
     )
+
+
+def coded_concepts_from_context_group_rows(
+    rows: Iterable[ContextGroupRow],
+) -> tuple[CodedConcept, ...]:
+    """Derive unique coded concepts from complete PS3.16 context group rows."""
+    concepts: dict[tuple[str, str, str, str], CodedConcept] = {}
+    for row in rows:
+        if (
+            row.code_value is None
+            or row.coding_scheme_designator is None
+            or row.code_meaning is None
+        ):
+            continue
+        scheme_version = row.coding_scheme_version or ""
+        key = (
+            row.edition_id,
+            row.code_value,
+            row.coding_scheme_designator,
+            scheme_version,
+        )
+        concepts.setdefault(
+            key,
+            CodedConcept(
+                id=_coded_concept_id(
+                    edition=row.edition_id,
+                    code_value=row.code_value,
+                    coding_scheme_designator=row.coding_scheme_designator,
+                    coding_scheme_version=scheme_version,
+                ),
+                edition_id=row.edition_id,
+                code_value=row.code_value,
+                coding_scheme_designator=row.coding_scheme_designator,
+                coding_scheme_version=scheme_version,
+                code_meaning=row.code_meaning,
+                source_ref=row.source_ref,
+            ),
+        )
+    return tuple(concepts.values())
 
 
 def _headers(table: ParsedTable) -> dict[str, int]:
@@ -362,6 +405,25 @@ def _key(value: str) -> str:
 def _identifier_fragment(value: str) -> str:
     normalized = normalize_text(value).lower()
     return re.sub(r"[^a-z0-9]+", "_", normalized).strip("_")
+
+
+def _coded_concept_id(
+    *,
+    edition: str,
+    code_value: str,
+    coding_scheme_designator: str,
+    coding_scheme_version: str,
+) -> str:
+    parts = [
+        edition,
+        "PS3.16",
+        "coded_concept",
+        _identifier_fragment(coding_scheme_designator),
+        _identifier_fragment(code_value),
+    ]
+    if coding_scheme_version:
+        parts.append(_identifier_fragment(coding_scheme_version))
+    return ".".join(parts)
 
 
 def _warning(table: ParsedTable, row: ParsedRow, message: str) -> ParserWarning:
