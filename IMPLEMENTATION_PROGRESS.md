@@ -28,7 +28,7 @@ Status values:
 | Area | Status | Notes |
 |---|---|---|
 | V1 baseline | Complete | See `IMPLEMENTATION_REVIEW.md`; v1 acceptance criteria are documented as met. |
-| Phase 0 - V2 contract baseline | In progress | V2 result payload builders are in place; schemas and migration design remain. |
+| Phase 0 - V2 contract baseline | In progress | V2 result payload builders and JSON schema coverage are in place; migration design remains. |
 | Phase 1 - New part acquisition/parser foundation | Not started | Needs PS3.5, PS3.7, PS3.8, PS3.10, PS3.16, PS3.18 fixture and parser scaffolding. |
 | Phase 2 - PS3.5 VR and transfer syntax semantics | Not started | Satisfies v2 acceptance criterion 1. |
 | Phase 3 - PS3.10 file meta and media foundation | Not started | Prepares shared media-type model. |
@@ -57,10 +57,10 @@ Status values:
 | Current phase | Phase 0 - V2 contract baseline |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed commit | Pending current slice commit. |
-| Last verification | `uv run --dev pytest tests/unit/test_json_schemas.py` passed; `make lint` passed; `make typecheck` passed; `make test` passed with 213 passed, 4 skipped. |
+| Last completed commit | d831ea9 |
+| Last verification | `uv run --dev pytest tests/unit/test_json_schemas.py` passed with 11 passed; `make lint` passed; `make typecheck` passed; `make test` passed with 215 passed, 4 skipped. |
 | Current blocker | None |
-| Next recommended action | Continue Phase 0 by adding v2 JSON schema coverage and canonical migration table names. |
+| Next recommended action | Continue Phase 0 by adding canonical v2 migration table names plus an empty-database migration smoke test. |
 
 ## Phase 0 - V2 Contract Baseline
 
@@ -76,18 +76,19 @@ Scope:
 Completion checklist:
 
 - [x] V2 result payload builders exist.
-- [ ] JSON schema tests cover representative v2 responses.
+- [x] JSON schema tests cover representative v2 responses.
 - [ ] Empty-database migration smoke test passes.
-- [ ] v1 response contract tests still pass.
-- [ ] `make lint` passes.
-- [ ] `make typecheck` passes.
-- [ ] `make test` passes.
+- [x] v1 response contract tests still pass.
+- [x] `make lint` passes.
+- [x] `make typecheck` passes.
+- [x] `make test` passes.
 
 Commits:
 
 | Commit | Summary | Verification |
 |---|---|---|
-| Pending current slice commit | Added Pydantic-backed v2 result payload builders and classification defaults for planned v2 tools. | `uv run --dev pytest tests/unit/test_json_schemas.py`; `make lint`; `make typecheck`; `make test` |
+| d831ea9 | Added Pydantic-backed v2 result payload builders and classification defaults for planned v2 tools. | `uv run --dev pytest tests/unit/test_json_schemas.py`; `make lint`; `make typecheck`; `make test` |
+| Pending current slice commit | Added explicit JSON schema coverage for v2 result payloads and representative payload contract tests. | `uv run --dev pytest tests/unit/test_json_schemas.py`; `make lint`; `make typecheck`; `make test` |
 
 Notes:
 
@@ -96,6 +97,8 @@ Notes:
 - Current slice added only response payload builders in
   `src/dicom_kb/query/answer_contracts.py`; no CLI, MCP, resolver, parser, or
   database behavior is advertised as complete.
+- Current schema slice added only contract schemas and tests; no v2 CLI, MCP,
+  resolver, parser, or database behavior is advertised as complete.
 
 ## Phase 1 - New Part Acquisition and Parser Foundation
 

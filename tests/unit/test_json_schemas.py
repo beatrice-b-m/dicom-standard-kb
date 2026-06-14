@@ -5,15 +5,23 @@ from pathlib import Path
 from typing import get_args
 
 import pytest
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from dicom_kb.query.answer_contracts import (
     NOTICE,
+    CodeMeaningResult,
+    ContextGroupResult,
     ContextGroupRowResult,
+    DicomMediaTypeResult,
+    DicomwebTransactionResult,
+    EncodingRuleExplanationResult,
     ResponseStatus,
+    SRTemplateResult,
     SRTemplateRowResult,
     StandardRef,
     ToolResponse,
+    TransferSyntaxDetailResult,
+    VRDefinitionResult,
     code_meaning_result,
     context_group_result,
     dicom_media_type_result,
@@ -33,6 +41,14 @@ SCHEMA_DRAFT = "https://json-schema.org/draft/2020-12/schema"
 def _schema(name: str) -> dict[str, object]:
     path = SCHEMA_DIR / name
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _assert_schema_def_matches_model(
+    schema_def: dict[str, object], model: type[BaseModel]
+) -> None:
+    assert schema_def["additionalProperties"] is False
+    assert set(schema_def["properties"]) == set(model.model_fields)
+    assert schema_def["required"] == list(model.model_fields)
 
 
 def test_required_schema_files_are_valid_json_objects() -> None:
@@ -64,6 +80,92 @@ def test_tool_response_schema_matches_public_envelope_contract() -> None:
     assert properties["status"]["enum"] == list(get_args(ResponseStatus))
     assert properties["notice"]["const"] == NOTICE
     assert schema["required"] == list(ToolResponse.model_fields)
+
+
+def test_v2_payload_schema_matches_public_result_contracts() -> None:
+    schema = _schema("v2_payloads.schema.json")
+    defs = schema["$defs"]
+
+    assert schema["$schema"] == SCHEMA_DRAFT
+    assert schema["type"] == "object"
+    assert schema["oneOf"] == [
+        {"$ref": "#/$defs/vrDefinitionResult"},
+        {"$ref": "#/$defs/transferSyntaxDetailResult"},
+        {"$ref": "#/$defs/encodingRuleExplanationResult"},
+        {"$ref": "#/$defs/dicomwebTransactionResult"},
+        {"$ref": "#/$defs/dicomMediaTypeResult"},
+        {"$ref": "#/$defs/srTemplateResult"},
+        {"$ref": "#/$defs/contextGroupResult"},
+        {"$ref": "#/$defs/codeMeaningResult"},
+    ]
+
+    expected_defs = {
+        "vrDefinitionResult": VRDefinitionResult,
+        "transferSyntaxDetailResult": TransferSyntaxDetailResult,
+        "encodingRuleExplanationResult": EncodingRuleExplanationResult,
+        "dicomwebTransactionResult": DicomwebTransactionResult,
+        "dicomMediaTypeResult": DicomMediaTypeResult,
+        "srTemplateResult": SRTemplateResult,
+        "srTemplateRowResult": SRTemplateRowResult,
+        "contextGroupResult": ContextGroupResult,
+        "contextGroupRowResult": ContextGroupRowResult,
+        "codeMeaningResult": CodeMeaningResult,
+    }
+    assert set(defs) == set(expected_defs)
+    for name, model in expected_defs.items():
+        _assert_schema_def_matches_model(defs[name], model)
+
+
+def test_representative_v2_payloads_match_schema_required_fields() -> None:
+    defs = _schema("v2_payloads.schema.json")["$defs"]
+    representative_payloads = {
+        "vrDefinitionResult": vr_definition_result(vr="PN", name="Person Name"),
+        "transferSyntaxDetailResult": transfer_syntax_detail_result(
+            uid_value="1.2.840.10008.1.2.1",
+            uid_name="Explicit VR Little Endian",
+            retired=False,
+        ),
+        "encodingRuleExplanationResult": encoding_rule_explanation_result(
+            topic="padding",
+            summary="Padding rules require cited text.",
+        ),
+        "dicomwebTransactionResult": dicomweb_transaction_result(
+            transaction_name="RetrieveStudy",
+            resource_category="study",
+            http_method="GET",
+            route_template="/studies/{studyInstanceUID}",
+        ),
+        "dicomMediaTypeResult": dicom_media_type_result(
+            media_type="application/dicom",
+        ),
+        "srTemplateResult": sr_template_result(
+            tid="TID 1500",
+            name="Measurement Report",
+            rows=[SRTemplateRowResult(order=1)],
+        ),
+        "contextGroupResult": context_group_result(
+            cid="CID 29",
+            name="Acquisition Modality",
+            rows=[ContextGroupRowResult(order=1)],
+        ),
+        "codeMeaningResult": code_meaning_result(
+            code_value="CT",
+            coding_scheme_designator="DCM",
+            code_meaning="Computed Tomography",
+        ),
+    }
+
+    for schema_name, payload in representative_payloads.items():
+        schema_def = defs[schema_name]
+        assert set(payload) == set(schema_def["properties"])
+        assert set(payload) == set(schema_def["required"])
+
+    sr_rows = representative_payloads["srTemplateResult"]["rows"]
+    assert set(sr_rows[0]) == set(defs["srTemplateRowResult"]["required"])
+    context_group_rows = representative_payloads["contextGroupResult"]["rows"]
+    assert set(context_group_rows[0]) == set(
+        defs["contextGroupRowResult"]["required"]
+    )
 
 
 def test_tool_response_requires_classification_metadata() -> None:
