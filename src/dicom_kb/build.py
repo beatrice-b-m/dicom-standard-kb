@@ -27,6 +27,7 @@ from dicom_kb.parsers.part05_encoding import parse_part05
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
 from dicom_kb.parsers.part07_messages import parse_part07
 from dicom_kb.parsers.part08_network import parse_part08
+from dicom_kb.parsers.part10_media_storage import parse_part10
 from dicom_kb.sources.downloader import DEFAULT_CACHE_DIR
 from dicom_kb.sources.manifest import (
     SourceManifest,
@@ -327,6 +328,11 @@ def build_sqlite_database(
                 documents["PS3.8"], edition=manifest.edition
             )
             warnings.extend(_warning_messages(parsed_part08.warnings))
+        if "PS3.10" in documents:
+            parsed_part10 = parse_part10(
+                documents["PS3.10"], edition=manifest.edition
+            )
+            warnings.extend(_warning_messages(parsed_part10.warnings))
 
         metrics = BuildMetrics.from_imports(
             edition=manifest.edition,

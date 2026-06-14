@@ -20,3 +20,6 @@ PS37_MESSAGES_DOCBOOK = (
 PS38_NETWORK_DOCBOOK = (
     FIXTURE_DIR / "synthetic_ps3_8_network_docbook.xml"
 ).read_text(encoding="utf-8")
+PS310_MEDIA_STORAGE_DOCBOOK = (
+    FIXTURE_DIR / "synthetic_ps3_10_media_storage_docbook.xml"
+).read_text(encoding="utf-8")
