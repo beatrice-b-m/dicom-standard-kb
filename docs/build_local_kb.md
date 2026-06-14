@@ -8,8 +8,9 @@ dicom-kb lookup tag Modality --edition 2026b
 ```
 
 `fetch` resolves `current` from the official DICOM current release metadata
-before writing a manifest. By default, official fetch downloads the DocBook
-XML parts used by the implemented v1 parsers: PS3.3, PS3.4, and PS3.6.
+before writing a manifest. By default, official fetch downloads the v2
+baseline DocBook XML parts: PS3.3, PS3.4, PS3.5, PS3.6, PS3.7, PS3.8,
+PS3.10, PS3.16, and PS3.18.
 
 Concrete historical editions are fetched from the official DICOM archive
 directory instead of the mutable current-release directory:
