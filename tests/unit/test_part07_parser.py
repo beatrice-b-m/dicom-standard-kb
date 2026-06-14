@@ -29,6 +29,17 @@ def test_parse_part07_classifies_dimse_service_tables_and_warns_on_gaps() -> Non
     assert service_table.source_ref.section == "sect_7_1"
     assert service_table.source_ref.table_id == "table_7-1"
     assert service_table.source_ref.title == "Synthetic Message Services"
+    assert [
+        (record.service, record.role, record.behavior)
+        for record in result.service_behaviors
+    ] == [
+        (
+            "C-ECHO",
+            "verification",
+            "Confirms application-level communication between peer DICOM AEs.",
+        )
+    ]
+    assert result.service_behaviors[0].source_ref.table_id == "table_7-1"
     assert [(warning.table_id, warning.message) for warning in result.warnings] == [
         ("table_7-2", "unsupported PS3.7 table shape")
     ]
@@ -75,6 +86,10 @@ def test_part07_docbook_structure_persists_nodes_refs_and_raw_table_ir(
     payload = json.loads(raw_table["ir_json"])
     assert payload["title"] == "Synthetic Message Services"
     assert payload["rows"][1]["cells"][0]["text"] == "C-ECHO"
+    assert (
+        payload["rows"][1]["cells"][2]["text"]
+        == "Confirms application-level communication between peer DICOM AEs."
+    )
     assert len(raw_table["ir_sha256"]) == 64
     assert raw_table["part"] == "PS3.7"
     assert raw_table["table_id"] == "table_7-1"

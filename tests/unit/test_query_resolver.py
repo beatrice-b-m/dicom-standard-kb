@@ -58,6 +58,7 @@ from tests.fixtures_synthetic import (
     PS34_SOP_CLASSES_DOCBOOK,
     PS35_ENCODING_DOCBOOK,
     PS36_REGISTRY_DOCBOOK,
+    PS37_MESSAGES_DOCBOOK,
     PS310_MEDIA_STORAGE_DOCBOOK,
     PS316_CONTENT_MAPPING_DOCBOOK,
     PS318_WEB_SERVICES_DOCBOOK,
@@ -107,6 +108,18 @@ def _doc_connection(tmp_path: Path) -> sqlite3.Connection:
     connection = connect_sqlite(tmp_path / "kb.sqlite")
     apply_migrations(connection)
     document = parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3")
+    import_docbook_structure(
+        connection,
+        edition="2026b",
+        document=document,
+    )
+    return connection
+
+
+def _part07_doc_connection(tmp_path: Path) -> sqlite3.Connection:
+    connection = connect_sqlite(tmp_path / "kb.sqlite")
+    apply_migrations(connection)
+    document = parse_docbook_xml(PS37_MESSAGES_DOCBOOK, part="PS3.7")
     import_docbook_structure(
         connection,
         edition="2026b",
@@ -1423,6 +1436,35 @@ def test_retrieve_standard_text_returns_capped_excerpt_and_tables(
     assert [ref.part for ref in response.refs] == ["PS3.3", "PS3.3"]
     assert response.refs[1].table == "CT Image IOD Modules"
     assert response.trace.query_id == "query-1"
+
+
+def test_retrieve_standard_text_returns_cited_ps37_service_behavior_fallback(
+    tmp_path: Path,
+) -> None:
+    response = retrieve_standard_text(
+        _part07_doc_connection(tmp_path),
+        part="PS3.7",
+        section_or_anchor="sect_7_1",
+        edition="2026b",
+        max_chars=240,
+    )
+
+    assert response.status == "ok"
+    assert response.result is not None
+    assert response.result["part"] == "PS3.7"
+    assert response.result["title"] == "Message Overview"
+    assert "C-ECHO service behavior verifies communication" in str(
+        response.result["text_excerpt"]
+    )
+    assert response.result["tables"] == [
+        {"table_id": "table_7-1", "title": "Synthetic Message Services"},
+        {"table_id": "table_7-2", "title": "Synthetic Message Notes"},
+    ]
+    assert [(ref.part, ref.anchor) for ref in response.refs] == [
+        ("PS3.7", "sect_7_1"),
+        ("PS3.7", "table_7-1"),
+        ("PS3.7", "table_7-2"),
+    ]
 
 
 def test_retrieve_standard_text_validates_inputs(tmp_path: Path) -> None:

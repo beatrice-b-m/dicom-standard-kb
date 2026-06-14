@@ -3,15 +3,15 @@
     <title>PS3.7 Synthetic Messages</title>
     <section xml:id="sect_7_1">
       <title>Message Overview</title>
-      <para>Synthetic PS3.7 fixture for generic DocBook ingestion.</para>
+      <para>Synthetic PS3.7 fixture for generic DocBook ingestion. The C-ECHO service behavior verifies communication by exchanging a request and response message pair.</para>
       <table xml:id="table_7-1">
         <title>Synthetic Message Services</title>
-        <tgroup cols="2">
+        <tgroup cols="3">
           <thead>
-            <row><entry>Service</entry><entry>Role</entry></row>
+            <row><entry>Service</entry><entry>Role</entry><entry>Behavior</entry></row>
           </thead>
           <tbody>
-            <row><entry>C-ECHO</entry><entry>verification</entry></row>
+            <row><entry>C-ECHO</entry><entry>verification</entry><entry>Confirms application-level communication between peer DICOM AEs.</entry></row>
           </tbody>
         </tgroup>
       </table>

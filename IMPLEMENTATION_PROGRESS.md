@@ -35,7 +35,7 @@ Status values:
 | Phase 4 - PS3.18 DICOMweb transactions | Complete | Synthetic PS3.18 DICOMweb transaction rows parse into `dicomweb_transaction` with route template, method, resource category, constraints, status codes, media-type refs, source refs, and build/import smoke coverage. Python, CLI, and MCP transaction lookup behavior are in place, and PS3.18 media-type rows now expand the existing `lookup_media_type` surface with DICOMweb request/response contexts. |
 | Phase 5 - PS3.16 SR templates, CIDs, and codes | Complete | SR template, context group, and coded concept parsing/import/build wiring are in place for synthetic PS3.16 fixtures. Python resolver functions, CLI commands, and MCP tools cover code meaning, context group, and SR template lookups. Legal and distribution docs now explicitly preserve the no-standalone-terminology-dump invariant for PS3.16 content. |
 | Phase 6 - Contextual enumerated values and defined terms | Complete | Existing `attribute_value_term` coverage is documented; deterministic IOD/SOP/module/macro context resolution works through the shared PS3.3/PS3.4 graph, and ambiguous contextual value-term matches now return candidates instead of a merged answer. |
-| Phase 7 - Selected PS3.7/PS3.8 semantics | Not started | Completes selected networking/messaging scope and text fallback. |
+| Phase 7 - Selected PS3.7/PS3.8 semantics | In progress | The first selected PS3.7 DIMSE service-behavior parser slice is in place for the synthetic C-ECHO fixture, with cited PS3.7 retrieval fallback coverage. PS3.8 selected networking semantics remain pending. |
 | Phase 8 - Evaluation harness expansion | Not started | Satisfies v2 acceptance criterion 6. |
 | Phase 9 - V2 release hardening | Not started | Final docs, integration goldens, metrics, and release gates. |
 
@@ -47,7 +47,7 @@ Status values:
 | 2 | DICOMweb transaction lookups return route, method, resource type, request/response constraints, and standard references. | Complete | Python resolver, CLI command, and MCP tool return parsed PS3.18 transaction rows by exact name or route template with ambiguous route candidates. |
 | 3 | TID and CID lookups return structured rows and extensibility metadata. | Complete | Python resolvers return structured TID and CID rows with extensibility metadata; CLI and MCP exposure exists for TID, CID, and code lookup; legal/distribution docs explicitly forbid standalone PS3.16 terminology dumps and bulk context-group/code exports. |
 | 4 | Enumerated values and defined terms link to their attribute context. | Complete | Existing import and lookup coverage is documented; exact module, macro, IOD, and SOP Class contexts resolve to applicable attribute-use contexts, and ambiguous contextual matches return candidates instead of silently choosing one. |
-| 5 | Fallback text retrieval covers prose-only rules. | In progress | PS3.10 media/file-format fallback now returns bounded cited text when no parsed media-type row matches; pending Phases 5 and 7 audit against other v2 parts. |
+| 5 | Fallback text retrieval covers prose-only rules. | In progress | PS3.10 media/file-format fallback returns bounded cited text when no parsed media-type row matches, and PS3.7 selected service-behavior prose is covered by cited `retrieve_standard_text` fallback; PS3.8 and final v2-part audit remain pending. |
 | 6 | At least 100 coding-task regression prompts pass through deterministic tool calls before answer synthesis. | Not started | Pending Phase 8. |
 
 ## Active Work
@@ -57,11 +57,11 @@ Status values:
 | Current phase | Phase 7 - Selected PS3.7/PS3.8 Semantics |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed commit | Pending current commit; previous completed commit was c13b8f8. |
-| Last verification | `uv run --dev pytest tests/unit/test_query_resolver.py -k 'value_terms or defined_terms'` passed with 4 passed; `uv run --dev pytest tests/unit/test_cli_lookup.py -k defined_terms` passed with 1 passed; `uv run --dev pytest tests/unit/test_mcp_server.py -k defined_terms` passed with 1 passed; sandboxed `make lint`, `make typecheck`, and `make test` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed; escalated `make test` passed with 295 passed and 4 skipped. |
+| Last completed commit | Pending current commit; previous completed commit was dbda78e. |
+| Last verification | `uv run --dev pytest tests/unit/test_part07_parser.py` passed with 2 passed; `uv run --dev pytest tests/unit/test_query_resolver.py -k 'retrieve_standard_text'` passed with 4 passed and 59 deselected; `uv run --dev pytest tests/unit/test_build.py -k build_sqlite_database_imports_manifest_docbook_and_metadata` passed with 1 passed and 4 deselected; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
 | Current blocker | None |
-| Commit-ready summary | Added ambiguity handling for contextual value-term lookups so a supplied context that resolves to multiple concrete value-term contexts returns a validation response with candidates and citations instead of merging terms. Added focused Python resolver regression coverage and rechecked existing CLI/MCP value-term paths. |
-| Next recommended action | Start Phase 7 with the smallest selected PS3.7 messaging semantics slice: add a synthetic PS3.7 selected service-behavior fixture/parser path and cited query fallback coverage without adding broad public-tool claims. |
+| Commit-ready summary | Added a selected PS3.7 DIMSE service-behavior parser path for the synthetic C-ECHO fixture and regression coverage that PS3.7 service-behavior prose can be retrieved with citations through the existing bounded text retrieval path. No new public PS3.7 tool is advertised. |
+| Next recommended action | Continue Phase 7 with the smallest selected PS3.8 networking semantics slice: add a synthetic PS3.8 selected networking-behavior fixture/parser path and cited retrieval fallback coverage without adding broad public-tool claims. |
 
 ## Phase 0 - V2 Contract Baseline
 
@@ -437,7 +437,7 @@ Commits:
 |---|---|---|
 | 5c9a5df | Documented the current `attribute_value_term` import and lookup coverage, including deterministic context links already supported and Phase 6 context gaps. | Initial `uv run --dev pytest tests/unit/test_metadata.py` failed on a line-wrapped documentation assertion and was fixed; final `uv run --dev pytest tests/unit/test_metadata.py` passed with 3 passed; `uv run --dev ruff check tests/unit/test_metadata.py` passed; sandboxed `make lint` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; sandboxed `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make typecheck` passed. |
 | c13b8f8 | Extended value-term context resolution for exact PS3.3 IOD and PS3.4 SOP Class inputs by resolving them to applicable attribute-use ids through the existing context graph before falling back to text/module/macro matching. | `uv run --dev pytest tests/unit/test_query_resolver.py -k 'value_terms or defined_terms'`; `uv run --dev pytest tests/unit/test_cli_lookup.py -k defined_terms`; `uv run --dev pytest tests/unit/test_mcp_server.py -k defined_terms`; `uv run --dev pytest tests/unit/test_db_importers.py -k attribute_value_terms`; sandboxed `make lint`, `make typecheck`, and `make test` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint`; escalated `make typecheck`; escalated `make test` |
-| Pending current commit | Added ambiguity handling for contextual value-term lookups so a context that maps to multiple value-term contexts returns candidates instead of a merged answer. | `uv run --dev pytest tests/unit/test_query_resolver.py -k 'value_terms or defined_terms'` passed with 4 passed; `uv run --dev pytest tests/unit/test_cli_lookup.py -k defined_terms` passed with 1 passed; `uv run --dev pytest tests/unit/test_mcp_server.py -k defined_terms` passed with 1 passed; sandboxed `make lint`, `make typecheck`, and `make test` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed; escalated `make test` passed with 295 passed and 4 skipped. |
+| dbda78e | Added ambiguity handling for contextual value-term lookups so a context that maps to multiple value-term contexts returns candidates instead of a merged answer. | `uv run --dev pytest tests/unit/test_query_resolver.py -k 'value_terms or defined_terms'` passed with 4 passed; `uv run --dev pytest tests/unit/test_cli_lookup.py -k defined_terms` passed with 1 passed; `uv run --dev pytest tests/unit/test_mcp_server.py -k defined_terms` passed with 1 passed; sandboxed `make lint`, `make typecheck`, and `make test` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed; escalated `make test` passed with 295 passed and 4 skipped. |
 
 Notes:
 
@@ -450,7 +450,7 @@ Notes:
 
 ## Phase 7 - Selected PS3.7 and PS3.8 Semantics
 
-Status: `Not started`
+Status: `In progress`
 
 Scope:
 
@@ -461,7 +461,7 @@ Scope:
 
 Completion checklist:
 
-- [ ] PS3.7 selected topic fixture and parser coverage exists.
+- [x] PS3.7 selected topic fixture and parser coverage exists.
 - [ ] PS3.8 selected topic fixture and parser coverage exists.
 - [ ] Query path returns structured facts where deterministic.
 - [ ] Query path returns cited text for prose-only topics.
@@ -471,11 +471,14 @@ Commits:
 
 | Commit | Summary | Verification |
 |---|---|---|
-| None | Not started. | None. |
+| Pending current commit | Added selected PS3.7 DIMSE service-behavior parsing for the synthetic C-ECHO fixture and cited PS3.7 `retrieve_standard_text` fallback coverage. | `uv run --dev pytest tests/unit/test_part07_parser.py` passed with 2 passed; `uv run --dev pytest tests/unit/test_query_resolver.py -k 'retrieve_standard_text'` passed with 4 passed and 59 deselected; `uv run --dev pytest tests/unit/test_build.py -k build_sqlite_database_imports_manifest_docbook_and_metadata` passed with 1 passed and 4 deselected; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
 
 Notes:
 
 - This phase should not claim full PS3.7 or PS3.8 coverage.
+- The first PS3.7 slice intentionally keeps selected service behavior as
+  parser IR plus generic cited retrieval coverage only; it does not add a new
+  public Python, CLI, or MCP tool.
 
 ## Phase 8 - Evaluation Harness Expansion
 
@@ -548,11 +551,12 @@ Notes:
 |---|---|---|---|
 | 2026-06-14 | Start v2 from documented complete v1 baseline. | `IMPLEMENTATION_REVIEW.md` records all active v1 review findings as resolved. | Initial planning docs commit. |
 | 2026-06-14 | Use canonical v2 table names from `IMPLEMENTATION_PLAN.md`: `vr_definition`, `transfer_syntax_detail`, `file_meta_requirement`, `dicom_media_type`, `dicomweb_transaction`, `sr_template`, `sr_template_row`, `context_group`, `context_group_row`, and `coded_concept`. | Parser phases need stable storage targets before new part ingestion begins; JSON-array fields are stored as text for SQLite/PostgreSQL portability until importers add domain models. | 0bbb0fe. |
+| 2026-06-14 | Keep the initial Phase 7 PS3.7/PS3.8 slices off the public-tool surface. | The v2 plan allows selected PS3.7/PS3.8 content to be available through structured lookup where possible and cited text retrieval otherwise, and no dedicated public contract exists for these topics yet. Parser IR plus bounded retrieval keeps the repo working without broad tool claims. | Pending current commit. |
 
 ## Open Questions
 
 | Question | Owner | Status | Resolution |
 |---|---|---|---|
-| Should PS3.7 and PS3.8 selected scope get dedicated public tools, or feed only cited explanatory lookups? | Future v2 implementer | Open | Decide during Phase 0 contract baseline. |
+| Should PS3.7 and PS3.8 selected scope get dedicated public tools, or feed only cited explanatory lookups? | Codex | Resolved for initial Phase 7 slices | Use parser IR plus existing cited text retrieval only; do not add dedicated public tools without a later explicit contract update. |
 | Should `lookup_media_type` return a merged PS3.10/PS3.18 view or context-specific rows only? | Future v2 implementer | Open | Decide during Phase 0 schema design. |
 | Which official edition is the first v2 integration baseline? | Future v2 implementer | Open | Pick the locally available concrete edition at Phase 1 start. |
