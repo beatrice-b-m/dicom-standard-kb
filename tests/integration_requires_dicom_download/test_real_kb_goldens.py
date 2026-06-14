@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from typing import Any
 
@@ -9,11 +10,19 @@ from dicom_kb.query.answer_contracts import StandardRef, ToolResponse
 from dicom_kb.query.resolver import (
     list_attributes_for_module,
     list_modules_for_iod,
+    lookup_code_meaning,
+    lookup_context_group,
     lookup_data_element,
+    lookup_defined_terms,
+    lookup_dicomweb_transaction,
+    lookup_enumerated_values,
     lookup_iod,
+    lookup_media_type,
     lookup_sop_class,
+    lookup_sr_template,
     lookup_transfer_syntax,
     lookup_uid,
+    lookup_vr,
     resolve_attribute_context,
 )
 
@@ -238,6 +247,174 @@ def test_real_kb_transfer_syntax_encoding_goldens(
     _assert_ref(response.refs, part="PS3.6", anchor="table_A-1")
 
 
+def test_real_kb_vr_definition_golden(
+    connection: sqlite3.Connection, edition: str
+) -> None:
+    expected = _require_vr_definition(connection, edition, vr="PN")
+
+    response = lookup_vr(connection, vr="PN", edition=edition)
+    result = _ok_result(response)
+
+    assert result["vr"] == "PN"
+    assert result["name"] == expected["name"]
+    assert result["binary_or_text"] == expected["binary_or_text"]
+    _assert_ref(response.refs, part="PS3.5")
+
+
+def test_real_kb_ps310_media_type_golden(
+    connection: sqlite3.Connection, edition: str
+) -> None:
+    expected = _require_unique_media_type(
+        connection, edition, source_part="PS3.10"
+    )
+
+    response = lookup_media_type(
+        connection,
+        media_type_or_context=str(expected["service_context"]),
+        edition=edition,
+    )
+    result = _ok_result(response)
+
+    assert result == {
+        "media_type": expected["media_type"],
+        "service_context": expected["service_context"],
+        "transfer_syntax_constraints": json.loads(
+            expected["transfer_syntax_constraints_json"]
+        ),
+        "directions": json.loads(expected["directions_json"]),
+    }
+    _assert_ref(response.refs, part="PS3.10")
+
+
+def test_real_kb_ps318_transaction_golden(
+    connection: sqlite3.Connection, edition: str
+) -> None:
+    expected = _require_unique_dicomweb_transaction(connection, edition)
+
+    response = lookup_dicomweb_transaction(
+        connection,
+        name_or_route=str(expected["transaction_name"]),
+        edition=edition,
+    )
+    result = _ok_result(response)
+
+    assert result == {
+        "transaction_name": expected["transaction_name"],
+        "resource_category": expected["resource_category"],
+        "http_method": expected["http_method"],
+        "route_template": expected["route_template"],
+        "request_constraints": json.loads(expected["request_constraints_json"]),
+        "response_constraints": json.loads(expected["response_constraints_json"]),
+        "status_codes": json.loads(expected["status_codes_json"]),
+        "media_type_refs": json.loads(expected["media_type_refs_json"]),
+    }
+    _assert_ref(response.refs, part="PS3.18")
+
+
+def test_real_kb_ps316_sr_template_golden(
+    connection: sqlite3.Connection, edition: str
+) -> None:
+    expected = _require_sr_template(connection, edition)
+
+    response = lookup_sr_template(
+        connection, tid_or_name=str(expected["tid"]), edition=edition
+    )
+    result = _ok_result(response)
+
+    assert result["tid"] == expected["tid"]
+    assert result["name"] == expected["name"]
+    assert result["extensibility"] == expected["extensibility"]
+    assert result["rows"]
+    _assert_ref(response.refs, part="PS3.16")
+
+
+def test_real_kb_ps316_context_group_golden(
+    connection: sqlite3.Connection, edition: str
+) -> None:
+    expected = _require_context_group(connection, edition)
+
+    response = lookup_context_group(
+        connection, cid_or_name=str(expected["cid"]), edition=edition
+    )
+    result = _ok_result(response)
+
+    assert result["cid"] == expected["cid"]
+    assert result["name"] == expected["name"]
+    assert result["extensibility"] == expected["extensibility"]
+    assert result["version"] == expected["version"]
+    assert result["rows"]
+    _assert_ref(response.refs, part="PS3.16")
+
+
+def test_real_kb_ps316_code_meaning_golden(
+    connection: sqlite3.Connection, edition: str
+) -> None:
+    expected = _require_unique_code_meaning(connection, edition)
+
+    response = lookup_code_meaning(
+        connection,
+        code_value=str(expected["code_value"]),
+        scheme=str(expected["coding_scheme_designator"]),
+        edition=edition,
+    )
+    result = _ok_result(response)
+
+    assert result["code_value"] == expected["code_value"]
+    assert result["coding_scheme_designator"] == expected["coding_scheme_designator"]
+    assert result["coding_scheme_version"] == (
+        expected["coding_scheme_version"] or None
+    )
+    assert result["code_meaning"] == expected["code_meaning"]
+    assert result["context_groups"]
+    _assert_ref(response.refs, part="PS3.16")
+
+
+def test_real_kb_contextual_value_term_golden(
+    connection: sqlite3.Connection, edition: str
+) -> None:
+    response = lookup_enumerated_values(
+        connection,
+        attribute="Modality",
+        context="CT Image",
+        edition=edition,
+    )
+    result = _ok_result(response)
+
+    assert result["attribute"]["tag"] == "(0008,0060)"
+    assert result["attribute"]["keyword"] == "Modality"
+    assert result["terms"]
+    assert {term["attribute_use_id"] for term in result["terms"]} == {
+        f"{edition}.module.general_series.attribute_use.0"
+    }
+    assert {term["context_label"] for term in result["terms"]} == {
+        "General Series Module - Enumerated Values:"
+    }
+    assert {ref.part for ref in response.refs} >= {"PS3.3", "PS3.6"}
+
+
+def test_real_kb_contextual_defined_term_golden(
+    connection: sqlite3.Connection, edition: str
+) -> None:
+    response = lookup_defined_terms(
+        connection,
+        attribute="PatientName",
+        context="CT Image Storage",
+        edition=edition,
+    )
+    result = _ok_result(response)
+
+    assert result["attribute"]["tag"] == "(0010,0010)"
+    assert result["attribute"]["keyword"] == "PatientName"
+    assert result["terms"]
+    assert {term["attribute_use_id"] for term in result["terms"]} == {
+        f"{edition}.module.patient.attribute_use.0"
+    }
+    assert {term["context_label"] for term in result["terms"]} == {
+        "Patient Module - Defined Terms:"
+    }
+    assert {ref.part for ref in response.refs} >= {"PS3.3", "PS3.4", "PS3.6"}
+
+
 @pytest.mark.parametrize("iod_name", IOD_GOLDENS)
 def test_real_kb_iod_goldens_resolve_with_anchor_modules(
     connection: sqlite3.Connection, edition: str, iod_name: str
@@ -410,6 +587,202 @@ def _require_phase2_encoding_rows(
         pytest.skip(f"real KB must be rebuilt with Phase 2 schema: {exc}")
     if row is None or int(row["count"]) == 0:
         pytest.skip("real KB must be rebuilt with Phase 2 transfer syntax rows")
+
+
+def _require_v2_rows(
+    connection: sqlite3.Connection, edition: str, table: str, *, part: str | None = None
+) -> None:
+    try:
+        if part is None:
+            row = connection.execute(
+                f"SELECT COUNT(*) AS count FROM {table} WHERE edition_id = ?",
+                (edition,),
+            ).fetchone()
+        else:
+            row = connection.execute(
+                f"""
+                SELECT COUNT(*) AS count
+                FROM {table}
+                JOIN source_ref ON source_ref.id = {table}.source_ref_id
+                WHERE {table}.edition_id = ?
+                  AND source_ref.part = ?
+                """,
+                (edition, part),
+            ).fetchone()
+    except sqlite3.OperationalError as exc:
+        pytest.skip(f"real KB must be rebuilt with v2 schema: {exc}")
+    if row is None or int(row["count"]) == 0:
+        part_suffix = f" for {part}" if part else ""
+        pytest.skip(f"real KB must be rebuilt with {table} rows{part_suffix}")
+
+
+def _require_vr_definition(
+    connection: sqlite3.Connection, edition: str, *, vr: str
+) -> sqlite3.Row:
+    _require_v2_rows(connection, edition, "vr_definition")
+    row = connection.execute(
+        """
+        SELECT vr, name, binary_or_text
+        FROM vr_definition
+        WHERE edition_id = ? AND vr = ?
+        """,
+        (edition, vr),
+    ).fetchone()
+    if row is None:
+        pytest.skip(f"real KB must include PS3.5 VR definition row for {vr}")
+    return row
+
+
+def _require_unique_media_type(
+    connection: sqlite3.Connection, edition: str, *, source_part: str
+) -> sqlite3.Row:
+    _require_v2_rows(connection, edition, "dicom_media_type", part=source_part)
+    row = connection.execute(
+        """
+        SELECT media.*
+        FROM dicom_media_type media
+        JOIN source_ref sr ON sr.id = media.source_ref_id
+        WHERE media.edition_id = ?
+          AND sr.part = ?
+          AND media.service_context IS NOT NULL
+          AND (
+            SELECT COUNT(*)
+            FROM dicom_media_type candidate
+            WHERE candidate.edition_id = media.edition_id
+              AND lower(candidate.service_context) = lower(media.service_context)
+          ) = 1
+        ORDER BY media.id
+        LIMIT 1
+        """,
+        (edition, source_part),
+    ).fetchone()
+    if row is None:
+        pytest.skip(f"real KB must include a unique {source_part} media context")
+    return row
+
+
+def _require_unique_dicomweb_transaction(
+    connection: sqlite3.Connection, edition: str
+) -> sqlite3.Row:
+    _require_v2_rows(connection, edition, "dicomweb_transaction", part="PS3.18")
+    row = connection.execute(
+        """
+        SELECT txn.*
+        FROM dicomweb_transaction txn
+        JOIN source_ref sr ON sr.id = txn.source_ref_id
+        WHERE txn.edition_id = ?
+          AND sr.part = 'PS3.18'
+          AND (
+            SELECT COUNT(*)
+            FROM dicomweb_transaction candidate
+            WHERE candidate.edition_id = txn.edition_id
+              AND lower(candidate.transaction_name) = lower(txn.transaction_name)
+          ) = 1
+        ORDER BY
+          CASE WHEN lower(txn.transaction_name) LIKE '%retrieve%' THEN 0 ELSE 1 END,
+          txn.id
+        LIMIT 1
+        """,
+        (edition,),
+    ).fetchone()
+    if row is None:
+        pytest.skip("real KB must include a unique PS3.18 transaction name")
+    return row
+
+
+def _require_sr_template(
+    connection: sqlite3.Connection, edition: str
+) -> sqlite3.Row:
+    _require_v2_rows(connection, edition, "sr_template", part="PS3.16")
+    row = connection.execute(
+        """
+        SELECT template.*
+        FROM sr_template template
+        JOIN source_ref sr ON sr.id = template.source_ref_id
+        WHERE template.edition_id = ?
+          AND sr.part = 'PS3.16'
+          AND EXISTS (
+            SELECT 1
+            FROM sr_template_row template_row
+            WHERE template_row.sr_template_id = template.id
+          )
+        ORDER BY CASE WHEN template.tid = 'TID 1500' THEN 0 ELSE 1 END, template.id
+        LIMIT 1
+        """,
+        (edition,),
+    ).fetchone()
+    if row is None:
+        pytest.skip("real KB must include a PS3.16 SR template with rows")
+    return row
+
+
+def _require_context_group(
+    connection: sqlite3.Connection, edition: str
+) -> sqlite3.Row:
+    _require_v2_rows(connection, edition, "context_group", part="PS3.16")
+    row = connection.execute(
+        """
+        SELECT context_group.*
+        FROM context_group
+        JOIN source_ref sr ON sr.id = context_group.source_ref_id
+        WHERE context_group.edition_id = ?
+          AND sr.part = 'PS3.16'
+          AND EXISTS (
+            SELECT 1
+            FROM context_group_row context_row
+            WHERE context_row.context_group_id = context_group.id
+          )
+        ORDER BY CASE WHEN context_group.cid = 'CID 29' THEN 0 ELSE 1 END,
+                 context_group.id
+        LIMIT 1
+        """,
+        (edition,),
+    ).fetchone()
+    if row is None:
+        pytest.skip("real KB must include a PS3.16 context group with rows")
+    return row
+
+
+def _require_unique_code_meaning(
+    connection: sqlite3.Connection, edition: str
+) -> sqlite3.Row:
+    _require_v2_rows(connection, edition, "coded_concept", part="PS3.16")
+    row = connection.execute(
+        """
+        SELECT concept.*
+        FROM coded_concept concept
+        JOIN source_ref sr ON sr.id = concept.source_ref_id
+        WHERE concept.edition_id = ?
+          AND sr.part = 'PS3.16'
+          AND EXISTS (
+            SELECT 1
+            FROM context_group_row context_row
+            WHERE context_row.code_value = concept.code_value
+              AND context_row.coding_scheme_designator =
+                  concept.coding_scheme_designator
+          )
+          AND (
+            SELECT COUNT(*)
+            FROM coded_concept candidate
+            WHERE candidate.edition_id = concept.edition_id
+              AND candidate.code_value = concept.code_value
+              AND candidate.coding_scheme_designator =
+                  concept.coding_scheme_designator
+          ) = 1
+        ORDER BY
+          CASE
+            WHEN concept.code_value = 'CT'
+             AND concept.coding_scheme_designator = 'DCM'
+            THEN 0 ELSE 1
+          END,
+          concept.id
+        LIMIT 1
+        """,
+        (edition,),
+    ).fetchone()
+    if row is None:
+        pytest.skip("real KB must include a unique PS3.16 coded concept")
+    return row
 
 
 def _attribute_by_tag(
