@@ -33,6 +33,8 @@ from dicom_kb.ir.models import (
     SOPClass,
     SOPClassIOD,
     SourceRef,
+    SRTemplate,
+    SRTemplateRow,
     TransferSyntaxDetail,
     UIDRegistryEntry,
     VRDefinition,
@@ -70,6 +72,8 @@ class ImportSummary:
     file_meta_requirements: int = 0
     dicom_media_types: int = 0
     dicomweb_transactions: int = 0
+    sr_templates: int = 0
+    sr_template_rows: int = 0
     include_rows_resolved: int = 0
     include_rows_unresolved: int = 0
 
@@ -519,6 +523,42 @@ def import_dicomweb_transactions(
         edition=edition,
         source_refs=len(source_refs),
         dicomweb_transactions=len(records),
+    )
+
+
+def import_sr_templates(
+    connection: sqlite3.Connection,
+    *,
+    edition: str,
+    templates: Iterable[SRTemplate],
+    rows: Iterable[SRTemplateRow],
+) -> ImportSummary:
+    """Import parsed PS3.16 SR template metadata and rows."""
+    template_records = tuple(templates)
+    row_records = tuple(rows)
+    source_refs = _unique_source_refs(
+        [record.source_ref for record in template_records]
+        + [record.source_ref for record in row_records]
+    )
+
+    try:
+        with connection:
+            for source_ref in source_refs:
+                _insert_source_ref(connection, source_ref)
+            for template in template_records:
+                _insert_sr_template(connection, template)
+            for row in row_records:
+                _insert_sr_template_row(connection, row)
+    except sqlite3.IntegrityError as exc:
+        raise ImportError(
+            f"failed to import PS3.16 SR templates for {edition}"
+        ) from exc
+
+    return ImportSummary(
+        edition=edition,
+        source_refs=len(source_refs),
+        sr_templates=len(template_records),
+        sr_template_rows=len(row_records),
     )
 
 
@@ -1186,6 +1226,52 @@ def _insert_dicomweb_transaction(
                 sort_keys=True,
                 separators=(",", ":"),
             ),
+            record.source_ref.id,
+        ),
+    )
+
+
+def _insert_sr_template(connection: sqlite3.Connection, record: SRTemplate) -> None:
+    connection.execute(
+        """
+        INSERT INTO sr_template (
+          id, edition_id, tid, name, extensibility, source_ref_id
+        ) VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            record.id,
+            record.edition_id,
+            record.tid,
+            record.name,
+            record.extensibility,
+            record.source_ref.id,
+        ),
+    )
+
+
+def _insert_sr_template_row(
+    connection: sqlite3.Connection, record: SRTemplateRow
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO sr_template_row (
+          id, edition_id, sr_template_id, row_order, relationship_type,
+          value_type, concept_name, cardinality, condition_text, condition_id,
+          include_tid, source_ref_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            record.id,
+            record.edition_id,
+            record.sr_template_id,
+            record.row_order,
+            record.relationship_type,
+            record.value_type,
+            record.concept_name,
+            record.cardinality,
+            record.condition_text,
+            record.condition_id,
+            record.include_tid,
             record.source_ref.id,
         ),
     )

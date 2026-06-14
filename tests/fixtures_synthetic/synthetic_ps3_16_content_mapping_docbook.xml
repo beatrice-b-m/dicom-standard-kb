@@ -6,12 +6,46 @@
       <para>Synthetic PS3.16 fixture for generic DocBook ingestion.</para>
       <table xml:id="table_16-1">
         <title>Synthetic Template Rows</title>
-        <tgroup cols="2">
+        <tgroup cols="10">
           <thead>
-            <row><entry>TID</entry><entry>Name</entry></row>
+            <row>
+              <entry>TID</entry>
+              <entry>Name</entry>
+              <entry>Extensibility</entry>
+              <entry>Row</entry>
+              <entry>Relationship Type</entry>
+              <entry>Value Type</entry>
+              <entry>Concept Name</entry>
+              <entry>Cardinality</entry>
+              <entry>Condition</entry>
+              <entry>Include TID</entry>
+            </row>
           </thead>
           <tbody>
-            <row><entry>1500</entry><entry>Measurement Report</entry></row>
+            <row>
+              <entry>1500</entry>
+              <entry>Measurement Report</entry>
+              <entry>EXTENSIBLE</entry>
+              <entry>1</entry>
+              <entry>CONTAINS</entry>
+              <entry>CONTAINER</entry>
+              <entry>Measurement Report</entry>
+              <entry>1</entry>
+              <entry>Root container is required.</entry>
+              <entry></entry>
+            </row>
+            <row>
+              <entry>1500</entry>
+              <entry>Measurement Report</entry>
+              <entry>EXTENSIBLE</entry>
+              <entry>2</entry>
+              <entry>CONTAINS</entry>
+              <entry>INCLUDE</entry>
+              <entry></entry>
+              <entry>1-n</entry>
+              <entry>Include measurements when present.</entry>
+              <entry>TID 1501</entry>
+            </row>
           </tbody>
         </tgroup>
       </table>

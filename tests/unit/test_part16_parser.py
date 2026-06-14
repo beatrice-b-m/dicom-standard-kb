@@ -4,7 +4,7 @@ import json
 import sqlite3
 from pathlib import Path
 
-from dicom_kb.db.importers import import_docbook_structure
+from dicom_kb.db.importers import import_docbook_structure, import_sr_templates
 from dicom_kb.db.models import apply_migrations, connect_sqlite
 from dicom_kb.docbook.parser import parse_docbook_xml
 from dicom_kb.parsers.part16_content_mapping import parse_part16
@@ -29,8 +29,107 @@ def test_parse_part16_classifies_sr_template_tables_and_warns_on_gaps() -> None:
     assert template_table.source_ref.section == "sect_16_1"
     assert template_table.source_ref.table_id == "table_16-1"
     assert template_table.source_ref.title == "Synthetic Template Rows"
+    assert [
+        (record.tid, record.name, record.extensibility)
+        for record in result.sr_templates
+    ] == [("TID 1500", "Measurement Report", "EXTENSIBLE")]
+    assert [
+        (
+            record.row_order,
+            record.relationship_type,
+            record.value_type,
+            record.concept_name,
+            record.cardinality,
+            record.condition_text,
+            record.include_tid,
+        )
+        for record in result.sr_template_rows
+    ] == [
+        (
+            1,
+            "CONTAINS",
+            "CONTAINER",
+            "Measurement Report",
+            "1",
+            "Root container is required.",
+            None,
+        ),
+        (
+            2,
+            "CONTAINS",
+            "INCLUDE",
+            None,
+            "1-n",
+            "Include measurements when present.",
+            "TID 1501",
+        ),
+    ]
+    assert result.sr_template_rows[0].source_ref.table_id == "table_16-1"
     assert [(warning.table_id, warning.message) for warning in result.warnings] == [
         ("table_16-2", "unsupported PS3.16 table shape")
+    ]
+
+
+def test_import_sr_templates_persists_metadata_and_rows_with_source_refs(
+    tmp_path: Path,
+) -> None:
+    connection = _connection(tmp_path)
+    document = parse_docbook_xml(PS316_CONTENT_MAPPING_DOCBOOK, part="PS3.16")
+    parsed = parse_part16(document, edition="2026b")
+
+    summary = import_sr_templates(
+        connection,
+        edition="2026b",
+        templates=parsed.sr_templates,
+        rows=parsed.sr_template_rows,
+    )
+
+    assert summary.sr_templates == 1
+    assert summary.sr_template_rows == 2
+    assert summary.source_refs == 1
+    rows = connection.execute(
+        """
+        SELECT template.tid, template.name, template.extensibility,
+               row.row_order, row.relationship_type, row.value_type,
+               row.concept_name, row.cardinality, row.condition_text,
+               row.include_tid, ref.part, ref.table_id
+        FROM sr_template template
+        JOIN sr_template_row row ON row.sr_template_id = template.id
+        JOIN source_ref ref ON ref.id = row.source_ref_id
+        WHERE template.edition_id = ?
+        ORDER BY row.row_order
+        """,
+        ("2026b",),
+    ).fetchall()
+    assert [dict(row) for row in rows] == [
+        {
+            "tid": "TID 1500",
+            "name": "Measurement Report",
+            "extensibility": "EXTENSIBLE",
+            "row_order": 1,
+            "relationship_type": "CONTAINS",
+            "value_type": "CONTAINER",
+            "concept_name": "Measurement Report",
+            "cardinality": "1",
+            "condition_text": "Root container is required.",
+            "include_tid": None,
+            "part": "PS3.16",
+            "table_id": "table_16-1",
+        },
+        {
+            "tid": "TID 1500",
+            "name": "Measurement Report",
+            "extensibility": "EXTENSIBLE",
+            "row_order": 2,
+            "relationship_type": "CONTAINS",
+            "value_type": "INCLUDE",
+            "concept_name": None,
+            "cardinality": "1-n",
+            "condition_text": "Include measurements when present.",
+            "include_tid": "TID 1501",
+            "part": "PS3.16",
+            "table_id": "table_16-1",
+        },
     ]
 
 

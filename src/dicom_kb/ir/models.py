@@ -251,6 +251,38 @@ class DicomwebTransaction(BaseModel):
     source_ref: SourceRef
 
 
+class SRTemplate(BaseModel):
+    """PS3.16 SR template metadata row."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    edition_id: str
+    tid: str
+    name: str
+    extensibility: str | None = None
+    source_ref: SourceRef
+
+
+class SRTemplateRow(BaseModel):
+    """PS3.16 SR template content row."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    edition_id: str
+    sr_template_id: str
+    row_order: int
+    relationship_type: str | None = None
+    value_type: str | None = None
+    concept_name: str | None = None
+    cardinality: str | None = None
+    condition_text: str | None = None
+    condition_id: str | None = None
+    include_tid: str | None = None
+    source_ref: SourceRef
+
+
 class Condition(BaseModel):
     """A preserved raw condition with machine-readability metadata."""
 

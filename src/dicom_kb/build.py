@@ -19,6 +19,7 @@ from dicom_kb.db.importers import (
     import_part03,
     import_part04,
     import_part06,
+    import_sr_templates,
     import_transfer_syntax_details,
     import_vr_definitions,
 )
@@ -382,6 +383,14 @@ def build_sqlite_database(
                 documents["PS3.16"], edition=manifest.edition
             )
             warnings.extend(_warning_messages(parsed_part16.warnings))
+            summaries.append(
+                import_sr_templates(
+                    connection,
+                    edition=manifest.edition,
+                    templates=parsed_part16.sr_templates,
+                    rows=parsed_part16.sr_template_rows,
+                )
+            )
         if "PS3.18" in documents:
             parsed_part18 = parse_part18(
                 documents["PS3.18"], edition=manifest.edition

@@ -122,6 +122,14 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
         import_summary.dicomweb_transactions == 2
         for import_summary in summary.import_summaries
     )
+    assert any(
+        import_summary.sr_templates == 1
+        for import_summary in summary.import_summaries
+    )
+    assert any(
+        import_summary.sr_template_rows == 2
+        for import_summary in summary.import_summaries
+    )
     metrics = summary.metrics.as_jsonable()
     assert set(metrics) == {
         "edition",
@@ -222,6 +230,19 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
             FROM dicomweb_transaction
             WHERE edition_id = ?
             ORDER BY transaction_name
+            """,
+            ("2026b",),
+        ).fetchall()
+        sr_template_rows = connection.execute(
+            """
+            SELECT template.tid, template.name, template.extensibility,
+                   row.row_order, row.relationship_type, row.value_type,
+                   row.concept_name, row.cardinality, row.condition_text,
+                   row.include_tid
+            FROM sr_template template
+            JOIN sr_template_row row ON row.sr_template_id = template.id
+            WHERE template.edition_id = ?
+            ORDER BY row.row_order
             """,
             ("2026b",),
         ).fetchall()
@@ -399,6 +420,32 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
                 ("multipart/related", "application/dicom"),
                 separators=(",", ":"),
             ),
+        },
+    ]
+    assert [dict(row) for row in sr_template_rows] == [
+        {
+            "tid": "TID 1500",
+            "name": "Measurement Report",
+            "extensibility": "EXTENSIBLE",
+            "row_order": 1,
+            "relationship_type": "CONTAINS",
+            "value_type": "CONTAINER",
+            "concept_name": "Measurement Report",
+            "cardinality": "1",
+            "condition_text": "Root container is required.",
+            "include_tid": None,
+        },
+        {
+            "tid": "TID 1500",
+            "name": "Measurement Report",
+            "extensibility": "EXTENSIBLE",
+            "row_order": 2,
+            "relationship_type": "CONTAINS",
+            "value_type": "INCLUDE",
+            "concept_name": None,
+            "cardinality": "1-n",
+            "condition_text": "Include measurements when present.",
+            "include_tid": "TID 1501",
         },
     ]
     assert set(payload["source_sha256"]) == {
