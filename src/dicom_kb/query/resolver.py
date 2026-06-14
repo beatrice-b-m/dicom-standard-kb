@@ -13,9 +13,15 @@ from dicom_kb.db.repositories import (
     Part04Repository,
     Part05Repository,
     Part10Repository,
+    Part18Repository,
     UIDRepository,
 )
-from dicom_kb.ir.models import DicomMediaType, TransferSyntaxDetail, VRDefinition
+from dicom_kb.ir.models import (
+    DicomMediaType,
+    DicomwebTransaction,
+    TransferSyntaxDetail,
+    VRDefinition,
+)
 from dicom_kb.ir.validators import (
     IdentifierValidationError,
     normalize_tag,
@@ -30,6 +36,7 @@ from dicom_kb.query.answer_contracts import (
     attribute_value_terms_result,
     data_element_result,
     dicom_media_type_result,
+    dicomweb_transaction_result,
     encoding_rule_explanation_result,
     iod_modules_result,
     iod_result,
@@ -475,6 +482,74 @@ def lookup_media_type(
         input=response_input,
         status="ok",
         result=_media_type_result(record),
+        refs=[standard_ref(record.source_ref)],
+        trace=trace,
+    )
+
+
+def lookup_dicomweb_transaction(
+    connection: sqlite3.Connection,
+    *,
+    name_or_route: str,
+    edition: str,
+    query_id: str | None = None,
+    resolved_at: datetime | None = None,
+) -> ToolResponse:
+    """Resolve an imported PS3.18 DICOMweb transaction by name or route."""
+    trace = build_trace(
+        connection,
+        edition=edition,
+        query_id=query_id,
+        resolved_at=resolved_at,
+    )
+    response_input = {"name_or_route": name_or_route}
+    normalized_input = name_or_route.strip()
+    if not normalized_input:
+        return tool_response(
+            edition=edition,
+            tool="lookup_dicomweb_transaction",
+            input=response_input,
+            status="validation_error",
+            result={"message": "name_or_route must not be empty."},
+            trace=trace,
+        )
+
+    records = Part18Repository(connection).list_dicomweb_transactions(
+        normalized_input,
+        edition=edition,
+    )
+    if not records:
+        return tool_response(
+            edition=edition,
+            tool="lookup_dicomweb_transaction",
+            input=response_input,
+            status="not_found",
+            result={"message": "No DICOMweb transaction matched the input."},
+            trace=trace,
+        )
+    if len(records) > 1:
+        return tool_response(
+            edition=edition,
+            tool="lookup_dicomweb_transaction",
+            input=response_input,
+            status="validation_error",
+            result={
+                "message": "DICOMweb transaction input matched multiple rows.",
+                "candidates": [
+                    _dicomweb_transaction_result(record) for record in records
+                ],
+            },
+            refs=[standard_ref(record.source_ref) for record in records],
+            trace=trace,
+        )
+
+    record = records[0]
+    return tool_response(
+        edition=edition,
+        tool="lookup_dicomweb_transaction",
+        input=response_input,
+        status="ok",
+        result=_dicomweb_transaction_result(record),
         refs=[standard_ref(record.source_ref)],
         trace=trace,
     )
@@ -1211,6 +1286,19 @@ def _media_type_result(record: DicomMediaType) -> dict[str, object]:
         service_context=record.service_context,
         transfer_syntax_constraints=list(record.transfer_syntax_constraints),
         directions=list(record.directions),
+    )
+
+
+def _dicomweb_transaction_result(record: DicomwebTransaction) -> dict[str, object]:
+    return dicomweb_transaction_result(
+        transaction_name=record.transaction_name,
+        resource_category=record.resource_category or "",
+        http_method=record.http_method,
+        route_template=record.route_template,
+        request_constraints=list(record.request_constraints),
+        response_constraints=list(record.response_constraints),
+        status_codes=list(record.status_codes),
+        media_type_refs=list(record.media_type_refs),
     )
 
 

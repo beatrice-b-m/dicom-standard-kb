@@ -14,6 +14,7 @@ from dicom_kb.ir.models import (
     Condition,
     DataElement,
     DicomMediaType,
+    DicomwebTransaction,
     DocNode,
     IODFunctionalGroupUse,
     IODModuleUse,
@@ -129,6 +130,40 @@ class Part10Repository:
             for record in records
             if _media_context_matches(record, normalized)
         ]
+
+
+class Part18Repository:
+    """Lookup imported PS3.18 DICOMweb transaction semantics."""
+
+    def __init__(self, connection: sqlite3.Connection) -> None:
+        self.connection = connection
+
+    def list_dicomweb_transactions(
+        self, name_or_route: str, *, edition: str
+    ) -> list[DicomwebTransaction]:
+        """Return transaction rows matching an exact name or route template."""
+        normalized = name_or_route.strip()
+        rows = self.connection.execute(
+            """
+            SELECT txn.*, sr.part AS source_part, sr.section AS source_section,
+                   sr.table_id AS source_table_id, sr.xml_id AS source_xml_id,
+                   sr.title AS source_title, sr.canonical_url AS source_url
+            FROM dicomweb_transaction txn
+            JOIN source_ref sr ON sr.id = txn.source_ref_id
+            WHERE txn.edition_id = ?
+            ORDER BY txn.transaction_name, txn.http_method, txn.route_template, txn.id
+            """,
+            (edition,),
+        ).fetchall()
+        records = [_dicomweb_transaction_from_row(row) for row in rows]
+        exact_name = [
+            record
+            for record in records
+            if record.transaction_name.casefold() == normalized.casefold()
+        ]
+        if exact_name:
+            return exact_name
+        return [record for record in records if record.route_template == normalized]
 
 
 class DocumentRepository:
@@ -1038,6 +1073,22 @@ def _dicom_media_type_from_row(row: sqlite3.Row) -> DicomMediaType:
             json.loads(str(row["transfer_syntax_constraints_json"]))
         ),
         directions=tuple(json.loads(str(row["directions_json"]))),
+        source_ref=_source_ref_from_row(row),
+    )
+
+
+def _dicomweb_transaction_from_row(row: sqlite3.Row) -> DicomwebTransaction:
+    return DicomwebTransaction(
+        id=str(row["id"]),
+        edition_id=str(row["edition_id"]),
+        transaction_name=str(row["transaction_name"]),
+        resource_category=row["resource_category"],
+        http_method=str(row["http_method"]),
+        route_template=str(row["route_template"]),
+        request_constraints=tuple(json.loads(str(row["request_constraints_json"]))),
+        response_constraints=tuple(json.loads(str(row["response_constraints_json"]))),
+        status_codes=tuple(json.loads(str(row["status_codes_json"]))),
+        media_type_refs=tuple(json.loads(str(row["media_type_refs_json"]))),
         source_ref=_source_ref_from_row(row),
     )
 

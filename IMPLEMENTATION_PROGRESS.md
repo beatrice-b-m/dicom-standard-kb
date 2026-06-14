@@ -32,7 +32,7 @@ Status values:
 | Phase 1 - New part acquisition/parser foundation | Complete | Default official DocBook fetch, synthetic build-fixture loading, parser scaffolds, raw table IR, source refs, and unsupported-table warning aggregation now cover PS3.5, PS3.7, PS3.8, PS3.10, PS3.16, and PS3.18. |
 | Phase 2 - PS3.5 VR and transfer syntax semantics | Complete | `vr_definition` and `transfer_syntax_detail` import paths plus Python resolver functions, CLI commands, MCP tools, and official-edition golden test coverage are in place. The local 2026b official KB was rebuilt with Phase 2 rows and the transfer-syntax goldens execute and pass. |
 | Phase 3 - PS3.10 file meta and media foundation | Complete | `file_meta_requirement` and PS3.10-derived `dicom_media_type` parser/import/build wiring are in place for synthetic PS3.10 rows. The Python resolver, CLI command, and MCP tool cover the PS3.10 `lookup_media_type` baseline, including bounded cited text fallback for prose-only PS3.10 file format rules. |
-| Phase 4 - PS3.18 DICOMweb transactions | In progress | Synthetic PS3.18 DICOMweb transaction rows now parse into `dicomweb_transaction` with route template, method, resource category, constraints, status codes, media-type refs, source refs, and build/import smoke coverage. Public resolver/CLI/MCP behavior is still pending. |
+| Phase 4 - PS3.18 DICOMweb transactions | In progress | Synthetic PS3.18 DICOMweb transaction rows now parse into `dicomweb_transaction` with route template, method, resource category, constraints, status codes, media-type refs, source refs, and build/import smoke coverage. Python lookup behavior is in place; CLI/MCP behavior and PS3.18 media-type expansion are still pending. |
 | Phase 5 - PS3.16 SR templates, CIDs, and codes | Not started | Satisfies v2 acceptance criterion 3. |
 | Phase 6 - Contextual enumerated values and defined terms | Not started | Satisfies v2 acceptance criterion 4. |
 | Phase 7 - Selected PS3.7/PS3.8 semantics | Not started | Completes selected networking/messaging scope and text fallback. |
@@ -44,7 +44,7 @@ Status values:
 | # | V2 acceptance criterion | Status | Evidence |
 |---|---|---|---|
 | 1 | Transfer syntax UID lookups return UID metadata plus encoding refs. | Complete | Python, CLI, and MCP surfaces exist with synthetic coverage; representative official-edition transfer-syntax goldens execute against the rebuilt local 2026b official KB and pass. |
-| 2 | DICOMweb transaction lookups return route, method, resource type, request/response constraints, and standard references. | Not started | Pending Phase 4. |
+| 2 | DICOMweb transaction lookups return route, method, resource type, request/response constraints, and standard references. | In progress | Python resolver returns parsed PS3.18 transaction rows by exact name or route template with ambiguous route candidates; pending CLI and MCP surfaces. |
 | 3 | TID and CID lookups return structured rows and extensibility metadata. | Not started | Pending Phase 5. |
 | 4 | Enumerated values and defined terms link to their attribute context. | Not started | Pending Phase 6. |
 | 5 | Fallback text retrieval covers prose-only rules. | In progress | PS3.10 media/file-format fallback now returns bounded cited text when no parsed media-type row matches; pending Phases 4, 5, and 7 audit against other v2 parts. |
@@ -57,11 +57,11 @@ Status values:
 | Current phase | Phase 4 - PS3.18 DICOMweb Transactions |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed commit | Pending current commit; previous completed commit was d109214. |
-| Last verification | `uv run --dev pytest tests/unit/test_part18_parser.py tests/unit/test_build.py` passed with 8 passed; `uv run --dev ruff check src/dicom_kb/parsers/part18_web_services.py src/dicom_kb/db/importers.py src/dicom_kb/build.py src/dicom_kb/ir/models.py tests/unit/test_part18_parser.py tests/unit/test_build.py` passed. Sandboxed `make lint`, `make typecheck`, and `make test` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed; escalated `make test` passed with 263 passed and 4 skipped. |
+| Last completed commit | Pending current commit; previous completed commit was c0f7942. |
+| Last verification | `uv run --dev pytest tests/unit/test_query_resolver.py -k dicomweb_transaction` passed with 4 passed and 46 deselected; `uv run --dev pytest tests/unit/test_query_resolver.py` passed with 50 passed; sandboxed `make lint` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` was rejected by the approval reviewer because unsandboxed Makefile execution was too broad; `uv run --dev ruff check src/dicom_kb/db/repositories.py src/dicom_kb/query/resolver.py tests/unit/test_query_resolver.py` passed; escalated `uv run --dev ruff check .` passed; sandboxed `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make typecheck` passed; sandboxed `make test` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `uv run --dev pytest` passed with 267 passed and 4 skipped. |
 | Current blocker | None |
-| Commit-ready summary | Added internal PS3.18 DICOMweb transaction parsing and SQLite build/import wiring for synthetic transaction rows, covering route template, method, resource category, request/response constraints, status codes, media-type refs, and source refs without exposing public resolver/CLI/MCP behavior yet. |
-| Next recommended action | Continue Phase 4 with the next smallest behavior slice: add deterministic imported DICOMweb transaction lookup in Python, including exact transaction-name matching, exact route-template matching, and ambiguous route candidate handling, without adding CLI/MCP behavior yet. |
+| Commit-ready summary | Added deterministic Python lookup for imported PS3.18 DICOMweb transaction rows, including exact transaction-name matching, exact route-template matching, not-found/validation responses, source refs, and ambiguous route candidate handling without adding CLI/MCP behavior yet. |
+| Next recommended action | Continue Phase 4 with the next smallest behavior slice: add the CLI `dicom-kb lookup dicomweb <name-or-route>` command wired to the existing Python resolver, without adding MCP behavior yet. |
 
 ## Phase 0 - V2 Contract Baseline
 
@@ -280,10 +280,10 @@ Scope:
 Completion checklist:
 
 - [x] DICOMweb transaction rows import from synthetic fixture.
-- [ ] Route-template matching is deterministic and tested.
+- [x] Route-template matching is deterministic and tested.
 - [x] Request and response constraints include source refs.
 - [ ] Media type lookup includes PS3.18 contexts.
-- [ ] Python resolver functions exist and are tested.
+- [x] Python resolver functions exist and are tested.
 - [ ] CLI commands exist and have snapshot tests.
 - [ ] MCP tools exist and have schema tests.
 - [ ] V2 acceptance criterion 2 is marked complete.
@@ -292,15 +292,19 @@ Commits:
 
 | Commit | Summary | Verification |
 |---|---|---|
-| Pending current commit | Added internal PS3.18 DICOMweb transaction parsing, SQLite import/build wiring, and synthetic fixture coverage for route templates, methods, resource categories, request/response constraints, status codes, media-type refs, and source refs. | `uv run --dev pytest tests/unit/test_part18_parser.py tests/unit/test_build.py`; `uv run --dev ruff check src/dicom_kb/parsers/part18_web_services.py src/dicom_kb/db/importers.py src/dicom_kb/build.py src/dicom_kb/ir/models.py tests/unit/test_part18_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
+| c0f7942 | Added internal PS3.18 DICOMweb transaction parsing, SQLite import/build wiring, and synthetic fixture coverage for route templates, methods, resource categories, request/response constraints, status codes, media-type refs, and source refs. | `uv run --dev pytest tests/unit/test_part18_parser.py tests/unit/test_build.py`; `uv run --dev ruff check src/dicom_kb/parsers/part18_web_services.py src/dicom_kb/db/importers.py src/dicom_kb/build.py src/dicom_kb/ir/models.py tests/unit/test_part18_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
+| Pending current commit | Added deterministic Python lookup for imported PS3.18 DICOMweb transaction rows by exact transaction name or route template, returning candidates for ambiguous shared routes instead of guessing. | `uv run --dev pytest tests/unit/test_query_resolver.py -k dicomweb_transaction`; `uv run --dev pytest tests/unit/test_query_resolver.py`; `uv run --dev ruff check src/dicom_kb/db/repositories.py src/dicom_kb/query/resolver.py tests/unit/test_query_resolver.py`; `uv run --dev ruff check .`; `make typecheck`; `uv run --dev pytest` |
 
 Notes:
 
 - Ambiguous routes must return candidates, not guessed transactions.
-- Current parser/import slice intentionally does not expose
-  `lookup_dicomweb_transaction` through Python, CLI, or MCP. It only imports
-  deterministic PS3.18 transaction rows so the next slice can add lookup
+- The parser/import slice intentionally did not expose
+  `lookup_dicomweb_transaction` through Python, CLI, or MCP. It only imported
+  deterministic PS3.18 transaction rows so later slices could add lookup
   behavior against stable table data.
+- The Python resolver slice exposes `lookup_dicomweb_transaction` from the
+  Python query layer only. It intentionally does not add CLI/MCP behavior or
+  PS3.18 media-type expansion.
 
 ## Phase 5 - PS3.16 SR Templates, Context Groups, and Codes
 

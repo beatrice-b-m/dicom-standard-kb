@@ -8,6 +8,7 @@ from pathlib import Path
 from dicom_kb.db.importers import (
     import_attribute_value_terms,
     import_dicom_media_types,
+    import_dicomweb_transactions,
     import_docbook_structure,
     import_part03,
     import_part04,
@@ -26,12 +27,14 @@ from dicom_kb.parsers.part05_encoding import (
 )
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
 from dicom_kb.parsers.part10_media_storage import parse_part10
+from dicom_kb.parsers.part18_web_services import parse_part18
 from dicom_kb.query.resolver import (
     explain_encoding_rule,
     list_attributes_for_module,
     list_modules_for_iod,
     lookup_data_element,
     lookup_defined_terms,
+    lookup_dicomweb_transaction,
     lookup_enumerated_values,
     lookup_iod,
     lookup_media_type,
@@ -49,6 +52,7 @@ from tests.fixtures_synthetic import (
     PS35_ENCODING_DOCBOOK,
     PS36_REGISTRY_DOCBOOK,
     PS310_MEDIA_STORAGE_DOCBOOK,
+    PS318_WEB_SERVICES_DOCBOOK,
 )
 
 RESOLVED_AT = datetime(2026, 6, 11, tzinfo=UTC)
@@ -164,6 +168,24 @@ def _part10_connection(tmp_path: Path) -> sqlite3.Connection:
         connection,
         edition="2026b",
         media_types=parsed_part10.media_types,
+    )
+    return connection
+
+
+def _part18_connection(tmp_path: Path) -> sqlite3.Connection:
+    connection = connect_sqlite(tmp_path / "kb.sqlite")
+    apply_migrations(connection)
+    document = parse_docbook_xml(PS318_WEB_SERVICES_DOCBOOK, part="PS3.18")
+    parsed_part18 = parse_part18(document, edition="2026b")
+    import_docbook_structure(
+        connection,
+        edition="2026b",
+        document=document,
+    )
+    import_dicomweb_transactions(
+        connection,
+        edition="2026b",
+        transactions=parsed_part18.dicomweb_transactions,
     )
     return connection
 
@@ -856,6 +878,120 @@ def test_lookup_media_type_returns_candidates_for_multiple_contexts(
         },
     ]
     assert {ref.part for ref in response.refs} == {"PS3.10", "PS3.18"}
+
+
+def test_lookup_dicomweb_transaction_returns_ps318_transaction_by_name(
+    tmp_path: Path,
+) -> None:
+    response = lookup_dicomweb_transaction(
+        _part18_connection(tmp_path),
+        name_or_route="RetrieveStudy",
+        edition="2026b",
+    )
+
+    assert response.status == "ok"
+    assert response.result == {
+        "transaction_name": "RetrieveStudy",
+        "resource_category": "study",
+        "http_method": "GET",
+        "route_template": "/studies/{studyInstanceUID}",
+        "request_constraints": ["Study Instance UID required"],
+        "response_constraints": ["DICOM instances returned"],
+        "status_codes": ["200", "400", "404"],
+        "media_type_refs": ["application/dicom"],
+    }
+    assert response.refs[0].part == "PS3.18"
+    assert response.refs[0].table == "Synthetic Transactions"
+    assert response.refs[0].anchor == "table_18-1"
+    assert response.classification.evidence_level == "parsed_table"
+
+
+def test_lookup_dicomweb_transaction_returns_unique_route_template(
+    tmp_path: Path,
+) -> None:
+    connection = _part18_connection(tmp_path)
+    connection.execute(
+        """
+        INSERT INTO dicomweb_transaction (
+          id, edition_id, transaction_name, resource_category, http_method,
+          route_template, request_constraints_json, response_constraints_json,
+          status_codes_json, media_type_refs_json, source_ref_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "2026b.PS3.18.dicomweb_transaction.retrieve_study_metadata",
+            "2026b",
+            "RetrieveStudyMetadata",
+            "study",
+            "GET",
+            "/studies/{studyInstanceUID}/metadata",
+            json.dumps(("Study Instance UID required",), separators=(",", ":")),
+            json.dumps(("Metadata returned",), separators=(",", ":")),
+            json.dumps(("200", "404"), separators=(",", ":")),
+            json.dumps(("application/dicom+json",), separators=(",", ":")),
+            "2026b.PS3.18.table_18-1",
+        ),
+    )
+
+    response = lookup_dicomweb_transaction(
+        connection,
+        name_or_route="/studies/{studyInstanceUID}/metadata",
+        edition="2026b",
+    )
+
+    assert response.status == "ok"
+    assert response.result is not None
+    assert response.result["transaction_name"] == "RetrieveStudyMetadata"
+    assert response.result["route_template"] == "/studies/{studyInstanceUID}/metadata"
+
+
+def test_lookup_dicomweb_transaction_returns_candidates_for_ambiguous_route(
+    tmp_path: Path,
+) -> None:
+    response = lookup_dicomweb_transaction(
+        _part18_connection(tmp_path),
+        name_or_route="/studies/{studyInstanceUID}",
+        edition="2026b",
+    )
+
+    assert response.status == "validation_error"
+    assert response.result is not None
+    assert response.result["message"] == (
+        "DICOMweb transaction input matched multiple rows."
+    )
+    assert [
+        candidate["transaction_name"] for candidate in response.result["candidates"]
+    ] == ["RetrieveStudy", "StoreInstances"]
+    methods = {
+        candidate["http_method"] for candidate in response.result["candidates"]
+    }
+    assert methods == {"GET", "POST"}
+    assert {ref.table for ref in response.refs} == {"Synthetic Transactions"}
+    assert {ref.anchor for ref in response.refs} == {"table_18-1"}
+
+
+def test_lookup_dicomweb_transaction_validates_empty_input_and_reports_not_found(
+    tmp_path: Path,
+) -> None:
+    connection = _part18_connection(tmp_path)
+
+    empty = lookup_dicomweb_transaction(
+        connection,
+        name_or_route="  ",
+        edition="2026b",
+    )
+    missing = lookup_dicomweb_transaction(
+        connection,
+        name_or_route="DeleteStudy",
+        edition="2026b",
+    )
+
+    assert empty.status == "validation_error"
+    assert empty.result == {"message": "name_or_route must not be empty."}
+    assert missing.status == "not_found"
+    assert missing.result == {
+        "message": "No DICOMweb transaction matched the input."
+    }
 
 
 def test_retrieve_standard_text_returns_capped_excerpt_and_tables(
