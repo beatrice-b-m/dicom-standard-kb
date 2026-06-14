@@ -45,4 +45,24 @@ EXPECTED_TOOL_TRACES: dict[str, tuple[ExpectedToolCall, ...]] = {
             arguments={"uid_or_keyword": "ExplicitVRBigEndian"},
         ),
     ),
+    "agent.text.dimse_service_behavior": (
+        ExpectedToolCall(
+            tool="retrieve_standard_text",
+            arguments={
+                "part": "PS3.7",
+                "section_or_anchor": "sect_7_1",
+                "max_chars": "800",
+            },
+        ),
+    ),
+    "agent.text.association_pdu_behavior": (
+        ExpectedToolCall(
+            tool="retrieve_standard_text",
+            arguments={
+                "part": "PS3.8",
+                "section_or_anchor": "sect_8_1",
+                "max_chars": "800",
+            },
+        ),
+    ),
 }

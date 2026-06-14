@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dicom_kb.eval.expected_tool_traces import EXPECTED_TOOL_TRACES
 from dicom_kb.eval.prompt_cases import AGENT_REGRESSION_CASES
 
 V1_AGENT_TOOL_NAMES = {
@@ -49,3 +50,27 @@ def test_agent_prompt_cases_include_error_and_ambiguity_floor() -> None:
         )
         for case in error_cases
     )
+
+
+def test_agent_prompt_cases_include_phase7_prose_retrieval() -> None:
+    cases_by_id = {case.id: case for case in AGENT_REGRESSION_CASES}
+
+    ps37_case = cases_by_id["agent.text.dimse_service_behavior"]
+    ps38_case = cases_by_id["agent.text.association_pdu_behavior"]
+
+    assert ps37_case.expected_tools == ("retrieve_standard_text",)
+    assert set(ps37_case.must_include) >= {
+        "edition",
+        "source references",
+        "PS3.7",
+        "DIMSE service behavior",
+    }
+    assert ps38_case.expected_tools == ("retrieve_standard_text",)
+    assert set(ps38_case.must_include) >= {
+        "edition",
+        "source references",
+        "PS3.8",
+        "association PDU behavior",
+    }
+    assert "agent.text.dimse_service_behavior" in EXPECTED_TOOL_TRACES
+    assert "agent.text.association_pdu_behavior" in EXPECTED_TOOL_TRACES

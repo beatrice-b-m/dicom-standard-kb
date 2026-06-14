@@ -43,6 +43,29 @@ def test_reference_agent_scores_synthetic_subset(tmp_path: Path) -> None:
     assert [run.case_id for run in runs] == [case.id for case in selected_cases]
 
 
+def test_reference_agent_scores_phase7_prose_retrieval_cases(tmp_path: Path) -> None:
+    cache_dir = _build_fixture_cache(tmp_path)
+    selected_cases = select_agent_regression_cases(
+        (
+            "agent.text.dimse_service_behavior",
+            "agent.text.association_pdu_behavior",
+        )
+    )
+
+    with _connect_fixture_db(cache_dir) as connection:
+        runs = run_reference_agent_cases(
+            connection,
+            edition="2026b",
+            cases=selected_cases,
+        )
+
+    report = score_agent_runs(runs)
+
+    assert report.total_runs == 2
+    assert report.failed_runs == 0
+    assert [run.case_id for run in runs] == [case.id for case in selected_cases]
+
+
 def test_cli_eval_run_writes_scoreable_reference_transcripts(tmp_path: Path) -> None:
     cache_dir = _build_fixture_cache(tmp_path)
     transcript = tmp_path / "reference-runs.json"
