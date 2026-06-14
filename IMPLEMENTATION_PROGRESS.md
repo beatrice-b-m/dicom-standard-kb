@@ -36,7 +36,7 @@ Status values:
 | Phase 5 - PS3.16 SR templates, CIDs, and codes | Complete | SR template, context group, and coded concept parsing/import/build wiring are in place for synthetic PS3.16 fixtures. Python resolver functions, CLI commands, and MCP tools cover code meaning, context group, and SR template lookups. Legal and distribution docs now explicitly preserve the no-standalone-terminology-dump invariant for PS3.16 content. |
 | Phase 6 - Contextual enumerated values and defined terms | Complete | Existing `attribute_value_term` coverage is documented; deterministic IOD/SOP/module/macro context resolution works through the shared PS3.3/PS3.4 graph, and ambiguous contextual value-term matches now return candidates instead of a merged answer. |
 | Phase 7 - Selected PS3.7/PS3.8 semantics | Complete | Selected PS3.7 DIMSE service-behavior and PS3.8 association-PDU parser slices are in place for synthetic fixtures, with cited PS3.7/PS3.8 retrieval fallback coverage and agent regression traces through `retrieve_standard_text`. |
-| Phase 8 - Evaluation harness expansion | In progress | First v2 public-tool prompt batch is in place; 77 prompt cases now exist, and every implemented v2 public tool appears in deterministic expected traces. The 100-prompt floor and unsupported normative v2 claim checks remain pending. |
+| Phase 8 - Evaluation harness expansion | In progress | Two v2 prompt batches are in place; 89 prompt cases now exist, every implemented v2 public tool appears in deterministic expected traces, and unsupported normative-claim checks cover the major v2 domains. The 100-prompt floor remains pending. |
 | Phase 9 - V2 release hardening | Not started | Final docs, integration goldens, metrics, and release gates. |
 
 ## Acceptance Criteria Tracker
@@ -48,7 +48,7 @@ Status values:
 | 3 | TID and CID lookups return structured rows and extensibility metadata. | Complete | Python resolvers return structured TID and CID rows with extensibility metadata; CLI and MCP exposure exists for TID, CID, and code lookup; legal/distribution docs explicitly forbid standalone PS3.16 terminology dumps and bulk context-group/code exports. |
 | 4 | Enumerated values and defined terms link to their attribute context. | Complete | Existing import and lookup coverage is documented; exact module, macro, IOD, and SOP Class contexts resolve to applicable attribute-use contexts, and ambiguous contextual matches return candidates instead of silently choosing one. |
 | 5 | Fallback text retrieval covers prose-only rules. | Complete | PS3.10 media/file-format fallback returns bounded cited text when no parsed media-type row matches, and PS3.7 selected service-behavior plus PS3.8 selected networking prose are covered by cited `retrieve_standard_text` fallback and agent regression traces. |
-| 6 | At least 100 coding-task regression prompts pass through deterministic tool calls before answer synthesis. | In progress | 77 prompt cases exist after the first Phase 8 v2 public-tool batch; the 100-prompt floor remains pending. |
+| 6 | At least 100 coding-task regression prompts pass through deterministic tool calls before answer synthesis. | In progress | 89 prompt cases exist after the second Phase 8 v2 unsupported-claim batch; the 100-prompt floor remains pending. |
 
 ## Active Work
 
@@ -57,11 +57,11 @@ Status values:
 | Current phase | Phase 8 - Evaluation Harness Expansion |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed commit | c9fd4d8. |
-| Last verification | `uv run --dev pytest tests/unit/test_metadata.py tests/agent_regression/test_prompt_cases.py tests/agent_regression/test_runner.py -k 'metadata or phase8 or prompt_cases or v2_public_tool_batch'` passed with 10 passed and 5 deselected; `uv run --dev pytest tests/agent_regression` passed with 16 passed; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
+| Last completed commit | d1615de. |
+| Last verification | `uv run --dev pytest tests/agent_regression/test_prompt_cases.py tests/agent_regression/test_runner.py tests/agent_regression/test_scoring.py -k 'prompt_cases or v2_unsupported or unsupported_normative'` passed with 8 passed and 11 deselected; `uv run --dev ruff check src/dicom_kb/eval/prompt_cases.py src/dicom_kb/eval/expected_tool_traces.py src/dicom_kb/eval/runner.py tests/agent_regression/test_prompt_cases.py tests/agent_regression/test_runner.py tests/agent_regression/test_scoring.py` passed; `uv run --dev pytest tests/agent_regression` passed with 19 passed; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
 | Current blocker | None |
-| Commit-ready summary | Added the first Phase 8 v2 public-tool prompt batch, exact expected tool traces, reference-runner routes, focused tests proving the new cases score against the synthetic fixture KB, and a metadata guard for the updated durable tracker state. |
-| Next recommended action | Continue Phase 8 by adding a second focused v2 prompt batch toward the 100-prompt floor, including unsupported normative claim checks for v2 topics. |
+| Commit-ready summary | Added the second Phase 8 v2 prompt batch for unsupported normative-claim checks across transfer syntax, DICOMweb, media type, TID, CID, and code lookup topics, with exact expected traces, reference-runner routes, focused scoring tests, and tracker metadata coverage. |
+| Next recommended action | Continue Phase 8 by adding the final prompt batch needed to reach the 100-prompt floor, then mark V2 acceptance criterion 6 complete if the full agent regression suite passes. |
 
 ## Phase 0 - V2 Contract Baseline
 
@@ -506,7 +506,7 @@ Completion checklist:
 
 - [ ] At least 100 prompt cases exist.
 - [x] Every v2 public tool appears in expected traces.
-- [ ] Unsupported normative claim checks cover v2 topics.
+- [x] Unsupported normative claim checks cover v2 topics.
 - [x] `tests/agent_regression/` passes.
 - [ ] V2 acceptance criterion 6 is marked complete.
 
@@ -514,15 +514,19 @@ Commits:
 
 | Commit | Summary | Verification |
 |---|---|---|
-| Pending current commit | Added the first focused v2 public-tool prompt batch with deterministic expected traces and reference-agent routing for `lookup_vr`, `lookup_transfer_syntax`, `explain_encoding_rule`, `lookup_media_type`, `lookup_dicomweb_transaction`, `lookup_sr_template`, `lookup_context_group`, and `lookup_code_meaning`. | `uv run --dev pytest tests/unit/test_metadata.py tests/agent_regression/test_prompt_cases.py tests/agent_regression/test_runner.py -k 'metadata or phase8 or prompt_cases or v2_public_tool_batch'` passed with 10 passed and 5 deselected; `uv run --dev pytest tests/agent_regression` passed with 16 passed; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
+| d1615de | Added the first focused v2 public-tool prompt batch with deterministic expected traces and reference-agent routing for `lookup_vr`, `lookup_transfer_syntax`, `explain_encoding_rule`, `lookup_media_type`, `lookup_dicomweb_transaction`, `lookup_sr_template`, `lookup_context_group`, and `lookup_code_meaning`. | `uv run --dev pytest tests/unit/test_metadata.py tests/agent_regression/test_prompt_cases.py tests/agent_regression/test_runner.py -k 'metadata or phase8 or prompt_cases or v2_public_tool_batch'` passed with 10 passed and 5 deselected; `uv run --dev pytest tests/agent_regression` passed with 16 passed; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
+| Pending current commit | Added the second focused v2 prompt batch for unsupported normative-claim checks across transfer syntax, DICOMweb, media type, TID, CID, and code lookup topics, with deterministic traces, reference-runner routes, and focused scoring coverage. | `uv run --dev pytest tests/agent_regression/test_prompt_cases.py tests/agent_regression/test_runner.py tests/agent_regression/test_scoring.py -k 'prompt_cases or v2_unsupported or unsupported_normative'` passed with 8 passed and 11 deselected; `uv run --dev ruff check src/dicom_kb/eval/prompt_cases.py src/dicom_kb/eval/expected_tool_traces.py src/dicom_kb/eval/runner.py tests/agent_regression/test_prompt_cases.py tests/agent_regression/test_runner.py tests/agent_regression/test_scoring.py` passed; `uv run --dev pytest tests/agent_regression` passed with 19 passed; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
 
 Notes:
 
 - Keep prompt cases edition-pinned.
-- The first Phase 8 slice raises the committed prompt-case count to 77 and
-  covers all v2 public tools in expected deterministic traces. It
-  intentionally does not mark acceptance criterion 6 complete because the
-  100-prompt floor and v2 unsupported-claim checks remain pending.
+- The first Phase 8 slice raised the committed prompt-case count to 77 and
+  covers all v2 public tools in expected deterministic traces.
+- The second Phase 8 slice raises the prompt-case count to 89 and adds
+  unsupported normative-claim prompt coverage for transfer syntax, DICOMweb,
+  media type, TID, CID, and code lookup topics. It intentionally does not
+  mark acceptance criterion 6 complete because the 100-prompt floor remains
+  pending.
 
 ## Phase 9 - V2 Release Hardening
 

@@ -110,4 +110,76 @@ EXPECTED_TOOL_TRACES: dict[str, tuple[ExpectedToolCall, ...]] = {
             arguments={"code_value": "CT", "scheme": "DCM"},
         ),
     ),
+    "agent.v2.unsupported.transfer_syntax.unknown_uid": (
+        ExpectedToolCall(
+            tool="lookup_transfer_syntax",
+            arguments={"uid_or_keyword": "1.2.840.10008.999999"},
+        ),
+    ),
+    "agent.v2.unsupported.transfer_syntax.malformed_uid": (
+        ExpectedToolCall(
+            tool="lookup_transfer_syntax",
+            arguments={"uid_or_keyword": "1.2.840..10008"},
+        ),
+    ),
+    "agent.v2.unsupported.dicomweb.unknown_transaction": (
+        ExpectedToolCall(
+            tool="lookup_dicomweb_transaction",
+            arguments={"name_or_route": "BulkDeleteInstances"},
+        ),
+    ),
+    "agent.v2.unsupported.dicomweb.empty_route": (
+        ExpectedToolCall(
+            tool="lookup_dicomweb_transaction",
+            arguments={"name_or_route": ""},
+        ),
+    ),
+    "agent.v2.unsupported.media_type.unknown_context": (
+        ExpectedToolCall(
+            tool="lookup_media_type",
+            arguments={"media_type_or_context": "application/x-dicom-private"},
+        ),
+    ),
+    "agent.v2.unsupported.media_type.empty_context": (
+        ExpectedToolCall(
+            tool="lookup_media_type",
+            arguments={"media_type_or_context": ""},
+        ),
+    ),
+    "agent.v2.unsupported.sr_template.unknown_tid": (
+        ExpectedToolCall(
+            tool="lookup_sr_template",
+            arguments={"tid_or_name": "999999"},
+        ),
+    ),
+    "agent.v2.unsupported.sr_template.empty_tid": (
+        ExpectedToolCall(
+            tool="lookup_sr_template",
+            arguments={"tid_or_name": ""},
+        ),
+    ),
+    "agent.v2.unsupported.context_group.unknown_cid": (
+        ExpectedToolCall(
+            tool="lookup_context_group",
+            arguments={"cid_or_name": "999999"},
+        ),
+    ),
+    "agent.v2.unsupported.context_group.empty_cid": (
+        ExpectedToolCall(
+            tool="lookup_context_group",
+            arguments={"cid_or_name": ""},
+        ),
+    ),
+    "agent.v2.unsupported.code_meaning.unknown_code": (
+        ExpectedToolCall(
+            tool="lookup_code_meaning",
+            arguments={"code_value": "ZZZ", "scheme": "DCM"},
+        ),
+    ),
+    "agent.v2.unsupported.code_meaning.empty_scheme": (
+        ExpectedToolCall(
+            tool="lookup_code_meaning",
+            arguments={"code_value": "CT", "scheme": ""},
+        ),
+    ),
 }

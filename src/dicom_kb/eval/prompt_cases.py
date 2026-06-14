@@ -221,6 +221,121 @@ V2_TOOL_CASES = (
         ("CT", "Computed Tomography", "PS3.16"),
     ),
 )
+V2_UNSUPPORTED_CASES = (
+    (
+        "unsupported.transfer_syntax.unknown_uid",
+        "transfer_syntax",
+        (
+            "Try transfer syntax UID 1.2.840.10008.999999 and avoid any "
+            "encoding claim not supported by the tool result."
+        ),
+        ("lookup_transfer_syntax",),
+        ("transfer syntax", "not found", "unsupported"),
+    ),
+    (
+        "unsupported.transfer_syntax.malformed_uid",
+        "transfer_syntax",
+        (
+            "Check malformed transfer syntax UID 1.2.840..10008 and report "
+            "the validation result before making encoding claims."
+        ),
+        ("lookup_transfer_syntax",),
+        ("transfer syntax", "validation", "unsupported"),
+    ),
+    (
+        "unsupported.dicomweb.unknown_transaction",
+        "dicomweb",
+        (
+            "Try to look up a BulkDeleteInstances DICOMweb transaction and "
+            "withhold route or method claims when the tool cannot support them."
+        ),
+        ("lookup_dicomweb_transaction",),
+        ("DICOMweb", "not found", "unsupported"),
+    ),
+    (
+        "unsupported.dicomweb.empty_route",
+        "dicomweb",
+        (
+            "Validate an empty DICOMweb transaction query and do not invent a "
+            "route template."
+        ),
+        ("lookup_dicomweb_transaction",),
+        ("DICOMweb", "validation", "unsupported"),
+    ),
+    (
+        "unsupported.media_type.unknown_context",
+        "media_type",
+        (
+            "Try media type application/x-dicom-private and avoid unsupported "
+            "request or response constraints."
+        ),
+        ("lookup_media_type",),
+        ("media type", "not found", "unsupported"),
+    ),
+    (
+        "unsupported.media_type.empty_context",
+        "media_type",
+        (
+            "Validate an empty media-type lookup and report why no media "
+            "constraints can be claimed."
+        ),
+        ("lookup_media_type",),
+        ("media type", "validation", "unsupported"),
+    ),
+    (
+        "unsupported.sr_template.unknown_tid",
+        "tid",
+        (
+            "Try to look up TID 999999 and do not invent SR template rows."
+        ),
+        ("lookup_sr_template",),
+        ("TID", "not found", "unsupported"),
+    ),
+    (
+        "unsupported.sr_template.empty_tid",
+        "tid",
+        "Validate an empty TID lookup before making SR template claims.",
+        ("lookup_sr_template",),
+        ("TID", "validation", "unsupported"),
+    ),
+    (
+        "unsupported.context_group.unknown_cid",
+        "cid",
+        (
+            "Try to look up CID 999999 and do not invent context-group code "
+            "rows."
+        ),
+        ("lookup_context_group",),
+        ("CID", "not found", "unsupported"),
+    ),
+    (
+        "unsupported.context_group.empty_cid",
+        "cid",
+        "Validate an empty CID lookup before making context-group claims.",
+        ("lookup_context_group",),
+        ("CID", "validation", "unsupported"),
+    ),
+    (
+        "unsupported.code_meaning.unknown_code",
+        "code_lookup",
+        (
+            "Try code value ZZZ in scheme DCM and avoid unsupported code "
+            "meaning claims."
+        ),
+        ("lookup_code_meaning",),
+        ("code", "not found", "unsupported"),
+    ),
+    (
+        "unsupported.code_meaning.empty_scheme",
+        "code_lookup",
+        (
+            "Validate code value CT with an empty scheme parameter and report "
+            "the tool result before claiming a meaning."
+        ),
+        ("lookup_code_meaning",),
+        ("code", "validation", "unsupported"),
+    ),
+)
 
 def get_agent_regression_case(case_id: str) -> AgentRegressionCase:
     """Return a committed agent regression case by id."""
@@ -457,6 +572,18 @@ def _v2_tool_cases() -> tuple[AgentRegressionCase, ...]:
     )
 
 
+def _v2_unsupported_cases() -> tuple[AgentRegressionCase, ...]:
+    return tuple(
+        _case(
+            f"agent.v2.{case_id}",
+            prompt,
+            tools,
+            must_include,
+        )
+        for case_id, _domain, prompt, tools, must_include in V2_UNSUPPORTED_CASES
+    )
+
+
 def _error_cases() -> tuple[AgentRegressionCase, ...]:
     return tuple(
         _case(
@@ -506,6 +633,7 @@ def _agent_regression_cases() -> tuple[AgentRegressionCase, ...]:
         *_search_cases(),
         *_workflow_cases(),
         *_v2_tool_cases(),
+        *_v2_unsupported_cases(),
         *_error_cases(),
     )
 

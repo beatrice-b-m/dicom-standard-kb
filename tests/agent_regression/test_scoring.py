@@ -70,6 +70,46 @@ def test_agent_score_reports_missing_tools_and_uncited_claims() -> None:
     assert "unsupported_normative_claim" in issue_codes
 
 
+def test_agent_score_rejects_v2_unsupported_normative_claims() -> None:
+    case = get_agent_regression_case(
+        "agent.v2.unsupported.dicomweb.unknown_transaction"
+    )
+    run = AgentRun(
+        case_id=case.id,
+        edition="2026b",
+        answer=(
+            "For edition 2026b, BulkDeleteInstances is a supported DICOMweb "
+            "DELETE route with PS3.18 source references."
+        ),
+        tool_calls=(
+            ObservedToolCall(
+                tool="lookup_dicomweb_transaction",
+                arguments={"name_or_route": "BulkDeleteInstances"},
+                response_status="not_found",
+                response_edition="2026b",
+                response_ref_count=0,
+            ),
+            ObservedToolCall(
+                tool="lookup_data_element",
+                arguments={"tag_or_keyword": "Modality"},
+                response_status="ok",
+                response_edition="2026b",
+                response_ref_count=1,
+            ),
+        ),
+        unsupported_normative_claims=(
+            "BulkDeleteInstances is a supported DICOMweb DELETE route.",
+        ),
+    )
+
+    scorecard = score_agent_run(case, run)
+
+    assert scorecard.passed is False
+    assert any(
+        issue.code == "unsupported_normative_claim" for issue in scorecard.issues
+    )
+
+
 def test_agent_score_reports_expected_argument_mismatch() -> None:
     case = get_agent_regression_case("agent.ps36.transfer_syntax")
     run = AgentRun(

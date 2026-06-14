@@ -95,6 +95,39 @@ def test_reference_agent_scores_v2_public_tool_batch(tmp_path: Path) -> None:
     assert [run.case_id for run in runs] == [case.id for case in selected_cases]
 
 
+def test_reference_agent_scores_v2_unsupported_claim_batch(tmp_path: Path) -> None:
+    cache_dir = _build_fixture_cache(tmp_path)
+    selected_cases = select_agent_regression_cases(
+        (
+            "agent.v2.unsupported.transfer_syntax.unknown_uid",
+            "agent.v2.unsupported.transfer_syntax.malformed_uid",
+            "agent.v2.unsupported.dicomweb.unknown_transaction",
+            "agent.v2.unsupported.dicomweb.empty_route",
+            "agent.v2.unsupported.media_type.unknown_context",
+            "agent.v2.unsupported.media_type.empty_context",
+            "agent.v2.unsupported.sr_template.unknown_tid",
+            "agent.v2.unsupported.sr_template.empty_tid",
+            "agent.v2.unsupported.context_group.unknown_cid",
+            "agent.v2.unsupported.context_group.empty_cid",
+            "agent.v2.unsupported.code_meaning.unknown_code",
+            "agent.v2.unsupported.code_meaning.empty_scheme",
+        )
+    )
+
+    with _connect_fixture_db(cache_dir) as connection:
+        runs = run_reference_agent_cases(
+            connection,
+            edition="2026b",
+            cases=selected_cases,
+        )
+
+    report = score_agent_runs(runs)
+
+    assert report.total_runs == 12
+    assert report.failed_runs == 0
+    assert [run.case_id for run in runs] == [case.id for case in selected_cases]
+
+
 def test_cli_eval_run_writes_scoreable_reference_transcripts(tmp_path: Path) -> None:
     cache_dir = _build_fixture_cache(tmp_path)
     transcript = tmp_path / "reference-runs.json"

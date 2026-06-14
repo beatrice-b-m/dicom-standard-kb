@@ -60,11 +60,13 @@ def test_phase8_eval_harness_progress_is_recorded() -> None:
         in progress
     )
     assert (
-        "| c9fd4d8 | Added focused agent regression cases and expected tool traces"
+        "| d1615de | Added the first focused v2 public-tool prompt batch"
         in progress
     )
     assert "| Phase 8 - Evaluation harness expansion | In progress |" in progress
     assert (
-        "| Next recommended action | Continue Phase 8 by adding a second focused"
+        "| Next recommended action | Continue Phase 8 by adding the final prompt"
         in progress
     )
+    assert "89 prompt cases exist" in progress
+    assert "Unsupported normative claim checks cover v2 topics." in progress

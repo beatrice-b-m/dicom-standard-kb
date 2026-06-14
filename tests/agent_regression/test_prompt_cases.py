@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dicom_kb.eval.expected_tool_traces import EXPECTED_TOOL_TRACES
-from dicom_kb.eval.prompt_cases import AGENT_REGRESSION_CASES
+from dicom_kb.eval.prompt_cases import AGENT_REGRESSION_CASES, V2_UNSUPPORTED_CASES
 
 V1_AGENT_TOOL_NAMES = {
     "lookup_data_element",
@@ -31,7 +31,7 @@ V2_AGENT_TOOL_NAMES = {
 def test_agent_prompt_case_floor_ids_and_edition_pins() -> None:
     case_ids = [case.id for case in AGENT_REGRESSION_CASES]
 
-    assert len(AGENT_REGRESSION_CASES) >= 50
+    assert len(AGENT_REGRESSION_CASES) >= 89
     assert len(case_ids) == len(set(case_ids))
     assert all(case.edition == "2026b" for case in AGENT_REGRESSION_CASES)
     assert all(case.expected_tools for case in AGENT_REGRESSION_CASES)
@@ -62,6 +62,31 @@ def test_agent_prompt_cases_cover_v2_public_tools() -> None:
     assert covered_tool_names >= V2_AGENT_TOOL_NAMES
     assert len(v2_case_ids) >= len(V2_AGENT_TOOL_NAMES)
     assert all(case_id in EXPECTED_TOOL_TRACES for case_id in v2_case_ids)
+
+
+def test_agent_prompt_cases_cover_v2_unsupported_claim_domains() -> None:
+    unsupported_cases = [
+        case
+        for case in AGENT_REGRESSION_CASES
+        if case.id.startswith("agent.v2.unsupported.")
+    ]
+    unsupported_case_ids = {case.id for case in unsupported_cases}
+
+    assert len(unsupported_cases) >= 12
+    assert {domain for _case_id, domain, *_rest in V2_UNSUPPORTED_CASES} >= {
+        "transfer_syntax",
+        "dicomweb",
+        "media_type",
+        "tid",
+        "cid",
+        "code_lookup",
+    }
+    assert all("unsupported" in case.must_include for case in unsupported_cases)
+    assert all(
+        "uncited normative claims" in case.must_not_include
+        for case in unsupported_cases
+    )
+    assert unsupported_case_ids <= set(EXPECTED_TOOL_TRACES)
 
 
 def test_agent_prompt_cases_include_error_and_ambiguity_floor() -> None:

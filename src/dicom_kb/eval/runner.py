@@ -410,6 +410,39 @@ def _run_v2_tool_case(case_id: str, invoke: ToolInvoker) -> None:
         invoke("lookup_context_group", {"cid_or_name": "29"})
     elif case_key == "code_meaning.ct":
         invoke("lookup_code_meaning", {"code_value": "CT", "scheme": "DCM"})
+    elif case_key == "unsupported.transfer_syntax.unknown_uid":
+        invoke(
+            "lookup_transfer_syntax",
+            {"uid_or_keyword": "1.2.840.10008.999999"},
+        )
+    elif case_key == "unsupported.transfer_syntax.malformed_uid":
+        invoke("lookup_transfer_syntax", {"uid_or_keyword": "1.2.840..10008"})
+    elif case_key == "unsupported.dicomweb.unknown_transaction":
+        invoke(
+            "lookup_dicomweb_transaction",
+            {"name_or_route": "BulkDeleteInstances"},
+        )
+    elif case_key == "unsupported.dicomweb.empty_route":
+        invoke("lookup_dicomweb_transaction", {"name_or_route": ""})
+    elif case_key == "unsupported.media_type.unknown_context":
+        invoke(
+            "lookup_media_type",
+            {"media_type_or_context": "application/x-dicom-private"},
+        )
+    elif case_key == "unsupported.media_type.empty_context":
+        invoke("lookup_media_type", {"media_type_or_context": ""})
+    elif case_key == "unsupported.sr_template.unknown_tid":
+        invoke("lookup_sr_template", {"tid_or_name": "999999"})
+    elif case_key == "unsupported.sr_template.empty_tid":
+        invoke("lookup_sr_template", {"tid_or_name": ""})
+    elif case_key == "unsupported.context_group.unknown_cid":
+        invoke("lookup_context_group", {"cid_or_name": "999999"})
+    elif case_key == "unsupported.context_group.empty_cid":
+        invoke("lookup_context_group", {"cid_or_name": ""})
+    elif case_key == "unsupported.code_meaning.unknown_code":
+        invoke("lookup_code_meaning", {"code_value": "ZZZ", "scheme": "DCM"})
+    elif case_key == "unsupported.code_meaning.empty_scheme":
+        invoke("lookup_code_meaning", {"code_value": "CT", "scheme": ""})
     else:
         raise ValueError(f"no reference v2 route for case: {case_id}")
 
@@ -605,7 +638,7 @@ def _reference_answer(
     statuses = ", ".join(
         sorted(
             {
-                status
+                status.replace("_", " ")
                 for call in tool_calls
                 if (status := call.response_status) is not None
             }
