@@ -8,6 +8,7 @@ from typing import Any, cast
 
 from dicom_kb.query.answer_contracts import ToolResponse
 from dicom_kb.query.resolver import (
+    explain_encoding_rule,
     list_attributes_for_module,
     list_modules_for_iod,
     lookup_data_element,
@@ -15,7 +16,9 @@ from dicom_kb.query.resolver import (
     lookup_enumerated_values,
     lookup_iod,
     lookup_sop_class,
+    lookup_transfer_syntax,
     lookup_uid,
+    lookup_vr,
     resolve_attribute_context,
     retrieve_standard_text,
     search_standard_text,
@@ -68,6 +71,21 @@ def dispatch_mcp_tool(
             attribute=str(arguments["attribute"]),
             edition=edition,
             context=_optional_string(arguments.get("context")),
+        ),
+        "dicom_lookup_vr": lambda: lookup_vr(
+            connection,
+            vr=str(arguments["vr"]),
+            edition=edition,
+        ),
+        "dicom_lookup_transfer_syntax": lambda: lookup_transfer_syntax(
+            connection,
+            uid_or_keyword=str(arguments["uid_or_keyword"]),
+            edition=edition,
+        ),
+        "dicom_explain_encoding_rule": lambda: explain_encoding_rule(
+            connection,
+            topic=str(arguments["topic"]),
+            edition=edition,
         ),
         "dicom_list_modules_for_iod": lambda: list_modules_for_iod(
             connection,
@@ -157,6 +175,24 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
                     "dicom_lookup_defined_terms",
                     {"attribute": attribute, "context": context},
                 )
+
+        elif spec["name"] == "dicom_lookup_vr":
+            @_tool(server, name=spec["name"], description=spec["description"])
+            def dicom_lookup_vr(vr: str) -> dict[str, Any]:
+                return executor("dicom_lookup_vr", {"vr": vr})
+
+        elif spec["name"] == "dicom_lookup_transfer_syntax":
+            @_tool(server, name=spec["name"], description=spec["description"])
+            def dicom_lookup_transfer_syntax(uid_or_keyword: str) -> dict[str, Any]:
+                return executor(
+                    "dicom_lookup_transfer_syntax",
+                    {"uid_or_keyword": uid_or_keyword},
+                )
+
+        elif spec["name"] == "dicom_explain_encoding_rule":
+            @_tool(server, name=spec["name"], description=spec["description"])
+            def dicom_explain_encoding_rule(topic: str) -> dict[str, Any]:
+                return executor("dicom_explain_encoding_rule", {"topic": topic})
 
         elif spec["name"] == "dicom_list_modules_for_iod":
             @_tool(server, name=spec["name"], description=spec["description"])

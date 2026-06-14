@@ -43,7 +43,7 @@ Status values:
 
 | # | V2 acceptance criterion | Status | Evidence |
 |---|---|---|---|
-| 1 | Transfer syntax UID lookups return UID metadata plus encoding refs. | Not started | Pending Phase 2. |
+| 1 | Transfer syntax UID lookups return UID metadata plus encoding refs. | In progress | Python, CLI, and MCP surfaces exist with synthetic coverage; official-edition goldens remain pending. |
 | 2 | DICOMweb transaction lookups return route, method, resource type, request/response constraints, and standard references. | Not started | Pending Phase 4. |
 | 3 | TID and CID lookups return structured rows and extensibility metadata. | Not started | Pending Phase 5. |
 | 4 | Enumerated values and defined terms link to their attribute context. | Not started | Pending Phase 6. |
@@ -57,11 +57,11 @@ Status values:
 | Current phase | Phase 2 - PS3.5 VR and Transfer Syntax Semantics |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed commit | 56e2592 |
-| Last verification | `uv run --dev pytest tests/unit/test_cli_lookup.py` passed with 25 passed; sandboxed `make lint`, `make typecheck`, and `make test` failed because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed; escalated `make test` passed with 245 passed and 4 skipped. |
+| Last completed commit | Pending current commit; previous completed commit was 17124b4. |
+| Last verification | `uv run --dev pytest tests/unit/test_mcp_server.py tests/unit/test_mcp_protocol.py tests/agent_regression/test_prompt_cases.py` passed with 18 passed; sandboxed `make lint`, `make typecheck`, and `make test` failed because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed; first escalated `make test` failed because added v2 prompt cases required real-KB v2 tables, so the prompt coverage test was kept explicitly v1-only for this slice; `uv run --dev pytest tests/unit/test_mcp_server.py tests/unit/test_mcp_protocol.py tests/agent_regression/test_prompt_cases.py tests/integration_requires_dicom_download/test_eval_runner.py` passed with 19 passed; rerun escalated `make lint` passed; rerun escalated `make typecheck` passed; rerun escalated `make test` passed with 248 passed and 4 skipped. |
 | Current blocker | None |
-| Commit-ready summary | Added CLI commands for `dicom-kb lookup vr <vr>`, `dicom-kb lookup transfer-syntax <uid-or-keyword>`, and `dicom-kb explain encoding <topic>`, using the existing Python resolvers and synthetic fixture coverage. |
-| Next recommended action | Continue Phase 2 with MCP tools for `dicom_lookup_vr`, `dicom_lookup_transfer_syntax`, and `dicom_explain_encoding_rule`, using the existing Python resolvers and focused schema/protocol tests. |
+| Commit-ready summary | Added MCP tools for `dicom_lookup_vr`, `dicom_lookup_transfer_syntax`, and `dicom_explain_encoding_rule`, using the existing Python resolvers and focused server/protocol coverage. Kept committed agent prompt coverage explicitly scoped to v1 until Phase 8 expands the evaluation harness for v2 tools. |
+| Next recommended action | Continue Phase 2 with official-edition integration goldens for representative transfer syntaxes, then decide whether V2 acceptance criterion 1 can be marked complete. |
 
 ## Phase 0 - V2 Contract Baseline
 
@@ -187,7 +187,7 @@ Completion checklist:
 - [x] `transfer_syntax_detail` import path exists.
 - [x] Python resolver functions exist and are tested.
 - [x] CLI commands exist and have snapshot tests.
-- [ ] MCP tools exist and have schema tests.
+- [x] MCP tools exist and have schema tests.
 - [ ] Official-edition integration goldens cover representative transfer syntaxes.
 - [ ] V2 acceptance criterion 1 is marked complete.
 
@@ -198,15 +198,17 @@ Commits:
 | fc1d732 | Added PS3.5 VR definition records, row parsing, SQLite import/build wiring, and synthetic fixture coverage for PN, OB, SQ, and UN. | `uv run --dev pytest tests/unit/test_part05_parser.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
 | 094ab61 | Added `transfer_syntax_detail` records derived from PS3.6 transfer syntax UID rows, SQLite import/build wiring, and synthetic coverage for explicit, implicit, deflated, retired big-endian, and encapsulated JPEG transfer syntaxes. | `uv run --dev pytest tests/unit/test_part05_parser.py tests/unit/test_part06_parser.py tests/unit/test_build.py`; `uv run --dev pytest tests/unit/test_part05_parser.py tests/unit/test_part06_parser.py tests/unit/test_db_importers.py tests/unit/test_build.py`; `make lint`; `make typecheck`; `make test` |
 | 56e2592 | Added Python resolver functions for `lookup_vr`, `lookup_transfer_syntax`, and `explain_encoding_rule`, backed by imported PS3.5 VR rows, PS3.6 transfer syntax UID rows, and cited PS3.5 text fallback. | `uv run --dev pytest tests/unit/test_query_resolver.py`; `make lint`; `make typecheck`; `make test` |
-| Pending current commit | Added CLI commands for `lookup vr`, `lookup transfer-syntax`, and `explain encoding`, wired to the existing PS3.5 resolver functions with focused CLI coverage. | `uv run --dev pytest tests/unit/test_cli_lookup.py`; `make lint`; `make typecheck`; `make test` |
+| 17124b4 | Added CLI commands for `lookup vr`, `lookup transfer-syntax`, and `explain encoding`, wired to the existing PS3.5 resolver functions with focused CLI coverage. | `uv run --dev pytest tests/unit/test_cli_lookup.py`; `make lint`; `make typecheck`; `make test` |
+| Pending current commit | Added MCP tools for `dicom_lookup_vr`, `dicom_lookup_transfer_syntax`, and `dicom_explain_encoding_rule`, wired to the existing PS3.5 resolver functions with focused MCP server and protocol coverage. | `uv run --dev pytest tests/unit/test_mcp_server.py tests/unit/test_mcp_protocol.py tests/agent_regression/test_prompt_cases.py`; `uv run --dev pytest tests/unit/test_mcp_server.py tests/unit/test_mcp_protocol.py tests/agent_regression/test_prompt_cases.py tests/integration_requires_dicom_download/test_eval_runner.py`; `make lint`; `make typecheck`; `make test` |
 
 Notes:
 
 - Retired status continues to come from PS3.6 UID registry rows.
 - The transfer syntax detail slice imported transfer syntax details only.
 - The resolver slice added Python resolver functions only.
-- The current slice adds CLI commands only. MCP tools and official-edition
-  goldens remain pending.
+- The CLI slice added CLI commands only.
+- The current slice adds MCP tools only. Official-edition goldens remain
+  pending.
 
 ## Phase 3 - PS3.10 File Meta and Media Foundation
 

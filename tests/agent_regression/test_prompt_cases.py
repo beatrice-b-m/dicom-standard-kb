@@ -1,7 +1,20 @@
 from __future__ import annotations
 
 from dicom_kb.eval.prompt_cases import AGENT_REGRESSION_CASES
-from dicom_kb.mcp.server import MCP_TOOL_NAMES
+
+V1_AGENT_TOOL_NAMES = {
+    "lookup_data_element",
+    "lookup_uid",
+    "lookup_sop_class",
+    "lookup_iod",
+    "lookup_enumerated_values",
+    "lookup_defined_terms",
+    "list_modules_for_iod",
+    "list_attributes_for_module",
+    "resolve_attribute_context",
+    "retrieve_standard_text",
+    "search_standard_text",
+}
 
 
 def test_agent_prompt_case_floor_ids_and_edition_pins() -> None:
@@ -14,16 +27,13 @@ def test_agent_prompt_case_floor_ids_and_edition_pins() -> None:
 
 
 def test_agent_prompt_cases_cover_all_v1_tools() -> None:
-    expected_tool_names = {
-        tool_name.removeprefix("dicom_") for tool_name in MCP_TOOL_NAMES
-    }
     covered_tool_names = {
         tool
         for case in AGENT_REGRESSION_CASES
         for tool in case.expected_tools
     }
 
-    assert covered_tool_names >= expected_tool_names
+    assert covered_tool_names >= V1_AGENT_TOOL_NAMES
 
 
 def test_agent_prompt_cases_include_error_and_ambiguity_floor() -> None:

@@ -11,6 +11,9 @@ MCPToolName = Literal[
     "dicom_lookup_iod",
     "dicom_lookup_enumerated_values",
     "dicom_lookup_defined_terms",
+    "dicom_lookup_vr",
+    "dicom_lookup_transfer_syntax",
+    "dicom_explain_encoding_rule",
     "dicom_list_modules_for_iod",
     "dicom_list_attributes_for_module",
     "dicom_resolve_attribute_context",
@@ -25,6 +28,9 @@ MCP_TOOL_NAMES: tuple[MCPToolName, ...] = (
     "dicom_lookup_iod",
     "dicom_lookup_enumerated_values",
     "dicom_lookup_defined_terms",
+    "dicom_lookup_vr",
+    "dicom_lookup_transfer_syntax",
+    "dicom_explain_encoding_rule",
     "dicom_list_modules_for_iod",
     "dicom_list_attributes_for_module",
     "dicom_resolve_attribute_context",
@@ -66,6 +72,20 @@ MCP_TOOL_SPECS: tuple[MCPToolSpec, ...] = (
     {
         "name": "dicom_lookup_defined_terms",
         "description": "Look up parsed DICOM defined terms for an attribute.",
+    },
+    {
+        "name": "dicom_lookup_vr",
+        "description": "Look up a DICOM PS3.5 Value Representation definition.",
+    },
+    {
+        "name": "dicom_lookup_transfer_syntax",
+        "description": (
+            "Look up a DICOM transfer syntax UID with PS3.5 encoding details."
+        ),
+    },
+    {
+        "name": "dicom_explain_encoding_rule",
+        "description": "Explain a DICOM PS3.5 encoding rule with citations.",
     },
     {
         "name": "dicom_list_modules_for_iod",

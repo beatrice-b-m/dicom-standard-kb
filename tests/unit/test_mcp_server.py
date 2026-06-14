@@ -66,6 +66,9 @@ def test_mcp_tool_names_match_supported_spec() -> None:
         "dicom_lookup_iod",
         "dicom_lookup_enumerated_values",
         "dicom_lookup_defined_terms",
+        "dicom_lookup_vr",
+        "dicom_lookup_transfer_syntax",
+        "dicom_explain_encoding_rule",
         "dicom_list_modules_for_iod",
         "dicom_list_attributes_for_module",
         "dicom_resolve_attribute_context",
@@ -158,6 +161,49 @@ def test_execute_mcp_tool_resolves_attribute_context(tmp_path: Path) -> None:
     assert payload["tool"] == "resolve_attribute_context"
     assert payload["status"] == "ok"
     assert payload["result"]["effective_type"] == "2"
+
+
+def test_execute_mcp_tool_returns_vr_definition(tmp_path: Path) -> None:
+    payload = execute_mcp_tool(
+        "dicom_lookup_vr",
+        {"vr": "ob"},
+        config=MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)),
+    )
+
+    assert payload["tool"] == "lookup_vr"
+    assert payload["status"] == "ok"
+    assert payload["result"]["vr"] == "OB"
+    assert payload["result"]["binary_or_text"] == "binary"
+    assert payload["refs"][0]["part"] == "PS3.5"
+
+
+def test_execute_mcp_tool_returns_transfer_syntax_detail(tmp_path: Path) -> None:
+    payload = execute_mcp_tool(
+        "dicom_lookup_transfer_syntax",
+        {"uid_or_keyword": "ImplicitVRLittleEndian"},
+        config=MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)),
+    )
+
+    assert payload["tool"] == "lookup_transfer_syntax"
+    assert payload["status"] == "ok"
+    assert payload["result"]["uid_value"] == "1.2.840.10008.1.2"
+    assert payload["result"]["explicit_vr"] is False
+    assert payload["result"]["endian"] == "little"
+
+
+def test_execute_mcp_tool_explains_encoding_rule(tmp_path: Path) -> None:
+    payload = execute_mcp_tool(
+        "dicom_explain_encoding_rule",
+        {"topic": "PN"},
+        config=MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)),
+    )
+
+    assert payload["tool"] == "explain_encoding_rule"
+    assert payload["status"] == "ok"
+    assert payload["result"]["summary"] == "PN is the Person Name VR."
+    assert "value representation class: character string" in (
+        payload["result"]["structured_facts"]
+    )
 
 
 def test_execute_mcp_tool_returns_defined_terms(tmp_path: Path) -> None:
