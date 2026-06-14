@@ -61,9 +61,9 @@ from dicom_kb.sources.downloader import (
     DEFAULT_CACHE_DIR,
     DEFAULT_DICOM_ARCHIVE_BASE_URL,
     DEFAULT_DICOM_CURRENT_BASE_URL,
+    DEFAULT_DOCBOOK_PARTS,
     DOCBOOK_XML_FORMAT,
     OFFICIAL_ARTIFACT_FORMATS,
-    V1_DOCBOOK_PARTS,
     ArtifactRequest,
     OfficialFetchError,
     fetch_official_artifacts,
@@ -220,7 +220,7 @@ def fetch_command(
             "--part",
             help=(
                 "Official DICOM part to download when --docbook-xml is omitted; "
-                "repeatable. Defaults to v1 parts PS3.3, PS3.4, and PS3.6."
+                "repeatable. Defaults to the v2 baseline DocBook parts."
             ),
         ),
     ] = None,
@@ -297,7 +297,7 @@ def fetch_command(
         parts = (
             tuple(_normalize_part(value) for value in part)
             if part
-            else V1_DOCBOOK_PARTS
+            else DEFAULT_DOCBOOK_PARTS
         )
         try:
             formats = (
@@ -1274,7 +1274,13 @@ def _synthetic_fixture_artifacts(edition: str) -> list[ArtifactRequest]:
     fixtures = {
         "PS3.3": fixture_dir / "synthetic_ps3_3_ct_image_docbook.xml",
         "PS3.4": fixture_dir / "synthetic_ps3_4_sop_classes_docbook.xml",
+        "PS3.5": fixture_dir / "synthetic_ps3_5_encoding_docbook.xml",
         "PS3.6": fixture_dir / "synthetic_ps3_6_registry_docbook.xml",
+        "PS3.7": fixture_dir / "synthetic_ps3_7_messages_docbook.xml",
+        "PS3.8": fixture_dir / "synthetic_ps3_8_network_docbook.xml",
+        "PS3.10": fixture_dir / "synthetic_ps3_10_media_storage_docbook.xml",
+        "PS3.16": fixture_dir / "synthetic_ps3_16_content_mapping_docbook.xml",
+        "PS3.18": fixture_dir / "synthetic_ps3_18_web_services_docbook.xml",
     }
     missing = [str(path) for path in fixtures.values() if not path.exists()]
     if missing:

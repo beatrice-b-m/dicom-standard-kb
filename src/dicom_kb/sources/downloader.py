@@ -41,6 +41,18 @@ OFFICIAL_ARTIFACT_FORMATS = (
     TARGETDB_FORMAT,
 )
 V1_DOCBOOK_PARTS = ("PS3.3", "PS3.4", "PS3.6")
+V2_DOCBOOK_PARTS = (
+    "PS3.3",
+    "PS3.4",
+    "PS3.5",
+    "PS3.6",
+    "PS3.7",
+    "PS3.8",
+    "PS3.10",
+    "PS3.16",
+    "PS3.18",
+)
+DEFAULT_DOCBOOK_PARTS = V2_DOCBOOK_PARTS
 OFFICIAL_EDITION_RE = re.compile(r"DocBookDICOM(20\d{2}[a-z])_release_docbook_")
 RELEASE_NOTES_EDITION_RE = re.compile(r"releasenotes_(20\d{2}[a-z])\.xml")
 
@@ -106,7 +118,7 @@ def register_local_artifacts(
 def fetch_official_docbook_artifacts(
     *,
     edition: str,
-    parts: tuple[str, ...] = V1_DOCBOOK_PARTS,
+    parts: tuple[str, ...] = DEFAULT_DOCBOOK_PARTS,
     cache_dir: Path = DEFAULT_CACHE_DIR,
     base_url: str = DEFAULT_DICOM_CURRENT_BASE_URL,
     archive_base_url: str = DEFAULT_DICOM_ARCHIVE_BASE_URL,
@@ -127,7 +139,7 @@ def fetch_official_docbook_artifacts(
 def fetch_official_artifacts(
     *,
     edition: str,
-    parts: tuple[str, ...] = V1_DOCBOOK_PARTS,
+    parts: tuple[str, ...] = DEFAULT_DOCBOOK_PARTS,
     formats: tuple[str, ...] = (DOCBOOK_XML_FORMAT,),
     cache_dir: Path = DEFAULT_CACHE_DIR,
     base_url: str = DEFAULT_DICOM_CURRENT_BASE_URL,

@@ -6,6 +6,7 @@ import pytest
 from dicom_kb.sources.checksums import sha256_bytes, sha256_file
 from dicom_kb.sources.downloader import (
     CHTML_FORMAT,
+    DEFAULT_DOCBOOK_PARTS,
     DOCBOOK_XML_FORMAT,
     HTML_FORMAT,
     PDF_FORMAT,
@@ -253,6 +254,48 @@ def test_fetch_official_docbook_artifacts_writes_manifest(
     assert read_manifest(
         tmp_path / "cache" / "artifacts" / "2026b" / "manifest.json"
     ) == manifest
+
+
+def test_fetch_official_docbook_artifacts_defaults_to_v2_parts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    base_url = "https://dicom.example/current/"
+    responses = {
+        base_url: (
+            b'<a href="DocBookDICOM2026b_release_docbook_20260327091344.zip">'
+            b"docbook</a>"
+        ),
+        **{
+            official_docbook_xml_url(base_url, part): (
+                f"<book><title>{part}</title></book>".encode()
+            )
+            for part in DEFAULT_DOCBOOK_PARTS
+        },
+    }
+
+    def fake_urlopen(url: str, timeout: int) -> _FakeResponse:
+        assert timeout == 60
+        return _FakeResponse(responses[url])
+
+    monkeypatch.setattr("dicom_kb.sources.downloader.urlopen", fake_urlopen)
+
+    manifest = fetch_official_docbook_artifacts(
+        edition="current",
+        cache_dir=tmp_path / "cache",
+        base_url=base_url,
+    )
+
+    assert tuple(artifact.part for artifact in manifest.artifacts) == (
+        DEFAULT_DOCBOOK_PARTS
+    )
+    assert tuple(artifact.local_path for artifact in manifest.artifacts) == tuple(
+        official_artifact_destination(
+            "2026b",
+            part=part,
+            artifact_format=DOCBOOK_XML_FORMAT,
+        )
+        for part in DEFAULT_DOCBOOK_PARTS
+    )
 
 
 def test_fetch_official_artifacts_writes_requested_formats(

@@ -22,6 +22,7 @@ from dicom_kb.parsers.part03_iods import parse_part03
 from dicom_kb.parsers.part04_sop_classes import parse_part04
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
 from dicom_kb.sources.downloader import (
+    DEFAULT_DOCBOOK_PARTS,
     official_archive_release_url,
     official_artifact_url,
     official_chtml_directory_url,
@@ -444,6 +445,50 @@ def test_cli_fetch_downloads_official_docbook(
     assert payload["artifacts"][0]["source_url"] == part_url
     assert payload["artifacts"][0]["local_path"] == (
         "artifacts/2026b/raw/source/docbook/part06/part06.xml"
+    )
+
+
+def test_cli_fetch_defaults_to_v2_docbook_parts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    base_url = "https://dicom.example/current/"
+    responses = {
+        base_url: (
+            b'<a href="DocBookDICOM2026b_release_docbook_20260327091344.zip">'
+            b"docbook</a>"
+        ),
+        **{
+            official_docbook_xml_url(base_url, part): (
+                f"<book><title>{part}</title></book>".encode()
+            )
+            for part in DEFAULT_DOCBOOK_PARTS
+        },
+    }
+
+    def fake_urlopen(url: str, timeout: int) -> _FakeResponse:
+        assert timeout == 60
+        return _FakeResponse(responses[url])
+
+    monkeypatch.setattr("dicom_kb.sources.downloader.urlopen", fake_urlopen)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "fetch",
+            "--edition",
+            "current",
+            "--cache-dir",
+            str(tmp_path / "cache"),
+            "--source-base-url",
+            base_url,
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert tuple(artifact["part"] for artifact in payload["artifacts"]) == (
+        DEFAULT_DOCBOOK_PARTS
     )
 
 

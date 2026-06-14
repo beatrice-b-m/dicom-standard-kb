@@ -1,0 +1,20 @@
+<book xmlns="http://docbook.org/ns/docbook" xmlns:xml="http://www.w3.org/XML/1998/namespace" xml:id="ps3_8">
+  <chapter xml:id="chapter_8">
+    <title>PS3.8 Synthetic Network</title>
+    <section xml:id="sect_8_1">
+      <title>Network Overview</title>
+      <para>Synthetic PS3.8 fixture for generic DocBook ingestion.</para>
+      <table xml:id="table_8-1">
+        <title>Synthetic Network Topics</title>
+        <tgroup cols="2">
+          <thead>
+            <row><entry>Topic</entry><entry>Scope</entry></row>
+          </thead>
+          <tbody>
+            <row><entry>Association</entry><entry>connection setup</entry></row>
+          </tbody>
+        </tgroup>
+      </table>
+    </section>
+  </chapter>
+</book>

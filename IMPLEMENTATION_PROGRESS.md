@@ -29,7 +29,7 @@ Status values:
 |---|---|---|
 | V1 baseline | Complete | See `IMPLEMENTATION_REVIEW.md`; v1 acceptance criteria are documented as met. |
 | Phase 0 - V2 contract baseline | Complete | V2 result payload builders, JSON schema coverage, canonical migration table names, and empty-database migration smoke coverage are in place. |
-| Phase 1 - New part acquisition/parser foundation | Not started | Needs PS3.5, PS3.7, PS3.8, PS3.10, PS3.16, PS3.18 fixture and parser scaffolding. |
+| Phase 1 - New part acquisition/parser foundation | In progress | Default official DocBook fetch and synthetic build-fixture loading now cover PS3.5, PS3.7, PS3.8, PS3.10, PS3.16, and PS3.18; parser modules still need to be added. |
 | Phase 2 - PS3.5 VR and transfer syntax semantics | Not started | Satisfies v2 acceptance criterion 1. |
 | Phase 3 - PS3.10 file meta and media foundation | Not started | Prepares shared media-type model. |
 | Phase 4 - PS3.18 DICOMweb transactions | Not started | Satisfies v2 acceptance criterion 2. |
@@ -58,10 +58,10 @@ Status values:
 | Current owner/agent | Codex |
 | Branch | main |
 | Last completed commit | 0bbb0fe |
-| Last verification | `uv run --dev pytest tests/unit/test_db_migrations.py tests/unit/test_build.py` passed with 6 passed; `make lint` passed; `make typecheck` passed with no issues in 51 source files; `make test` passed with 217 passed, 4 skipped. |
+| Last verification | `uv run --dev pytest tests/unit/test_sources.py tests/unit/test_build.py tests/unit/test_cli_lookup.py` passed with 43 passed; `make lint` passed; `make typecheck` passed with no issues in 51 source files; `make test` passed with 219 passed, 4 skipped. |
 | Current blocker | None |
-| Commit-ready summary | Added canonical v2 migration tables for planned Phase 2-5 entities, bumped the local build schema version to 8, and added empty-database migration smoke coverage. |
-| Next recommended action | Start Phase 1 by extending official artifact configuration/build loading for PS3.5, PS3.7, PS3.8, PS3.10, PS3.16, and PS3.18 without advertising v2 public tools. |
+| Commit-ready summary | Extended the default official DocBook acquisition set and offline build fixture registration to include PS3.5, PS3.7, PS3.8, PS3.10, PS3.16, and PS3.18 without advertising v2 public tools. |
+| Next recommended action | Add the PS3.5 parser module scaffold with synthetic fixture coverage for document nodes, source refs, raw table IR, and unsupported-table warnings, without exposing PS3.5 query tools yet. |
 
 ## Phase 0 - V2 Contract Baseline
 
@@ -107,7 +107,7 @@ Notes:
 
 ## Phase 1 - New Part Acquisition and Parser Foundation
 
-Status: `Not started`
+Status: `In progress`
 
 Scope:
 
@@ -118,25 +118,28 @@ Scope:
 
 Completion checklist:
 
-- [ ] Official artifact configuration supports all v2 parts.
+- [x] Official artifact configuration supports all v2 parts.
 - [ ] Parser module for PS3.5 exists and has fixture coverage.
 - [ ] Parser module for PS3.7 exists and has fixture coverage.
 - [ ] Parser module for PS3.8 exists and has fixture coverage.
 - [ ] Parser module for PS3.10 exists and has fixture coverage.
 - [ ] Parser module for PS3.16 exists and has fixture coverage.
 - [ ] Parser module for PS3.18 exists and has fixture coverage.
-- [ ] Build-fixture can include at least one v2 part.
+- [x] Build-fixture can include at least one v2 part.
 - [ ] Import metrics include warnings for v2 parser gaps.
 
 Commits:
 
 | Commit | Summary | Verification |
 |---|---|---|
-| None | Not started. | None. |
+| Pending current commit | Default DocBook acquisition and fixture builds include all v2 parts while preserving source refs and raw table IR through the generic DocBook importer. | `uv run --dev pytest tests/unit/test_sources.py tests/unit/test_build.py tests/unit/test_cli_lookup.py`; `make lint`; `make typecheck`; `make test` |
 
 Notes:
 
 - This phase should not mark any v2 public tool complete.
+- The current slice added tiny synthetic DocBook fixtures for the new v2 parts
+  only to exercise generic ingestion; dedicated semantic parser modules are
+  still pending.
 
 ## Phase 2 - PS3.5 VR and Transfer Syntax Semantics
 

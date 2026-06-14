@@ -20,39 +20,43 @@ from dicom_kb.query.resolver import (
     lookup_defined_terms,
     lookup_sop_class,
 )
-from dicom_kb.sources.downloader import ArtifactRequest, register_local_artifacts
+from dicom_kb.sources.downloader import (
+    DEFAULT_DOCBOOK_PARTS,
+    DOCBOOK_XML_FORMAT,
+    ArtifactRequest,
+    official_artifact_destination,
+    register_local_artifacts,
+)
 from tests.fixtures_synthetic import FIXTURE_DIR
 
 
 def _register_synthetic_artifacts(cache_dir: Path) -> None:
+    fixtures = {
+        "PS3.3": "synthetic_ps3_3_ct_image_docbook.xml",
+        "PS3.4": "synthetic_ps3_4_sop_classes_docbook.xml",
+        "PS3.5": "synthetic_ps3_5_encoding_docbook.xml",
+        "PS3.6": "synthetic_ps3_6_registry_docbook.xml",
+        "PS3.7": "synthetic_ps3_7_messages_docbook.xml",
+        "PS3.8": "synthetic_ps3_8_network_docbook.xml",
+        "PS3.10": "synthetic_ps3_10_media_storage_docbook.xml",
+        "PS3.16": "synthetic_ps3_16_content_mapping_docbook.xml",
+        "PS3.18": "synthetic_ps3_18_web_services_docbook.xml",
+    }
     register_local_artifacts(
         edition="2026b",
         cache_dir=cache_dir,
         artifacts=[
             ArtifactRequest(
-                part="PS3.3",
-                format="docbook_xml",
-                source=FIXTURE_DIR / "synthetic_ps3_3_ct_image_docbook.xml",
-                destination=(
-                    "artifacts/2026b/raw/source/docbook/part03/part03.xml"
+                part=part,
+                format=DOCBOOK_XML_FORMAT,
+                source=FIXTURE_DIR / filename,
+                destination=official_artifact_destination(
+                    "2026b",
+                    part=part,
+                    artifact_format=DOCBOOK_XML_FORMAT,
                 ),
-            ),
-            ArtifactRequest(
-                part="PS3.4",
-                format="docbook_xml",
-                source=FIXTURE_DIR / "synthetic_ps3_4_sop_classes_docbook.xml",
-                destination=(
-                    "artifacts/2026b/raw/source/docbook/part04/part04.xml"
-                ),
-            ),
-            ArtifactRequest(
-                part="PS3.6",
-                format="docbook_xml",
-                source=FIXTURE_DIR / "synthetic_ps3_6_registry_docbook.xml",
-                destination=(
-                    "artifacts/2026b/raw/source/docbook/part06/part06.xml"
-                ),
-            ),
+            )
+            for part, filename in fixtures.items()
         ],
     )
 
@@ -98,7 +102,7 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
         "source_refs",
     }
     assert metrics["edition"] == "2026b"
-    assert metrics["parts_loaded"] == ["PS3.3", "PS3.4", "PS3.6"]
+    assert metrics["parts_loaded"] == sorted(DEFAULT_DOCBOOK_PARTS)
     assert metrics["parse_warnings"] == len(summary.warnings)
     assert metrics["include_rows_resolved"] == 1
     assert metrics["include_rows_unresolved"] == 0
@@ -123,6 +127,18 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
             "WHERE edition_id = ?",
             ("2026b",),
         ).fetchone()
+        v2_parts = connection.execute(
+            "SELECT DISTINCT part FROM doc_node "
+            "WHERE edition_id = ? AND part NOT IN ('PS3.3', 'PS3.4', 'PS3.6') "
+            "ORDER BY part",
+            ("2026b",),
+        ).fetchall()
+        v2_tables = connection.execute(
+            "SELECT part, table_id FROM raw_table_ir "
+            "WHERE edition_id = ? AND part NOT IN ('PS3.3', 'PS3.4', 'PS3.6') "
+            "ORDER BY part, table_id",
+            ("2026b",),
+        ).fetchall()
 
     assert tag_response.status == "ok"
     assert sop_response.status == "ok"
@@ -132,10 +148,22 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
     assert metadata["schema_version"] == "8"
     payload = json.loads(metadata["metadata_json"])
     assert payload["edition"] == "2026b"
+    assert {row["part"] for row in v2_parts} == {
+        "PS3.5",
+        "PS3.7",
+        "PS3.8",
+        "PS3.10",
+        "PS3.16",
+        "PS3.18",
+    }
+    assert len(v2_tables) == 6
     assert set(payload["source_sha256"]) == {
-        "artifacts/2026b/raw/source/docbook/part03/part03.xml",
-        "artifacts/2026b/raw/source/docbook/part04/part04.xml",
-        "artifacts/2026b/raw/source/docbook/part06/part06.xml",
+        official_artifact_destination(
+            "2026b",
+            part=part,
+            artifact_format=DOCBOOK_XML_FORMAT,
+        )
+        for part in DEFAULT_DOCBOOK_PARTS
     }
     assert payload["metrics"] == metrics
 

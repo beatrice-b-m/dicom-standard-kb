@@ -1,0 +1,20 @@
+<book xmlns="http://docbook.org/ns/docbook" xmlns:xml="http://www.w3.org/XML/1998/namespace" xml:id="ps3_7">
+  <chapter xml:id="chapter_7">
+    <title>PS3.7 Synthetic Messages</title>
+    <section xml:id="sect_7_1">
+      <title>Message Overview</title>
+      <para>Synthetic PS3.7 fixture for generic DocBook ingestion.</para>
+      <table xml:id="table_7-1">
+        <title>Synthetic Message Services</title>
+        <tgroup cols="2">
+          <thead>
+            <row><entry>Service</entry><entry>Role</entry></row>
+          </thead>
+          <tbody>
+            <row><entry>C-ECHO</entry><entry>verification</entry></row>
+          </tbody>
+        </tgroup>
+      </table>
+    </section>
+  </chapter>
+</book>

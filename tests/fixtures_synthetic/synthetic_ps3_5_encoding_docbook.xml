@@ -1,0 +1,21 @@
+<book xmlns="http://docbook.org/ns/docbook" xmlns:xml="http://www.w3.org/XML/1998/namespace" xml:id="ps3_5">
+  <chapter xml:id="chapter_5">
+    <title>PS3.5 Synthetic Encoding</title>
+    <section xml:id="sect_5_1">
+      <title>Encoding Overview</title>
+      <para>Synthetic PS3.5 fixture for generic DocBook ingestion.</para>
+      <table xml:id="table_5-1">
+        <title>Synthetic VR Behaviors</title>
+        <tgroup cols="2">
+          <thead>
+            <row><entry>VR</entry><entry>Behavior</entry></row>
+          </thead>
+          <tbody>
+            <row><entry>PN</entry><entry>text</entry></row>
+            <row><entry>OB</entry><entry>binary</entry></row>
+          </tbody>
+        </tgroup>
+      </table>
+    </section>
+  </chapter>
+</book>

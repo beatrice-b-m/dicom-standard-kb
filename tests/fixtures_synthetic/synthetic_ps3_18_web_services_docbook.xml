@@ -1,0 +1,20 @@
+<book xmlns="http://docbook.org/ns/docbook" xmlns:xml="http://www.w3.org/XML/1998/namespace" xml:id="ps3_18">
+  <chapter xml:id="chapter_18">
+    <title>PS3.18 Synthetic Web Services</title>
+    <section xml:id="sect_18_1">
+      <title>DICOMweb Overview</title>
+      <para>Synthetic PS3.18 fixture for generic DocBook ingestion.</para>
+      <table xml:id="table_18-1">
+        <title>Synthetic Transactions</title>
+        <tgroup cols="2">
+          <thead>
+            <row><entry>Transaction</entry><entry>Method</entry></row>
+          </thead>
+          <tbody>
+            <row><entry>RetrieveStudy</entry><entry>GET</entry></row>
+          </tbody>
+        </tgroup>
+      </table>
+    </section>
+  </chapter>
+</book>
