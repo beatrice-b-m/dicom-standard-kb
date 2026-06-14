@@ -74,9 +74,53 @@ def test_phase8_eval_harness_progress_is_recorded() -> None:
         in progress
     )
     assert (
-        "| Next recommended action | Start Phase 9 by updating user-facing docs"
-        in progress
+        "| Next recommended action | Continue Phase 9 by updating "
+        "`docs/architecture.md`" in progress
     )
     assert "101 prompt cases" in progress
     assert "Unsupported normative claim checks cover v2 topics." in progress
     assert "final Phase 8 v2 workflow prompt batch" in progress
+
+
+def test_v2_public_docs_cover_build_and_tool_surfaces() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+
+    readme = (repo_root / "README.md").read_text(encoding="utf-8")
+    agent_tools = (repo_root / "docs" / "agent_tools.md").read_text(
+        encoding="utf-8"
+    )
+
+    for part in (
+        "PS3.5",
+        "PS3.7",
+        "PS3.8",
+        "PS3.10",
+        "PS3.16",
+        "PS3.18",
+    ):
+        assert part in readme
+
+    for command in (
+        "dicom-kb lookup vr <vr>",
+        "dicom-kb lookup transfer-syntax <uid-or-keyword>",
+        "dicom-kb explain encoding <topic>",
+        "dicom-kb lookup dicomweb <name-or-route>",
+        "dicom-kb lookup media-type <media-type-or-context>",
+        "dicom-kb lookup sr-template <tid-or-name>",
+        "dicom-kb lookup context-group <cid-or-name>",
+        "dicom-kb lookup code <code-value> [--scheme <scheme>]",
+    ):
+        assert command in agent_tools
+
+    for tool in (
+        "dicom_lookup_vr",
+        "dicom_lookup_transfer_syntax",
+        "dicom_explain_encoding_rule",
+        "dicom_lookup_dicomweb_transaction",
+        "dicom_lookup_media_type",
+        "dicom_lookup_sr_template",
+        "dicom_lookup_context_group",
+        "dicom_lookup_code_meaning",
+    ):
+        assert tool in readme
+        assert tool in agent_tools

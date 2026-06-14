@@ -37,7 +37,7 @@ Status values:
 | Phase 6 - Contextual enumerated values and defined terms | Complete | Existing `attribute_value_term` coverage is documented; deterministic IOD/SOP/module/macro context resolution works through the shared PS3.3/PS3.4 graph, and ambiguous contextual value-term matches now return candidates instead of a merged answer. |
 | Phase 7 - Selected PS3.7/PS3.8 semantics | Complete | Selected PS3.7 DIMSE service-behavior and PS3.8 association-PDU parser slices are in place for synthetic fixtures, with cited PS3.7/PS3.8 retrieval fallback coverage and agent regression traces through `retrieve_standard_text`. |
 | Phase 8 - Evaluation harness expansion | Complete | The final v2 workflow prompt batch raises the suite to 101 prompt cases; every implemented v2 public tool appears in deterministic expected traces, unsupported normative-claim checks cover the major v2 domains, and the full agent regression suite passes. |
-| Phase 9 - V2 release hardening | Not started | Final docs, integration goldens, metrics, and release gates. |
+| Phase 9 - V2 release hardening | In progress | README and agent-tool docs now cover v2 build defaults, CLI commands, and MCP tool names. Architecture docs, release checklist, integration goldens, metrics, and final gates remain. |
 
 ## Acceptance Criteria Tracker
 
@@ -58,10 +58,10 @@ Status values:
 | Current owner/agent | Codex |
 | Branch | main |
 | Last completed commit | Pending current commit. Previous completed Phase 8 commit: b5ee0e2. |
-| Last verification | `uv run --dev pytest tests/agent_regression/test_prompt_cases.py tests/agent_regression/test_runner.py -k 'prompt_cases or v2_workflow'` passed with 8 passed and 7 deselected; `uv run --dev pytest tests/agent_regression` passed with 21 passed; `uv run --dev python - <<'PY' ...` confirmed 101 prompt cases; `uv run --dev pytest tests/unit/test_metadata.py tests/agent_regression/test_prompt_cases.py tests/agent_regression/test_runner.py -k 'phase8 or prompt_cases or v2_workflow'` passed with 9 passed and 10 deselected; `uv run --dev ruff check src/dicom_kb/eval/prompt_cases.py src/dicom_kb/eval/expected_tool_traces.py src/dicom_kb/eval/runner.py tests/agent_regression/test_prompt_cases.py tests/agent_regression/test_runner.py tests/unit/test_metadata.py` passed; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
+| Last verification | `uv run --dev pytest tests/unit/test_metadata.py` initially failed because the existing Phase 8 metadata guard still expected the old Phase 9 next action; after updating that assertion, `uv run --dev pytest tests/unit/test_metadata.py` passed with 5 passed. Sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
 | Current blocker | None |
-| Commit-ready summary | Added the final Phase 8 v2 workflow prompt batch with 12 composed public-tool scenarios, deterministic expected traces, reference-runner routes, focused tests, and tracker metadata updates; this raises the suite to 101 prompt cases and completes V2 acceptance criterion 6. |
-| Next recommended action | Start Phase 9 by updating user-facing docs for v2 build/query commands and tool coverage, beginning with README and `docs/agent_tools.md`. |
+| Commit-ready summary | Updated README and `docs/agent_tools.md` so user-facing docs describe the v2 default build parts, CLI query commands, and MCP tool names, with metadata coverage guarding the documented v2 surfaces. |
+| Next recommended action | Continue Phase 9 by updating `docs/architecture.md` with the v2 entities and current contextual value-term resolution behavior. |
 
 ## Phase 0 - V2 Contract Baseline
 
@@ -534,7 +534,7 @@ Notes:
 
 ## Phase 9 - V2 Release Hardening
 
-Status: `Not started`
+Status: `In progress`
 
 Scope:
 
@@ -545,8 +545,8 @@ Scope:
 
 Completion checklist:
 
-- [ ] README documents v2 build and query commands.
-- [ ] `docs/agent_tools.md` documents all v2 tools.
+- [x] README documents v2 build and query commands.
+- [x] `docs/agent_tools.md` documents all v2 tools.
 - [ ] `docs/architecture.md` documents v2 entities.
 - [ ] `docs/release_checklist.md` includes v2 gates.
 - [ ] Official-edition integration tests cover representative v2 queries.
@@ -562,7 +562,7 @@ Commits:
 
 | Commit | Summary | Verification |
 |---|---|---|
-| None | Not started. | None. |
+| Pending current commit | Documented the v2 default build parts, CLI query commands, and MCP tool names in README and `docs/agent_tools.md`, with focused metadata coverage. | `uv run --dev pytest tests/unit/test_metadata.py` passed with 5 passed after refreshing the stale Phase 8 next-action assertion; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated `make lint` passed; escalated `make typecheck` passed. |
 
 Notes:
 

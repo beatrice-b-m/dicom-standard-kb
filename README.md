@@ -10,9 +10,11 @@ Standard, official source artifacts, or a prebuilt knowledge base.
 
 ## Status
 
-The v1 implementation supports local source acquisition, DocBook parsing,
+The v2 implementation supports local source acquisition, DocBook parsing,
 SQLite import, CLI queries, Python resolver APIs, and MCP stdio tools. The
-implemented parser surface is focused on PS3.3, PS3.4, and PS3.6.
+implemented parser surface covers PS3.3, PS3.4, PS3.5, PS3.6, PS3.10,
+PS3.16, and PS3.18, with selected PS3.7 and PS3.8 prose available through
+cited text retrieval.
 
 ## Requirements
 
@@ -110,8 +112,9 @@ uv run dicom-kb build --edition <concrete-edition>
 uv run dicom-kb verify --edition <concrete-edition>
 ```
 
-The default official fetch downloads the v1 DocBook XML parts used by the
-builder: PS3.3, PS3.4, and PS3.6.
+The default official fetch downloads the v2 baseline DocBook XML parts used
+by the builder: PS3.3, PS3.4, PS3.5, PS3.6, PS3.7, PS3.8, PS3.10, PS3.16,
+and PS3.18.
 
 To fetch a concrete archived edition:
 
@@ -183,6 +186,19 @@ uv run dicom-kb lookup iod 'CT Image' --edition <edition>
 uv run dicom-kb lookup sop-class 'CT Image Storage' --edition <edition>
 ```
 
+V2 implementation lookups:
+
+```bash
+uv run dicom-kb lookup vr PN --edition <edition>
+uv run dicom-kb lookup transfer-syntax ExplicitVRLittleEndian --edition <edition>
+uv run dicom-kb explain encoding 'Explicit VR Little Endian' --edition <edition>
+uv run dicom-kb lookup dicomweb RetrieveStudy --edition <edition>
+uv run dicom-kb lookup media-type application/dicom --edition <edition>
+uv run dicom-kb lookup sr-template 1500 --edition <edition>
+uv run dicom-kb lookup context-group 29 --edition <edition>
+uv run dicom-kb lookup code CT --scheme DCM --edition <edition>
+```
+
 Graph and context queries:
 
 ```bash
@@ -208,6 +224,9 @@ Defined terms, enumerated values, and text search:
 
 ```bash
 uv run dicom-kb lookup defined-terms Modality --edition <edition>
+uv run dicom-kb lookup defined-terms Modality \
+  --edition <edition> \
+  --context 'CT Image'
 uv run dicom-kb lookup enumerated-values PatientSex --edition <edition>
 uv run dicom-kb search-text 'transfer syntax' --edition <edition> --part PS3.6
 uv run dicom-kb retrieve-text PS3.6 <section-or-anchor> --edition <edition>
@@ -246,7 +265,13 @@ uv run dicom-kb mcp serve \
   --db /tmp/dicom-kb-fixture.sqlite
 ```
 
-The MCP server exposes the same deterministic query operations as the CLI.
+The MCP server exposes deterministic query operations using `dicom_`-prefixed
+tool names. The v2 tool set includes `dicom_lookup_vr`,
+`dicom_lookup_transfer_syntax`, `dicom_explain_encoding_rule`,
+`dicom_lookup_dicomweb_transaction`, `dicom_lookup_media_type`,
+`dicom_lookup_sr_template`, `dicom_lookup_context_group`, and
+`dicom_lookup_code_meaning`, in addition to the v1 tag, UID, IOD, SOP Class,
+module, attribute-context, value-term, search, and text-retrieval tools.
 
 ## Python Usage
 

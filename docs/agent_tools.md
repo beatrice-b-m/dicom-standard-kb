@@ -54,6 +54,35 @@ make a bounded determination from parsed rows:
 Agents should not infer a stricter type from null `effective_type`; quote or
 retrieve the cited standard text instead.
 
+## V2 Tool Routing
+
+Prefer structured v2 tools before text retrieval for implementation semantics
+from PS3.5, PS3.10, PS3.16, and PS3.18:
+
+| Question type | CLI command | MCP tool |
+|---|---|---|
+| Value Representation behavior | `dicom-kb lookup vr <vr>` | `dicom_lookup_vr` |
+| Transfer Syntax encoding details | `dicom-kb lookup transfer-syntax <uid-or-keyword>` | `dicom_lookup_transfer_syntax` |
+| Encoding prose rule | `dicom-kb explain encoding <topic>` | `dicom_explain_encoding_rule` |
+| DICOMweb transaction route or name | `dicom-kb lookup dicomweb <name-or-route>` | `dicom_lookup_dicomweb_transaction` |
+| Media type constraints or context | `dicom-kb lookup media-type <media-type-or-context>` | `dicom_lookup_media_type` |
+| SR template rows | `dicom-kb lookup sr-template <tid-or-name>` | `dicom_lookup_sr_template` |
+| Context group rows | `dicom-kb lookup context-group <cid-or-name>` | `dicom_lookup_context_group` |
+| Coded concept meaning | `dicom-kb lookup code <code-value> [--scheme <scheme>]` | `dicom_lookup_code_meaning` |
+
+For enumerated values and defined terms, keep using
+`dicom-kb lookup enumerated-values <attribute>` and
+`dicom-kb lookup defined-terms <attribute>` with `--context` when an IOD,
+SOP Class, module, or macro context is known. MCP clients should use
+`dicom_lookup_enumerated_values` and `dicom_lookup_defined_terms` with the
+optional `context` argument.
+
+When a v2 structured tool returns `not_found`, candidates, or warnings, do
+not fill in the missing normative fact from memory. Use
+`dicom_retrieve_standard_text` or `dicom_search_standard_text` for bounded,
+cited prose fallback, especially for selected PS3.7/PS3.8 messaging or
+networking topics that do not have dedicated public tools.
+
 ## Verification
 
 Before relying on a locally built official KB, validate the cache and build
