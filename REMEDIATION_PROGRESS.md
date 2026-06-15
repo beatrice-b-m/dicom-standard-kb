@@ -42,7 +42,7 @@ Status values:
 | Phase R3 - Pin strict official goldens | Complete | Strict release-only positive tests now pin PN, application/dicom, RetrieveStudy, TID 1500, CID 29, and CT/DCM and fail on `not_found`, missing fields, or missing required-part citations. |
 | Phase R4 - Harden agent regression scoring | Complete | Positive v2 expected traces now require `ok` status and required-part citations; reference answers derive terms from observed tool responses instead of prompt fixtures, and positive v2 semantic cases no longer receive generic fallback citations. |
 | Phase R5 - Reconcile completion state and final gates | Complete | Historical reconciliation completed in `44eb4df`, but post-completion review found narrower release-gate coverage and remaining official-data quality gaps. Treat R6-R10 as the active remediation tranche before marking the overall effort complete again. |
-| Phase R6 - Capture post-completion review findings | In progress | This documentation update records the 2026-06-15 review findings and reopens remediation with concrete next phases. |
+| Phase R6 - Capture post-completion review findings | Complete | `3fc8732` records the 2026-06-15 review findings and reopens remediation with concrete R7-R10 phases. |
 | Phase R7 - Repair official PS3.18 DICOMweb and media ingestion | Not started | `StoreInstances`, `WADO-RS response`, and `STOW-RS request` return `not_found`; `RetrieveStudy` resolves but includes unrelated response text. |
 | Phase R8 - Align real-KB eval and release gates with promised workflows | Not started | Real-KB eval excludes positive DICOMweb/media workflow cases, and strict release goldens do not cover the missing workflow examples. |
 | Phase R9 - Repair PS3.16 SR template concept names | Not started | Official TID 1500 rows expose compact `D`, `B`, or `null` concept names when xref-backed target labels are available. |
@@ -52,13 +52,13 @@ Status values:
 
 | Field | Value |
 |---|---|
-| Current phase | Phase R6 - Capture post-completion review findings |
+| Current phase | Phase R7 - Repair official PS3.18 DICOMweb and media ingestion |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed remediation commit | `44eb4df` added official-shape PS3.16 parsing/importing, route-template placeholder canonicalization, and final R5 release evidence. |
-| Last verification | Post-completion review on 2026-06-15 reran focused parser/resolver tests and the strict release target. Focused tests passed, and escalated `make test-dicom-release` passed with 7 passed. Direct official-KB spot checks then exposed remaining gaps: `StoreInstances`, `WADO-RS response`, and `STOW-RS request` return `not_found`; `RetrieveStudy` returns `ok` but includes unrelated response prose; TID 1500 rows expose compact concept names such as `D`, `B`, and `null`. |
+| Last completed remediation commit | `3fc8732` documented the post-completion review findings and reopened remediation with R7-R10. Previous code remediation commit was `44eb4df`. |
+| Last verification | Post-completion review on 2026-06-15 reran focused parser/resolver tests and the strict release target. Focused tests passed, and escalated `make test-dicom-release` passed with 7 passed. Direct official-KB spot checks then exposed remaining gaps: `StoreInstances`, `WADO-RS response`, and `STOW-RS request` return `not_found`; `RetrieveStudy` returns `ok` but includes unrelated response prose; TID 1500 rows expose compact concept names such as `D`, `B`, and `null`. R6 documentation update verification: `uv run --dev pytest tests/unit/test_metadata.py -q` passed with 7 passed. |
 | Current blocker | Remediation is reopened. R7 must repair PS3.18 official DICOMweb/media parsing, R8 must align real-KB eval and release gates with promised workflows, and R9 must repair PS3.16 concept-name payload quality. |
-| Commit-ready summary | Documents the post-completion review findings in `REMEDIATION_PLAN.md` and `REMEDIATION_PROGRESS.md` so agents can resolve R7-R10. |
+| Commit-ready summary | None. R6 documentation capture is committed; next work should make code/test changes for R7. |
 | Next recommended action | Start Phase R7 by fixing official PS3.18 transaction overview/resource matching and adding failing goldens for `StoreInstances`, `WADO-RS response`, and `STOW-RS request`. |
 
 ## Post-Completion Review Findings
@@ -343,7 +343,7 @@ Commits:
 
 ## Phase R6 - Capture Post-Completion Review Findings
 
-Status: `In progress`
+Status: `Complete`
 
 Scope:
 
@@ -359,14 +359,14 @@ Completion checklist:
 - [x] `REMEDIATION_PROGRESS.md` records the real-KB eval exclusions that hide
       positive workflow cases.
 - [x] Historical R5 `Pending current commit` marker is replaced with `44eb4df`.
-- [ ] Current documentation update is committed and verified with
+- [x] Current documentation update is committed and verified with
       `git log --oneline -3`.
 
 Commits:
 
 | Commit | Summary | Verification |
 |---|---|---|
-| Pending current commit | Documents post-completion review findings and reopens remediation with R7-R10. | `uv run --dev pytest tests/unit/test_metadata.py -q`; `git log --oneline -3` |
+| 3fc8732 | Documented post-completion review findings and reopened remediation with R7-R10. | `uv run --dev pytest tests/unit/test_metadata.py -q`; `git log --oneline -3` |
 
 ## Phase R7 - Repair Official PS3.18 DICOMweb and Media Ingestion
 
