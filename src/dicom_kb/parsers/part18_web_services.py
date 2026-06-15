@@ -43,6 +43,8 @@ class _TransactionOverview:
     request_payload: str | None
     response_payload: str | None
     description: str | None
+    table_id: str | None
+    table_ordinal: int
 
 
 def parse_part18(document: ParsedDocument, *, edition: str) -> Part18ParseResult:
@@ -95,6 +97,13 @@ def parse_part18(document: ParsedDocument, *, edition: str) -> Part18ParseResult
                     warnings,
                 )
             )
+            media_types.extend(
+                _media_types_for_official_transaction_resource_table(
+                    table,
+                    edition,
+                    official_overviews,
+                )
+            )
         elif _is_media_type_table(headers):
             recognized.append(
                 Part18TableSummary(
@@ -130,7 +139,7 @@ def parse_part18(document: ParsedDocument, *, edition: str) -> Part18ParseResult
     return Part18ParseResult(
         recognized_tables=tuple(recognized),
         dicomweb_transactions=tuple(transactions),
-        media_types=tuple(media_types),
+        media_types=tuple(_dedupe_media_types(media_types)),
         warnings=tuple(warnings),
     )
 
@@ -211,8 +220,8 @@ def _is_official_application_dicom_media_type_table(
 
 def _official_transaction_overviews(
     document: ParsedDocument,
-) -> dict[str, _TransactionOverview]:
-    overviews: dict[str, _TransactionOverview] = {}
+) -> dict[str, tuple[_TransactionOverview, ...]]:
+    overviews: dict[str, list[_TransactionOverview]] = {}
     for table in document.tables:
         header_names = _header_names_by_column(table)
         if not _is_official_transaction_overview_table(header_names):
@@ -220,8 +229,10 @@ def _official_transaction_overviews(
         for overview in _parse_official_transaction_overview_table(
             table, header_names
         ):
-            overviews[overview.transaction_name.casefold()] = overview
-    return overviews
+            overviews.setdefault(overview.transaction_name.casefold(), []).append(
+                overview
+            )
+    return {key: tuple(values) for key, values in overviews.items()}
 
 
 def _parse_official_transaction_overview_table(
@@ -253,6 +264,8 @@ def _parse_official_transaction_overview_table(
                 request_payload=_none_if_na(_cell(row, request_column)),
                 response_payload=_none_if_na(_cell(row, response_column)),
                 description=_optional_cell(row, description_column),
+                table_id=table.xml_id,
+                table_ordinal=table.ordinal,
             )
         )
     return overviews
@@ -339,13 +352,13 @@ def _parse_official_transaction_resource_table(
     table: ParsedTable,
     header_names: dict[int, tuple[str, ...]],
     edition: str,
-    overviews: dict[str, _TransactionOverview],
+    overviews: dict[str, tuple[_TransactionOverview, ...]],
     warnings: list[ParserWarning],
 ) -> list[DicomwebTransaction]:
     base_transaction = _base_transaction_from_resource_title(table.title or "")
     if base_transaction is None:
         return []
-    overview = overviews.get(base_transaction.casefold())
+    overview = _overview_for_resource_table(table, base_transaction, overviews)
     if overview is None:
         warnings.append(
             ParserWarning(
@@ -500,10 +513,65 @@ def _application_dicom_media_type(table: ParsedTable, edition: str) -> DicomMedi
     )
 
 
+def _media_types_for_official_transaction_resource_table(
+    table: ParsedTable,
+    edition: str,
+    overviews: dict[str, tuple[_TransactionOverview, ...]],
+) -> list[DicomMediaType]:
+    base_transaction = _base_transaction_from_resource_title(table.title or "")
+    if base_transaction is None:
+        return []
+    overview = _overview_for_resource_table(table, base_transaction, overviews)
+    if overview is None:
+        return []
+
+    source_ref = _source_ref(edition, table)
+    normalized = overview.transaction_name.casefold()
+    if normalized == "retrieve":
+        return [
+            DicomMediaType(
+                id=f"{edition}.PS3.18.media_type.wado_rs_response.multipart_related",
+                edition_id=edition,
+                media_type="multipart/related",
+                service_context="WADO-RS response",
+                transfer_syntax_constraints=(
+                    _retrieve_response_media_constraint(overview),
+                ),
+                directions=("response",),
+                source_ref=source_ref,
+            )
+        ]
+    if normalized == "store":
+        return [
+            DicomMediaType(
+                id=f"{edition}.PS3.18.media_type.stow_rs_request.multipart_related",
+                edition_id=edition,
+                media_type="multipart/related",
+                service_context="STOW-RS request",
+                transfer_syntax_constraints=(_store_request_media_constraint(overview),),
+                directions=("request",),
+                source_ref=source_ref,
+            )
+        ]
+    return []
+
+
 def _data_rows(table: ParsedTable) -> list[ParsedRow]:
     return [
         row for row in table.rows if row.section != "thead" and row.row_kind == "data"
     ]
+
+
+def _dedupe_media_types(records: list[DicomMediaType]) -> list[DicomMediaType]:
+    deduped: list[DicomMediaType] = []
+    seen: set[tuple[str, str | None]] = set()
+    for record in records:
+        key = (record.media_type.casefold(), _optional_key(record.service_context))
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(record)
+    return deduped
 
 
 def _cell(row: ParsedRow, column: int) -> str:
@@ -548,6 +616,12 @@ def _key(value: str) -> str:
     return normalize_text(value).lower()
 
 
+def _optional_key(value: str | None) -> str | None:
+    if value is None:
+        return None
+    return normalize_text(value).casefold()
+
+
 def _none_if_na(value: str) -> str | None:
     normalized = normalize_text(value)
     if not normalized or normalized.upper() == "N/A":
@@ -562,7 +636,34 @@ def _base_transaction_from_resource_title(title: str) -> str | None:
     return match.group(1)
 
 
+def _overview_for_resource_table(
+    table: ParsedTable,
+    base_transaction: str,
+    overviews: dict[str, tuple[_TransactionOverview, ...]],
+) -> _TransactionOverview | None:
+    candidates = overviews.get(base_transaction.casefold(), ())
+    if not candidates:
+        return None
+    table_family = _table_family(table.xml_id)
+    same_family = [
+        overview
+        for overview in candidates
+        if _table_family(overview.table_id) == table_family
+        and overview.table_ordinal < table.ordinal
+    ]
+    if same_family:
+        return max(same_family, key=lambda overview: overview.table_ordinal)
+    prior = [
+        overview for overview in candidates if overview.table_ordinal < table.ordinal
+    ]
+    if prior:
+        return max(prior, key=lambda overview: overview.table_ordinal)
+    return candidates[0]
+
+
 def _official_transaction_name(*, base_transaction: str, resource: str) -> str:
+    if base_transaction.casefold() == "store":
+        return _official_store_transaction_name(resource)
     tokens = [
         token
         for token in re.findall(r"[A-Za-z0-9]+", resource)
@@ -581,6 +682,22 @@ def _resource_category(resource: str) -> str | None:
     return normalize_text(resource).lower() or None
 
 
+def _official_store_transaction_name(resource: str) -> str:
+    normalized = _key(resource)
+    if normalized in {"study", "study instances"}:
+        return "StoreInstances"
+    if normalized == "studies":
+        return "StoreInstancesForStudies"
+    if normalized == "all instances":
+        return "StoreAllInstances"
+    if normalized == "instance":
+        return "StoreInstance"
+    tokens = re.findall(r"[A-Za-z0-9]+", resource)
+    if tokens:
+        return "Store" + "".join(tokens)
+    return "StoreInstances"
+
+
 def _media_type_refs_for_transaction(transaction_name: str) -> tuple[str, ...]:
     normalized = transaction_name.casefold()
     if normalized == "retrieve":
@@ -588,6 +705,27 @@ def _media_type_refs_for_transaction(transaction_name: str) -> tuple[str, ...]:
     if normalized == "store":
         return ("multipart/related", "application/dicom")
     return ("application/dicom+json",)
+
+
+def _retrieve_response_media_constraint(overview: _TransactionOverview) -> str:
+    if overview.response_payload is None:
+        return "Retrieve response payload media types are selected by the Accept header"
+    return f"Retrieve response payload: {overview.response_payload}"
+
+
+def _store_request_media_constraint(overview: _TransactionOverview) -> str:
+    if overview.request_payload is None:
+        return "Store request payload contains DICOM instances"
+    return f"Store request payload: {overview.request_payload}"
+
+
+def _table_family(table_id: str | None) -> str | None:
+    if table_id is None:
+        return None
+    match = re.match(r"^table_(\d+)[.-]", table_id)
+    if match is None:
+        return None
+    return match.group(1)
 
 
 def _identifier_fragment(value: str) -> str:

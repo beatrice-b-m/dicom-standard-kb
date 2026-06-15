@@ -85,6 +85,7 @@ def test_parse_part18_official_shape_derives_release_examples() -> None:
         ("table_8.7.3-2", "media_type"),
         ("table_10.3-1", "dicomweb_transaction_overview"),
         ("table_10.4.1-1", "dicomweb_transaction_resource"),
+        ("table_10.5.1-1", "dicomweb_transaction_resource"),
     ]
     assert result.warnings == ()
     assert [
@@ -92,11 +93,22 @@ def test_parse_part18_official_shape_derives_release_examples() -> None:
         for record in result.media_types
     ] == [
         ("application/dicom", "Instance Media Types", ("response",)),
+        ("multipart/related", "WADO-RS response", ("response",)),
+        ("multipart/related", "STOW-RS request", ("request",)),
     ]
     media_type = result.media_types[0]
     assert media_type.source_ref.table_id == "table_8.7.3-2"
     assert media_type.transfer_syntax_constraints == (
         "1.2.840.10008.1.2.1 Explicit VR Little Endian (D)",
+    )
+    assert result.media_types[1].source_ref.table_id == "table_10.4.1-1"
+    assert result.media_types[1].transfer_syntax_constraints == (
+        "Retrieve response payload: Instance(s), Metadata, Renderings, "
+        "Pixel Data, or Bulk Data",
+    )
+    assert result.media_types[2].source_ref.table_id == "table_10.5.1-1"
+    assert result.media_types[2].transfer_syntax_constraints == (
+        "Store request payload: DICOM Instances",
     )
     assert [
         (
@@ -109,6 +121,7 @@ def test_parse_part18_official_shape_derives_release_examples() -> None:
     ] == [
         ("RetrieveStudy", "study", "GET", "/studies/{study}"),
         ("RetrieveSeries", "series", "GET", "/studies/{study}/series/{series}"),
+        ("StoreInstances", "study", "POST", "/studies/{study}"),
     ]
     retrieve_study = result.dicomweb_transactions[0]
     assert retrieve_study.request_constraints == ("Target resource: Study Instances",)
@@ -117,11 +130,122 @@ def test_parse_part18_official_shape_derives_release_examples() -> None:
         "Pixel Data, or Bulk Data",
         "Retrieve one or more representations of DICOM Resources.",
     )
+    assert all(
+        "Store Instances" not in constraint
+        for constraint in retrieve_study.response_constraints
+    )
     assert retrieve_study.media_type_refs == (
         "application/dicom",
         "application/dicom+json",
     )
     assert retrieve_study.source_ref.table_id == "table_10.4.1-1"
+    store_instances = result.dicomweb_transactions[2]
+    assert store_instances.request_constraints == (
+        "Target resource: Study Instances",
+        "Request payload: DICOM Instances",
+    )
+    assert store_instances.response_constraints == (
+        "Success response payload: Store Instances Response Module",
+        "Store one or more DICOM Instances.",
+    )
+    assert store_instances.media_type_refs == (
+        "multipart/related",
+        "application/dicom",
+    )
+    assert store_instances.source_ref.table_id == "table_10.5.1-1"
+
+
+def test_parse_part18_deduplicates_derived_official_media_contexts() -> None:
+    duplicate_retrieve_table = """
+    <section xml:id="sect_10.4.2.1.1">
+      <title>Additional Retrieve Resources</title>
+      <table xml:id="table_10.4.2-1">
+        <caption>Retrieve Transaction Resources</caption>
+        <thead>
+          <tr>
+            <th>Resource</th>
+            <th>URI Template</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Instance Bulk Data</td>
+            <td>/studies/{study}/series/{series}/instances/{instance}/bulkdata</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+"""
+    document = parse_docbook_xml(
+        PS318_OFFICIAL_SHAPE_DOCBOOK.replace(
+            "    <section xml:id=\"sect_10.5.1.1.1\">",
+            f"{duplicate_retrieve_table}    <section xml:id=\"sect_10.5.1.1.1\">",
+        ),
+        part="PS3.18",
+    )
+
+    result = parse_part18(document, edition="2026b")
+
+    contexts = [
+        (record.media_type, record.service_context) for record in result.media_types
+    ]
+    assert contexts.count(("multipart/related", "WADO-RS response")) == 1
+    assert any(
+        record.transaction_name == "RetrieveInstanceBulkData"
+        for record in result.dicomweb_transactions
+    )
+
+
+def test_parse_part18_uses_same_family_overview_for_retrieve_resources() -> None:
+    later_retrieve_overview = """
+    <section xml:id="sect_11.3">
+      <title>Unrelated Retrieve Overview</title>
+      <table xml:id="table_11.3-1">
+        <caption>Unrelated Service Transactions</caption>
+        <thead>
+          <tr>
+            <th rowspan="2">Transaction Name</th>
+            <th rowspan="2">Method</th>
+            <th colspan="2">Payload</th>
+            <th rowspan="2">Description</th>
+          </tr>
+          <tr>
+            <th>Request</th>
+            <th>Success Response</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Retrieve</td>
+            <td>GET</td>
+            <td>N/A</td>
+            <td>Data Set according to</td>
+            <td>Retrieves the target Modality Performed Procedure Step</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+"""
+    document = parse_docbook_xml(
+        PS318_OFFICIAL_SHAPE_DOCBOOK.replace(
+            "  </chapter>",
+            f"{later_retrieve_overview}  </chapter>",
+        ),
+        part="PS3.18",
+    )
+
+    result = parse_part18(document, edition="2026b")
+
+    retrieve_study = next(
+        record
+        for record in result.dicomweb_transactions
+        if record.transaction_name == "RetrieveStudy"
+    )
+    assert retrieve_study.response_constraints == (
+        "Success response payload: Instance(s), Metadata, Renderings, "
+        "Pixel Data, or Bulk Data",
+        "Retrieve one or more representations of DICOM Resources.",
+    )
 
 
 def test_import_dicomweb_transactions_persists_rows_with_source_refs(

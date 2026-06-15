@@ -48,6 +48,13 @@
             <td>Instance(s), Metadata, Renderings, Pixel Data, or Bulk Data</td>
             <td>Retrieve one or more representations of DICOM Resources.</td>
           </tr>
+          <tr>
+            <td>Store</td>
+            <td>POST</td>
+            <td>DICOM Instances</td>
+            <td>Store Instances Response Module</td>
+            <td>Store one or more DICOM Instances.</td>
+          </tr>
         </tbody>
       </table>
     </section>
@@ -69,6 +76,24 @@
           <tr>
             <td>Series Instances</td>
             <td>/studies/{study}/series/{series}</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+    <section xml:id="sect_10.5.1.1.1">
+      <title>Store Resources</title>
+      <table xml:id="table_10.5.1-1">
+        <caption>Store Transaction Resources</caption>
+        <thead>
+          <tr>
+            <th>Resource</th>
+            <th>URI Template</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Study Instances</td>
+            <td>/studies/{study}</td>
           </tr>
         </tbody>
       </table>
