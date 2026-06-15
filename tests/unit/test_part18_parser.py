@@ -60,10 +60,11 @@ def test_parse_part18_classifies_transaction_tables_and_warns_on_gaps() -> None:
         (record.media_type, record.service_context, record.directions)
         for record in result.media_types
     ] == [
-        ("application/dicom", "WADO-RS response", ("response",)),
+        ("application/dicom", "Instance Media Types", ("response",)),
+        ("multipart/related", "WADO-RS response", ("response",)),
         ("multipart/related", "STOW-RS request", ("request",)),
     ]
-    stow_media_type = result.media_types[1]
+    stow_media_type = result.media_types[2]
     assert stow_media_type.transfer_syntax_constraints == (
         "Each part supplies a DICOM instance payload",
     )
@@ -341,7 +342,7 @@ def test_import_dicom_media_types_persists_ps318_contexts_with_source_refs(
         media_types=parsed.media_types,
     )
 
-    assert summary.dicom_media_types == 2
+    assert summary.dicom_media_types == 3
     assert summary.source_refs == 1
     rows = connection.execute(
         """
@@ -357,6 +358,17 @@ def test_import_dicom_media_types_persists_ps318_contexts_with_source_refs(
     ).fetchall()
     assert [dict(row) for row in rows] == [
         {
+            "media_type": "application/dicom",
+            "service_context": "Instance Media Types",
+            "transfer_syntax_constraints_json": json.dumps(
+                ("Explicit VR Little Endian required for single-instance media",),
+                separators=(",", ":"),
+            ),
+            "directions_json": json.dumps(("response",), separators=(",", ":")),
+            "part": "PS3.18",
+            "table_id": "table_18-2",
+        },
+        {
             "media_type": "multipart/related",
             "service_context": "STOW-RS request",
             "transfer_syntax_constraints_json": json.dumps(
@@ -368,7 +380,7 @@ def test_import_dicom_media_types_persists_ps318_contexts_with_source_refs(
             "table_id": "table_18-2",
         },
         {
-            "media_type": "application/dicom",
+            "media_type": "multipart/related",
             "service_context": "WADO-RS response",
             "transfer_syntax_constraints_json": json.dumps(
                 ("Rendered transfer syntax negotiated by Accept header",),

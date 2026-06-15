@@ -106,8 +106,8 @@ EXPECTED_TOOL_TRACES: dict[str, tuple[ExpectedToolCall, ...]] = {
     "agent.v2.media_type.dicom_file": (
         cited_ok(
             "lookup_media_type",
-            arguments={"media_type_or_context": "file"},
-            required_parts=("PS3.10",),
+            arguments={"media_type_or_context": "application/dicom"},
+            required_parts=("PS3.10", "PS3.18"),
         ),
     ),
     "agent.v2.dicomweb.retrieve_study": (

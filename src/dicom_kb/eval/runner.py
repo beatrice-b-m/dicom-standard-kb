@@ -402,7 +402,7 @@ def _run_v2_tool_case(case_id: str, invoke: ToolInvoker) -> None:
     elif case_key == "encoding_rule.sequence":
         invoke("explain_encoding_rule", {"topic": "SQ"})
     elif case_key == "media_type.dicom_file":
-        invoke("lookup_media_type", {"media_type_or_context": "file"})
+        invoke("lookup_media_type", {"media_type_or_context": "application/dicom"})
     elif case_key == "dicomweb.retrieve_study":
         invoke("lookup_dicomweb_transaction", {"name_or_route": "RetrieveStudy"})
     elif case_key == "sr_template.measurement_report":
