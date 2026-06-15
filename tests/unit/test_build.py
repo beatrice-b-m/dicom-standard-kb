@@ -19,6 +19,7 @@ from dicom_kb.query.resolver import (
     lookup_data_element,
     lookup_defined_terms,
     lookup_sop_class,
+    lookup_vr,
 )
 from dicom_kb.sources.downloader import (
     DEFAULT_DOCBOOK_PARTS,
@@ -569,6 +570,35 @@ def test_build_sqlite_database_derives_transfer_syntax_details_from_part06_only(
 
     assert row is not None
     assert dict(row) == {"explicit_vr": 1, "endian": "little"}
+
+
+def test_build_sqlite_database_imports_official_shape_part05_vr_table(
+    tmp_path: Path,
+) -> None:
+    cache_dir = tmp_path / "cache"
+    _register_synthetic_parts(
+        cache_dir,
+        {"PS3.5": "synthetic_ps3_5_official_shape_docbook.xml"},
+    )
+
+    summary = build_sqlite_database(edition="2026b", cache_dir=cache_dir)
+
+    assert summary.metrics.parts_loaded == ("PS3.5",)
+    assert summary.warnings == ()
+    assert any(
+        import_summary.vr_definitions == 2
+        for import_summary in summary.import_summaries
+    )
+    with _connect(summary.db_path) as connection:
+        response = lookup_vr(connection, vr="PN", edition="2026b")
+
+    assert response.status == "ok"
+    assert response.result is not None
+    assert response.result["name"] == "Person Name"
+    assert response.result["binary_or_text"] == "text"
+    assert response.refs[0].part == "PS3.5"
+    assert response.refs[0].section == "sect_6.2"
+    assert response.refs[0].anchor == "table_6.2-1"
 
 
 def test_build_sqlite_database_imports_official_shape_part16_rows(

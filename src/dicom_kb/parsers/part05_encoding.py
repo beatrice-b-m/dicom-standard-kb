@@ -207,6 +207,12 @@ def _headers(table: ParsedTable) -> dict[str, int]:
 
 
 def _is_vr_behavior_table(headers: dict[str, int]) -> bool:
+    if "vr name" in headers and {
+        "definition",
+        "character repertoire",
+        "length of value",
+    } <= set(headers):
+        return True
     return "vr" in headers and bool(
         headers.keys() & {"behavior", "description", "name", "value representation"}
     )
@@ -219,16 +225,34 @@ def _parse_vr_definition_table(
     warnings: list[ParserWarning],
 ) -> list[VRDefinition]:
     records: list[VRDefinition] = []
+    vr_column = _first_header(headers, "vr", "vr name")
+    if vr_column is None:
+        return records
     for row in _data_rows(table):
-        vr = _cell(row, headers["vr"]).upper()
+        vr_cell = _optional_cell(row, vr_column) or ""
+        vr, official_name = _vr_and_name(vr_cell)
         if not _is_vr_code(vr):
             warnings.append(_warning(table, row, "skipped malformed VR row"))
             continue
 
+        definition = _optional_cell(row, headers.get("definition"))
+        character_repertoire = _optional_cell(row, headers.get("character repertoire"))
         name = (
             _optional_cell(row, _first_header(headers, "name", "value representation"))
+            or official_name
             or _optional_cell(row, headers.get("description"))
             or vr
+        )
+        behavior_text = " ".join(
+            value
+            for value in (
+                _optional_cell(
+                    row, _first_header(headers, "binary or text", "behavior")
+                ),
+                definition,
+                character_repertoire,
+            )
+            if value
         )
         records.append(
             VRDefinition(
@@ -240,22 +264,30 @@ def _parse_vr_definition_table(
                     row, _first_header(headers, "value representation class", "class")
                 ),
                 length_notes=_optional_cells(
-                    row, _first_header(headers, "length notes", "length")
+                    row,
+                    _first_header(
+                        headers,
+                        "length notes",
+                        "length",
+                        "length of value",
+                    ),
                 ),
                 padding_behavior=_optional_cell(
                     row, _first_header(headers, "padding behavior", "padding")
                 ),
-                character_repertoire_notes=_optional_cells(
-                    row,
-                    _first_header(
-                        headers, "character repertoire notes", "character repertoire"
-                    ),
-                ),
-                binary_or_text=_binary_or_text(
-                    _optional_cell(
-                        row, _first_header(headers, "binary or text", "behavior")
+                character_repertoire_notes=(
+                    (character_repertoire,)
+                    if character_repertoire is not None
+                    else _optional_cells(
+                        row,
+                        _first_header(
+                            headers,
+                            "character repertoire notes",
+                            "character repertoire",
+                        ),
                     )
                 ),
+                binary_or_text=_binary_or_text(behavior_text),
                 source_ref=_source_ref(edition, table),
             )
         )
@@ -294,6 +326,15 @@ def _first_header(headers: dict[str, int], *names: str) -> int | None:
         if column is not None:
             return column
     return None
+
+
+def _vr_and_name(value: str) -> tuple[str, str | None]:
+    normalized = normalize_text(value)
+    if len(normalized) < 2:
+        return normalized.upper(), None
+    vr = normalized[:2].upper()
+    name = normalize_text(normalized[2:])
+    return vr, name or None
 
 
 def _key(value: str) -> str:
