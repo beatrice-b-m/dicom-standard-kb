@@ -12,7 +12,10 @@ from dicom_kb.db.importers import (
 from dicom_kb.db.models import apply_migrations, connect_sqlite
 from dicom_kb.docbook.parser import parse_docbook_xml
 from dicom_kb.parsers.part18_web_services import parse_part18
-from tests.fixtures_synthetic import PS318_WEB_SERVICES_DOCBOOK
+from tests.fixtures_synthetic import (
+    PS318_OFFICIAL_SHAPE_DOCBOOK,
+    PS318_WEB_SERVICES_DOCBOOK,
+)
 
 
 def _connection(tmp_path: Path) -> sqlite3.Connection:
@@ -68,6 +71,57 @@ def test_parse_part18_classifies_transaction_tables_and_warns_on_gaps() -> None:
     assert [(warning.table_id, warning.message) for warning in result.warnings] == [
         ("table_18-3", "unsupported PS3.18 table shape")
     ]
+
+
+def test_parse_part18_official_shape_derives_release_examples() -> None:
+    document = parse_docbook_xml(PS318_OFFICIAL_SHAPE_DOCBOOK, part="PS3.18")
+
+    result = parse_part18(document, edition="2026b")
+
+    assert [
+        (table.table_id, table.table_kind)
+        for table in result.recognized_tables
+    ] == [
+        ("table_8.7.3-2", "media_type"),
+        ("table_10.3-1", "dicomweb_transaction_overview"),
+        ("table_10.4.1-1", "dicomweb_transaction_resource"),
+    ]
+    assert result.warnings == ()
+    assert [
+        (record.media_type, record.service_context, record.directions)
+        for record in result.media_types
+    ] == [
+        ("application/dicom", "Instance Media Types", ("response",)),
+    ]
+    media_type = result.media_types[0]
+    assert media_type.source_ref.table_id == "table_8.7.3-2"
+    assert media_type.transfer_syntax_constraints == (
+        "1.2.840.10008.1.2.1 Explicit VR Little Endian (D)",
+    )
+    assert [
+        (
+            record.transaction_name,
+            record.resource_category,
+            record.http_method,
+            record.route_template,
+        )
+        for record in result.dicomweb_transactions
+    ] == [
+        ("RetrieveStudy", "study", "GET", "/studies/{study}"),
+        ("RetrieveSeries", "series", "GET", "/studies/{study}/series/{series}"),
+    ]
+    retrieve_study = result.dicomweb_transactions[0]
+    assert retrieve_study.request_constraints == ("Target resource: Study Instances",)
+    assert retrieve_study.response_constraints == (
+        "Success response payload: Instance(s), Metadata, Renderings, "
+        "Pixel Data, or Bulk Data",
+        "Retrieve one or more representations of DICOM Resources.",
+    )
+    assert retrieve_study.media_type_refs == (
+        "application/dicom",
+        "application/dicom+json",
+    )
+    assert retrieve_study.source_ref.table_id == "table_10.4.1-1"
 
 
 def test_import_dicomweb_transactions_persists_rows_with_source_refs(
