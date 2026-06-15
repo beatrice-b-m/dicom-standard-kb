@@ -625,7 +625,7 @@ def test_build_sqlite_database_imports_official_shape_part16_rows(
     assert summary.warnings == ()
     assert any(
         import_summary.sr_templates == 1
-        and import_summary.sr_template_rows == 3
+        and import_summary.sr_template_rows == 4
         for import_summary in summary.import_summaries
     )
     assert any(
@@ -688,7 +688,7 @@ def test_build_sqlite_database_imports_official_shape_part16_rows(
             "row_order": 1,
             "relationship_type": None,
             "value_type": "CONTAINER",
-            "concept_name": "D",
+            "concept_name": "CID 7021 Measurement Report Document Titles",
             "cardinality": "1",
             "condition_text": None,
             "include_tid": None,
@@ -703,7 +703,7 @@ def test_build_sqlite_database_imports_official_shape_part16_rows(
             "row_order": 2,
             "relationship_type": "> HAS OBS CONTEXT",
             "value_type": "INCLUDE",
-            "concept_name": "D",
+            "concept_name": "TID 1001 Observation Context",
             "cardinality": "1",
             "condition_text": None,
             "include_tid": "TID 1001",
@@ -718,10 +718,25 @@ def test_build_sqlite_database_imports_official_shape_part16_rows(
             "row_order": 3,
             "relationship_type": "> CONTAINS",
             "value_type": "INCLUDE",
-            "concept_name": "D",
+            "concept_name": "TID 1501 Measurement Group",
             "cardinality": "1-n",
             "condition_text": None,
             "include_tid": "TID 1501",
+            "part": "PS3.16",
+            "table_id": "table_TID_1500",
+            "title": "Measurement Report",
+        },
+        {
+            "tid": "TID 1500",
+            "name": "Measurement Report",
+            "extensibility": "Extensible",
+            "row_order": 4,
+            "relationship_type": "> CONTAINS",
+            "value_type": "TEXT",
+            "concept_name": None,
+            "cardinality": "0-1",
+            "condition_text": None,
+            "include_tid": None,
             "part": "PS3.16",
             "table_id": "table_TID_1500",
             "title": "Measurement Report",

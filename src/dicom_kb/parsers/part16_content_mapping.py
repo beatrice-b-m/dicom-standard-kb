@@ -8,7 +8,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 
 from dicom_kb.docbook.parser import ParsedDocument, ParsedSection
-from dicom_kb.docbook.tables import ParsedRow, ParsedTable
+from dicom_kb.docbook.tables import ParsedCell, ParsedRow, ParsedTable
 from dicom_kb.docbook.text_chunks import normalize_text
 from dicom_kb.ir.models import (
     CodedConcept,
@@ -283,7 +283,9 @@ def _parse_sr_template_table(
         ) + 1
         row_order = _row_order(row, row_column) or row_count_by_template[template_id]
         value_type = _optional_cell(row, value_type_column)
-        concept_name = _optional_cell(row, concept_name_column)
+        concept_name = _sr_template_concept_name(
+            row, concept_name_column, sections_by_id
+        )
         include_tid = _normalize_tid(_optional_cell(row, include_column))
         if (
             include_tid is None
@@ -438,6 +440,49 @@ def _optional_cell(row: ParsedRow, column: int | None) -> str | None:
         return None
     value = _cell(row, column)
     return value or None
+
+
+def _cell_at(row: ParsedRow, column: int | None) -> ParsedCell | None:
+    if column is None:
+        return None
+    for cell in row.cells:
+        if cell.column == column:
+            return cell
+    return None
+
+
+def _sr_template_concept_name(
+    row: ParsedRow,
+    column: int | None,
+    sections_by_id: dict[str, ParsedSection],
+) -> str | None:
+    cell = _cell_at(row, column)
+    if cell is None:
+        return None
+    value = normalize_text(cell.text)
+    if not _is_compact_concept_marker(value):
+        return value or None
+    for target in cell.xrefs:
+        label = _xref_label(target, sections_by_id)
+        if label is not None:
+            return label
+    return value or None
+
+
+def _is_compact_concept_marker(value: str) -> bool:
+    normalized = normalize_text(value).lower()
+    return normalized in {"", "d", "b", "null"}
+
+
+def _xref_label(
+    target: str,
+    sections_by_id: dict[str, ParsedSection],
+) -> str | None:
+    section = sections_by_id.get(target)
+    if section is None:
+        return None
+    title = normalize_text(section.title or "")
+    return title or None
 
 
 def _row_order(row: ParsedRow, column: int | None) -> int | None:

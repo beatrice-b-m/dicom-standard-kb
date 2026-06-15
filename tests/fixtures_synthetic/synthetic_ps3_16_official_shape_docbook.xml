@@ -53,9 +53,31 @@
               <entry>U</entry>
               <entry></entry>
             </row>
+            <row>
+              <entry>4</entry>
+              <entry>&gt;</entry>
+              <entry>&gt; CONTAINS</entry>
+              <entry>TEXT</entry>
+              <entry></entry>
+              <entry>0-1</entry>
+              <entry>U</entry>
+              <entry></entry>
+            </row>
           </tbody>
         </tgroup>
       </table>
+    </section>
+    <section xml:id="sect_CID_7021">
+      <title>CID 7021 Measurement Report Document Titles</title>
+      <para>Target label fixture for compact concept-name xrefs.</para>
+    </section>
+    <section xml:id="sect_TID_1001">
+      <title>TID 1001 Observation Context</title>
+      <para>Target label fixture for compact concept-name xrefs.</para>
+    </section>
+    <section xml:id="sect_TID_1501">
+      <title>TID 1501 Measurement Group</title>
+      <para>Target label fixture for compact concept-name xrefs.</para>
     </section>
     <section xml:id="sect_CID_29">
       <title>Acquisition Modality</title>
