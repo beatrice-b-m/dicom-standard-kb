@@ -231,6 +231,28 @@ def _part18_connection(tmp_path: Path) -> sqlite3.Connection:
     return connection
 
 
+def _part10_part18_connection(tmp_path: Path) -> sqlite3.Connection:
+    connection = _part10_connection(tmp_path)
+    document = parse_docbook_xml(PS318_WEB_SERVICES_DOCBOOK, part="PS3.18")
+    parsed_part18 = parse_part18(document, edition="2026b")
+    import_docbook_structure(
+        connection,
+        edition="2026b",
+        document=document,
+    )
+    import_dicomweb_transactions(
+        connection,
+        edition="2026b",
+        transactions=parsed_part18.dicomweb_transactions,
+    )
+    import_dicom_media_types(
+        connection,
+        edition="2026b",
+        media_types=parsed_part18.media_types,
+    )
+    return connection
+
+
 def _part18_official_shape_connection(tmp_path: Path) -> sqlite3.Connection:
     connection = connect_sqlite(tmp_path / "kb.sqlite")
     apply_migrations(connection)
@@ -940,6 +962,28 @@ def test_lookup_media_type_matches_ps318_dicomweb_context(tmp_path: Path) -> Non
     }
     assert response.refs[0].part == "PS3.18"
     assert response.refs[0].table == "Synthetic DICOMweb Media Types"
+    assert response.refs[0].anchor == "table_18-2"
+
+
+def test_lookup_media_type_prefers_instance_media_types_for_exact_match(
+    tmp_path: Path,
+) -> None:
+    response = lookup_media_type(
+        _part10_part18_connection(tmp_path),
+        media_type_or_context="application/dicom",
+        edition="2026b",
+    )
+
+    assert response.status == "ok"
+    assert response.result == {
+        "media_type": "application/dicom",
+        "service_context": "Instance Media Types",
+        "transfer_syntax_constraints": [
+            "Explicit VR Little Endian required for single-instance media",
+        ],
+        "directions": ["response"],
+    }
+    assert response.refs[0].part == "PS3.18"
     assert response.refs[0].anchor == "table_18-2"
 
 

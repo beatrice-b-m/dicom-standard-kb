@@ -327,6 +327,13 @@ class Part10Repository:
             if record.media_type.casefold() == normalized
         ]
         if exact_media_type:
+            canonical_instance_media = [
+                record
+                for record in exact_media_type
+                if (record.service_context or "").casefold() == "instance media types"
+            ]
+            if len(canonical_instance_media) == 1:
+                return canonical_instance_media
             return exact_media_type
         return [
             record

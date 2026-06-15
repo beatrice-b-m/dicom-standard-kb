@@ -57,6 +57,12 @@
           <tbody>
             <row>
               <entry>application/dicom</entry>
+              <entry>Instance Media Types</entry>
+              <entry>Explicit VR Little Endian required for single-instance media</entry>
+              <entry>response</entry>
+            </row>
+            <row>
+              <entry>multipart/related</entry>
               <entry>WADO-RS response</entry>
               <entry>Rendered transfer syntax negotiated by Accept header</entry>
               <entry>response</entry>

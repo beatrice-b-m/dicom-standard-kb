@@ -44,7 +44,7 @@ Status values:
 | Phase R5 - Reconcile completion state and final gates | Complete | Historical reconciliation completed in `44eb4df`, but post-completion review found narrower release-gate coverage and remaining official-data quality gaps. Treat R6-R10 as the active remediation tranche before marking the overall effort complete again. |
 | Phase R6 - Capture post-completion review findings | Complete | `3fc8732` records the 2026-06-15 review findings and reopens remediation with concrete R7-R10 phases. |
 | Phase R7 - Repair official PS3.18 DICOMweb and media ingestion | Complete | Parser and official-KB rebuild resolve `StoreInstances`, `WADO-RS response`, and `STOW-RS request` with PS3.18 citations; strict release goldens now fail if those examples regress. |
-| Phase R8 - Align real-KB eval and release gates with promised workflows | In progress | Real-KB eval now includes the positive DICOMweb/media workflow cases; `agent.v2.media_type.dicom_file` still needs a support-or-scope decision. |
+| Phase R8 - Align real-KB eval and release gates with promised workflows | Complete | Real-KB eval now includes the positive DICOMweb/media workflow cases and `agent.v2.media_type.dicom_file`, backed by structured `application/dicom` evidence from PS3.10 or PS3.18. |
 | Phase R9 - Repair PS3.16 SR template concept names | Not started | Official TID 1500 rows expose compact `D`, `B`, or `null` concept names when xref-backed target labels are available. |
 | Phase R10 - Final post-review reconciliation | Not started | Must run only after R7-R9 are fixed and verified. |
 
@@ -52,14 +52,14 @@ Status values:
 
 | Field | Value |
 |---|---|
-| Current phase | Phase R8 - Align real-KB eval and release gates with promised workflows |
+| Current phase | Phase R9 - Repair PS3.16 SR template concept names |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed remediation commit | `fc4e853` added strict release coverage for the repaired PS3.18 workflow examples; prior parser repair was `8c3a8d5`. |
-| Last verification | Current R7 release-coverage slice on 2026-06-15: targeted strict release goldens for `StoreInstances`, `WADO-RS response`, and `STOW-RS request` passed; focused lint passed; escalated `make lint`, `make typecheck`, `make test`, and `make test-dicom-release` passed. |
-| Current blocker | R8 still needs a support-or-scope decision for `agent.v2.media_type.dicom_file`; R9 must repair PS3.16 concept-name payload quality. |
-| Commit-ready summary | Pending current commit removes the real-KB eval exclusions for the positive DICOMweb/media workflow cases and proves they run against the release-ready official KB. |
-| Next recommended action | Finish R8 by deciding whether `agent.v2.media_type.dicom_file` should be supported by official PS3.10/PS3.18 data in real-KB eval or documented as an explicit product-scope exclusion with tests enforcing that boundary. |
+| Last completed remediation commit | `bba3d92` included the positive DICOMweb/media workflow cases in real-KB eval; prior R7 release coverage was `fc4e853`. |
+| Last verification | Current R8 completion slice on 2026-06-15: focused parser/build/resolver, agent-regression, and real-KB eval tests passed; focused lint passed; escalated `make lint`, `make typecheck`, and `make test` passed after sandboxed uv-cache permission failures. |
+| Current blocker | R9 must repair PS3.16 concept-name payload quality. |
+| Commit-ready summary | Pending current commit supports `agent.v2.media_type.dicom_file` in release-ready real-KB eval by routing it to structured `application/dicom` media-type evidence and preferring canonical `Instance Media Types` rows when duplicate contexts exist. |
+| Next recommended action | Start R9 by adding official-shape parser/resolver tests that fail when TID 1500 concept names expose only compact `D`, `B`, or `null` markers despite available xref target labels. |
 
 ## Post-Completion Review Findings
 
@@ -83,10 +83,12 @@ remediation through phases R6-R10 in `REMEDIATION_PLAN.md`.
   - `uv run --dev dicom-kb lookup media-type "STOW-RS request" --edition 2026b`
     returned `status: ok`.
 - Real-KB eval now includes positive workflow cases
+  `agent.v2.media_type.dicom_file`,
   `agent.v2.workflow.dicomweb_retrieve_media_type` and
   `agent.v2.workflow.dicomweb_store_media_type` against the release-ready
-  official KB. `agent.v2.media_type.dicom_file` remains excluded pending a
-  support-or-scope decision.
+  official KB. The media-type case is treated as release scope and uses
+  structured `application/dicom` evidence from PS3.10 when present, or PS3.18
+  `Instance Media Types` evidence in the current official KB.
 - The strict release gate covers PN, application/dicom, RetrieveStudy,
   StoreInstances, WADO-RS response, STOW-RS request, TID 1500, CID 29, and
   CT/DCM, so the post-review PS3.18 workflow examples can no longer regress
@@ -401,7 +403,7 @@ Commits:
 
 ## Phase R8 - Align Real-KB Eval and Release Gates With Promised Workflows
 
-Status: `In progress`
+Status: `Complete`
 
 Scope:
 
@@ -418,7 +420,7 @@ Completion checklist:
       release-ready official KB.
 - [x] `agent.v2.workflow.dicomweb_store_media_type` runs against the
       release-ready official KB.
-- [ ] `agent.v2.media_type.dicom_file` is either supported in real-KB eval or
+- [x] `agent.v2.media_type.dicom_file` is either supported in real-KB eval or
       documented as out of scope with tests enforcing that boundary.
 - [x] Release tests fail if exact positive DICOMweb/media workflow examples are
       absent.
@@ -427,7 +429,8 @@ Commits:
 
 | Commit | Summary | Verification |
 |---|---|---|
-| Pending current commit | Removed the real-KB eval exclusions for the positive DICOMweb/media workflow cases and asserted those cases are included in the release-ready official-KB run. | `uv run --dev pytest tests/integration_requires_dicom_download/test_eval_runner.py -rs`; `uv run --dev ruff check tests/integration_requires_dicom_download/test_eval_runner.py`; `uv run --dev pytest tests/unit/test_metadata.py -q` |
+| bba3d92 | Removed the real-KB eval exclusions for the positive DICOMweb/media workflow cases and asserted those cases are included in the release-ready official-KB run. | `uv run --dev pytest tests/integration_requires_dicom_download/test_eval_runner.py -rs`; `uv run --dev ruff check tests/integration_requires_dicom_download/test_eval_runner.py`; `uv run --dev pytest tests/unit/test_metadata.py -q` |
+| Pending current commit | Supported `agent.v2.media_type.dicom_file` in real-KB eval by routing the case to `lookup_media_type("application/dicom")`, accepting PS3.10 or PS3.18 citations, and preferring canonical `Instance Media Types` rows when exact media-type matches have multiple contexts. | `uv run --dev pytest tests/unit/test_part18_parser.py tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'part18 or media_type or build_fixture_imports_v2_parts' -q`; `uv run --dev pytest tests/agent_regression/test_runner.py -k 'v2_public_tool_batch or v2_workflow_final_batch' -q`; `uv run --dev pytest tests/integration_requires_dicom_download/test_eval_runner.py -rs`; `uv run --dev pytest tests/agent_regression -q`; `uv run --dev ruff check ...`; `make lint`; `make typecheck`; `make test` |
 
 ## Phase R9 - Repair PS3.16 SR Template Concept Names
 
@@ -475,9 +478,8 @@ Completion checklist:
 - PS3.18 parser and strict release coverage are complete for the post-review
   workflow examples: `StoreInstances`, `WADO-RS response`, and
   `STOW-RS request` now resolve and are pinned by release goldens.
-- Real-KB eval includes the positive DICOMweb/media workflow cases. The
-  remaining R8 blocker is deciding whether `agent.v2.media_type.dicom_file`
-  is release scope or an explicit product-scope exclusion.
+- Real-KB eval includes the positive DICOMweb/media workflow cases and
+  `agent.v2.media_type.dicom_file`; there is no remaining R8 blocker.
 - PS3.16 SR template concept-name quality remains open for official rows that
   use compact xref markers.
 
@@ -570,3 +572,15 @@ Completion checklist:
 | 2026-06-15 | `make test` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun passed with 341 passed and 15 skipped. |
 | 2026-06-15 | `make test-dicom-release` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated strict release gate passed with 10 passed. |
 | 2026-06-15 | `uv run --dev pytest tests/unit/test_metadata.py -q` | Passed | 7 passed after tracker updates for the R7 release-coverage slice. |
+| 2026-06-15 | `uv run --dev dicom-kb lookup media-type file --edition 2026b` | Passed command; returned `ok` retrieved text | Confirmed `file` maps to PS3.10 text fallback, not the structured `application/dicom` media-type row needed by the positive regression case. |
+| 2026-06-15 | `uv run --dev dicom-kb lookup media-type application/dicom --edition 2026b` | Passed command; returned `ok` parsed table | Confirmed release-ready official data resolves structured `application/dicom` from PS3.18 `Instance Media Types`. |
+| 2026-06-15 | `uv run --dev pytest tests/integration_requires_dicom_download/test_eval_runner.py -rs` | Passed | 1 passed before the current R8 edit, with `agent.v2.media_type.dicom_file` still excluded. |
+| 2026-06-15 | `uv run --dev pytest tests/agent_regression/test_runner.py -k 'v2_public_tool_batch' -q` | Failed then passed after fixture and resolver fix | Initial run exposed synthetic ambiguity for exact `application/dicom`; final focused R8 run is covered by the broader two-case command below. |
+| 2026-06-15 | `uv run --dev pytest tests/unit/test_part18_parser.py tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'part18 or media_type or build_fixture_imports_v2_parts' -q` | Passed | 17 passed; covers the official-style synthetic `Instance Media Types` row and exact media-type canonical preference. |
+| 2026-06-15 | `uv run --dev pytest tests/agent_regression/test_runner.py -k 'v2_public_tool_batch or v2_workflow_final_batch' -q` | Passed | 2 passed; positive media-type and DICOMweb/media workflow cases remain deterministic offline. |
+| 2026-06-15 | `uv run --dev pytest tests/integration_requires_dicom_download/test_eval_runner.py -rs` | Passed | 1 passed; release-ready real-KB eval now includes `agent.v2.media_type.dicom_file` with no pending-scope exclusion. |
+| 2026-06-15 | `uv run --dev pytest tests/agent_regression -q` | Passed | 26 passed after routing `agent.v2.media_type.dicom_file` to `application/dicom`. |
+| 2026-06-15 | `uv run --dev ruff check src/dicom_kb/db/repositories.py src/dicom_kb/eval/prompt_cases.py src/dicom_kb/eval/expected_tool_traces.py src/dicom_kb/eval/runner.py tests/unit/test_part18_parser.py tests/unit/test_build.py tests/unit/test_query_resolver.py tests/integration_requires_dicom_download/test_eval_runner.py` | Passed | Focused lint for the R8 resolver, eval, fixture-coupled tests, and real-KB eval changes. |
+| 2026-06-15 | `make lint` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev ruff check .` with all checks passed. |
+| 2026-06-15 | `make typecheck` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev mypy` with no issues in 57 source files. |
+| 2026-06-15 | `make test` | Failed in sandbox; failed once escalated, then passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; first escalated run found one stale synthetic media-type count assertion; final escalated rerun passed with 342 passed and 15 skipped. |

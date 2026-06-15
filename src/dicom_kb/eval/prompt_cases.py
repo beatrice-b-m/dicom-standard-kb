@@ -192,9 +192,9 @@ V2_TOOL_CASES = (
     ),
     (
         "media_type.dicom_file",
-        "Look up the PS3.10 file media type constraints and cite the source.",
+        "Look up the application/dicom media type constraints and cite the source.",
         ("lookup_media_type",),
-        ("application/dicom", "PS3.10"),
+        ("application/dicom", "source references"),
     ),
     (
         "dicomweb.retrieve_study",
