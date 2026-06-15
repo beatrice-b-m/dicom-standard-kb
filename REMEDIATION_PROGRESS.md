@@ -41,7 +41,7 @@ Status values:
 | Phase R2 - Repair official-shape PS3.16 ingestion | Complete | Official-shape parser, build/import, and resolver coverage now proves TID 1500, CID 29, and CT/DCM fixture rows persist with PS3.16 citations and return `ok`. |
 | Phase R3 - Pin strict official goldens | Complete | Strict release-only positive tests now pin PN, application/dicom, RetrieveStudy, TID 1500, CID 29, and CT/DCM and fail on `not_found`, missing fields, or missing required-part citations. |
 | Phase R4 - Harden agent regression scoring | Complete | Positive v2 expected traces now require `ok` status and required-part citations; reference answers derive terms from observed tool responses instead of prompt fixtures, and positive v2 semantic cases no longer receive generic fallback citations. |
-| Phase R5 - Reconcile completion state and final gates | In progress | The full v2 official 2026b KB is now present and verified, so the external artifact blocker is cleared. The strict release gate now fails on implementation evidence: required official semantic rows remain empty for PS3.5 VRs, PS3.10/PS3.18 media/web rows, and PS3.16 SR template/context/code rows. |
+| Phase R5 - Reconcile completion state and final gates | In progress | The full v2 official 2026b KB is now present and verified, so the external artifact blocker is cleared. Official-shape PS3.5 VR definitions now import and the PN release golden passes; the strict release gate still fails on PS3.10/PS3.18 media/web rows and PS3.16 SR template/context/code rows. |
 
 ## Active Work
 
@@ -50,11 +50,11 @@ Status values:
 | Current phase | Phase R5 - Reconcile completion state and final gates |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed remediation commit | `0e572a4` completed Phase R4 reference-answer hardening; later docs commits record Phase R5 status changes. |
-| Last verification | Phase R5 unblock verification ran on 2026-06-15. `uv run --dev dicom-kb verify --edition 2026b` passed for all nine DocBook artifacts and the rebuilt DB. Sandboxed `make lint`, `make typecheck`, `make test`, `make test-dicom-current`, and `make test-dicom-release` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated reruns passed for `make lint`, `make typecheck`, `make test` with 325 passed and 18 skipped, and `make test-dicom-current` with 1 passed. Escalated `make test-dicom-release` failed with 7 failures because the strict release gate now finds the full artifact/structure prerequisite satisfied but required official semantic rows are still absent or incomplete. |
-| Current blocker | No external artifact blocker remains. The rebuilt 2026b cache contains DocBook XML and DocBook structure for PS3.3, PS3.4, PS3.5, PS3.6, PS3.7, PS3.8, PS3.10, PS3.16, and PS3.18. The remaining blocker is implementation work: official parser/import paths still produce zero rows for `vr_definition`, `dicom_media_type`, `dicomweb_transaction`, `sr_template`, `sr_template_row`, `context_group`, `context_group_row`, and `coded_concept`. |
-| Commit-ready summary | Records that Phase R5 is unblocked by local official artifacts and now exposes official-shape parser/import gaps. |
-| Next recommended action | Repair official-shape parsing/importing for PS3.5 VR definitions, PS3.10/PS3.18 media and DICOMweb rows, and PS3.16 SR template/context group/code rows; rebuild the official KB; rerun `make test-dicom-release`; mark Phase R5 complete only after the strict release gate passes. |
+| Last completed remediation commit | Pending current commit for official-shape PS3.5 VR parsing; `0e572a4` completed Phase R4 reference-answer hardening. |
+| Last verification | Phase R5 PS3.5 slice verification ran on 2026-06-15. Focused tests passed; sandboxed `make lint` and `make typecheck` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`, and escalated reruns passed. The official 2026b KB rebuild passed and imported 34 `vr_definition` rows. The strict PN release golden passed. Full `make test-dicom-release` now reports 1 passed and 6 failed: release prerequisites reject missing `dicom_media_type`, `dicomweb_transaction`, `sr_template`, `sr_template_row`, `context_group`, `context_group_row`, and `coded_concept` rows, and the remaining pinned examples fail accordingly. |
+| Current blocker | No external artifact blocker remains. The rebuilt 2026b cache contains DocBook XML and DocBook structure for PS3.3, PS3.4, PS3.5, PS3.6, PS3.7, PS3.8, PS3.10, PS3.16, and PS3.18. Official PS3.5 VR rows now import. The remaining blocker is implementation work: official parser/import paths still produce zero rows for `dicom_media_type`, `dicomweb_transaction`, `sr_template`, `sr_template_row`, `context_group`, `context_group_row`, and `coded_concept`. |
+| Commit-ready summary | Adds official-shape PS3.5 VR table parsing, fixture coverage, build/query coverage, and verifies the rebuilt official KB now satisfies the PN release golden. |
+| Next recommended action | Repair official-shape parsing/importing for PS3.10/PS3.18 media-type and DICOMweb rows, starting with the pinned `application/dicom` and `RetrieveStudy` release examples; rebuild the official KB; rerun `make test-dicom-release`; defer PS3.16 SR template/context group/code rows to the following slice if needed. |
 
 ## Phase R5 Unblock Evidence
 
@@ -70,8 +70,9 @@ Verification date: 2026-06-15.
 - Citation-preserving structure exists for every required part:
   `doc_node` rows are present for each part, and `raw_table_ir` rows are
   present for each part.
-- Required semantic row counts in the rebuilt official DB:
-  - `vr_definition`: 0
+- Required semantic row counts in the rebuilt official DB after the PS3.5
+  official-shape slice:
+  - `vr_definition`: 34
   - `transfer_syntax_detail`: 63
   - `file_meta_requirement`: 15
   - `dicom_media_type`: 0
@@ -83,11 +84,12 @@ Verification date: 2026-06-15.
   - `coded_concept`: 0
   - `attribute_value_term`: 4644
 - Stored build metrics loaded all required parts and recorded parser warnings
-  by part: `PS3.5`: 55, `PS3.10`: 4, `PS3.16`: 2238, `PS3.18`: 208,
+  by part: `PS3.5`: 54, `PS3.10`: 4, `PS3.16`: 2238, `PS3.18`: 208,
   `PS3.7`: 85, and `PS3.8`: 35.
-- `make test-dicom-release` now fails because required semantic rows and
-  pinned examples are not satisfied, not because official artifacts or
-  DocBook structure are missing.
+- `make test-dicom-release` now passes the PN VR release golden and fails
+  because remaining media/DICOMweb and PS3.16 semantic rows and pinned
+  examples are not satisfied, not because official artifacts or DocBook
+  structure are missing.
 
 ## Phase R0 - Reproduce and Inventory the Gap
 
@@ -272,7 +274,7 @@ Commits:
 
 ## Phase R5 - Reconcile Completion State and Final Gates
 
-Status: `Blocked`
+Status: `In progress`
 
 Scope:
 
@@ -296,17 +298,20 @@ Commits:
 
 | Commit | Summary | Verification |
 |---|---|---|
-| Pending current commit | Reconciles the completed remediation evidence and records the remaining full-official-KB prerequisite for the strict v2 release gate. | `make lint`; `make typecheck`; `make test`; `make test-dicom-current`; `make test-dicom-release`; `uv run --dev pytest tests/unit/test_metadata.py tests/unit/test_distribution_audit.py -q` |
+| Pending current commit | Adds official-shape PS3.5 VR parsing/import evidence and removes `vr_definition` from the remaining strict release-gate blocker list. | `uv run --dev pytest tests/unit/test_part05_parser.py tests/unit/test_build.py -k 'part05 or vr_table' -q`; `uv run --dev ruff check src/dicom_kb/parsers/part05_encoding.py tests/unit/test_part05_parser.py tests/unit/test_build.py tests/fixtures_synthetic/__init__.py`; `make lint`; `make typecheck`; `uv run --dev dicom-kb build --edition 2026b --force`; `env DICOM_KB_RUN_RELEASE=1 uv run --dev pytest tests/integration_requires_dicom_download/test_release_goldens.py -k pn_vr -q`; `make test-dicom-release` |
 
 ## Blockers and Open Decisions
 
-- Phase R5 cannot complete until a full official v2 KB is available locally.
-  The current local 2026b cache is reduced to PS3.3/PS3.4/PS3.6, so
-  `make test-dicom-release` correctly fails on missing required parts,
-  semantic rows, DocBook structure rows, and the six pinned positive examples.
-  Next action: fetch or provide PS3.5, PS3.7, PS3.8, PS3.10, PS3.16, and
-  PS3.18 DocBook artifacts for a concrete edition, rebuild the KB, and rerun
-  the strict release gate.
+- No external artifact blocker remains. Phase R5 cannot complete until the
+  official-shape import gaps for PS3.10/PS3.18 media/DICOMweb rows and
+  PS3.16 SR template/context group/code rows are fixed. The current rebuilt
+  2026b official KB has 34 `vr_definition` rows, but zero rows for
+  `dicom_media_type`, `dicomweb_transaction`, `sr_template`,
+  `sr_template_row`, `context_group`, `context_group_row`, and
+  `coded_concept`.
+  Next action: repair official-shape parsing/importing for PS3.10/PS3.18
+  media-type and DICOMweb rows, starting with the pinned `application/dicom`
+  and `RetrieveStudy` release examples.
 
 ## Verification Log
 
@@ -369,3 +374,10 @@ Commits:
 | 2026-06-14 | `make lint` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev ruff check .` with all checks passed. |
 | 2026-06-14 | `make typecheck` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev mypy` with no issues in 57 source files. |
 | 2026-06-14 | `make test` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; an initial escalated run exposed fixture-coupled assertions after adding Pixel Data and more descriptive synthetic titles; after updating those assertions, escalated `make test` passed with 325 passed and 18 skipped. |
+| 2026-06-15 | `uv run --dev pytest tests/unit/test_part05_parser.py tests/unit/test_build.py -k 'part05 or vr_table' -q` | Passed | 7 passed; covers official-shape PS3.5 VR table parsing plus build/import/query coverage for PN. |
+| 2026-06-15 | `uv run --dev ruff check src/dicom_kb/parsers/part05_encoding.py tests/unit/test_part05_parser.py tests/unit/test_build.py tests/fixtures_synthetic/__init__.py` | Passed | Focused lint for the PS3.5 parser, fixture export, and tests. |
+| 2026-06-15 | `make lint` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev ruff check .` with all checks passed. |
+| 2026-06-15 | `make typecheck` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev mypy` with no issues in 57 source files. |
+| 2026-06-15 | `uv run --dev dicom-kb build --edition 2026b --force` | Passed escalated | Rebuilt the local official 2026b KB and imported 34 `vr_definition` rows from official PS3.5. Generated DB remains outside the repo. |
+| 2026-06-15 | `env DICOM_KB_RUN_RELEASE=1 uv run --dev pytest tests/integration_requires_dicom_download/test_release_goldens.py -k pn_vr -q` | Passed escalated | 1 passed; the strict PN VR release golden now succeeds against the rebuilt official KB. |
+| 2026-06-15 | `make test-dicom-release` | Failed as expected escalated | Strict release gate now reports 1 passed and 6 failed. Remaining failures are missing `dicom_media_type`, `dicomweb_transaction`, `sr_template`, `sr_template_row`, `context_group`, `context_group_row`, and `coded_concept` rows plus their pinned examples. |

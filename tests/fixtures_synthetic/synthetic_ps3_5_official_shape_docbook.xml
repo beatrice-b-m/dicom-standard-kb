@@ -1,0 +1,39 @@
+<book xmlns="http://docbook.org/ns/docbook" xmlns:xml="http://www.w3.org/XML/1998/namespace" xml:id="ps3_5_official_shape">
+  <chapter xml:id="chapter_6">
+    <title>PS3.5 Official-Shape Encoding</title>
+    <section xml:id="sect_6.2">
+      <title>Value Representation (VR)</title>
+      <table xml:id="table_6.2-1">
+        <caption>DICOM Value Representations</caption>
+        <thead>
+          <tr>
+            <th><para>VR Name</para></th>
+            <th><para>Definition</para></th>
+            <th><para>Character Repertoire</para></th>
+            <th><para>Length of Value</para></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <para>PN</para>
+              <para>Person Name</para>
+            </td>
+            <td><para>A character string containing a person name.</para></td>
+            <td><para>Default Character Repertoire or extended repertoire.</para></td>
+            <td><para>64 chars maximum per component group.</para></td>
+          </tr>
+          <tr>
+            <td>
+              <para>SQ</para>
+              <para>Sequence of Items</para>
+            </td>
+            <td><para>Value is a Sequence of zero or more Items.</para></td>
+            <td><para>not applicable</para></td>
+            <td><para>2^32-2 bytes maximum.</para></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </chapter>
+</book>

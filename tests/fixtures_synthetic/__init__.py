@@ -11,6 +11,9 @@ PS34_SOP_CLASSES_DOCBOOK = (
 PS35_ENCODING_DOCBOOK = (
     FIXTURE_DIR / "synthetic_ps3_5_encoding_docbook.xml"
 ).read_text(encoding="utf-8")
+PS35_OFFICIAL_SHAPE_DOCBOOK = (
+    FIXTURE_DIR / "synthetic_ps3_5_official_shape_docbook.xml"
+).read_text(encoding="utf-8")
 PS36_REGISTRY_DOCBOOK = (
     FIXTURE_DIR / "synthetic_ps3_6_registry_docbook.xml"
 ).read_text(encoding="utf-8")

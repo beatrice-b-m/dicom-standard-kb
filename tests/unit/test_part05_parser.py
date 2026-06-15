@@ -17,7 +17,11 @@ from dicom_kb.parsers.part05_encoding import (
     transfer_syntax_details_from_uid_registry,
 )
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
-from tests.fixtures_synthetic import PS35_ENCODING_DOCBOOK, PS36_REGISTRY_DOCBOOK
+from tests.fixtures_synthetic import (
+    PS35_ENCODING_DOCBOOK,
+    PS35_OFFICIAL_SHAPE_DOCBOOK,
+    PS36_REGISTRY_DOCBOOK,
+)
 
 
 def _connection(tmp_path: Path) -> sqlite3.Connection:
@@ -52,6 +56,27 @@ def test_parse_part05_classifies_vr_tables_and_warns_on_gaps() -> None:
     )
     assert pn.binary_or_text == "text"
     assert result.vr_definitions[1].binary_or_text == "binary"
+
+
+def test_parse_part05_official_shape_vr_table() -> None:
+    document = parse_docbook_xml(PS35_OFFICIAL_SHAPE_DOCBOOK, part="PS3.5")
+
+    result = parse_part05(document, edition="2026b")
+
+    assert [table.table_id for table in result.recognized_tables] == ["table_6.2-1"]
+    assert result.warnings == ()
+    assert [record.vr for record in result.vr_definitions] == ["PN", "SQ"]
+    pn = result.vr_definitions[0]
+    assert pn.name == "Person Name"
+    assert pn.length_notes == ("64 chars maximum per component group.",)
+    assert pn.character_repertoire_notes == (
+        "Default Character Repertoire or extended repertoire.",
+    )
+    assert pn.binary_or_text == "text"
+    assert pn.source_ref.part == "PS3.5"
+    assert pn.source_ref.section == "sect_6.2"
+    assert pn.source_ref.table_id == "table_6.2-1"
+    assert pn.source_ref.title == "DICOM Value Representations"
 
 
 def test_import_vr_definitions_persists_ps35_rows_with_source_refs(
