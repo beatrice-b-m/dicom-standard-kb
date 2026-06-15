@@ -41,7 +41,7 @@ Status values:
 | Phase R2 - Repair official-shape PS3.16 ingestion | Complete | Official-shape parser, build/import, and resolver coverage now proves TID 1500, CID 29, and CT/DCM fixture rows persist with PS3.16 citations and return `ok`. |
 | Phase R3 - Pin strict official goldens | Complete | Strict release-only positive tests now pin PN, application/dicom, RetrieveStudy, TID 1500, CID 29, and CT/DCM and fail on `not_found`, missing fields, or missing required-part citations. |
 | Phase R4 - Harden agent regression scoring | Complete | Positive v2 expected traces now require `ok` status and required-part citations; reference answers derive terms from observed tool responses instead of prompt fixtures, and positive v2 semantic cases no longer receive generic fallback citations. |
-| Phase R5 - Reconcile completion state and final gates | Blocked | Final docs already name the strict release gate, offline checks and current-edition resolution pass, and the strict release gate correctly rejects the reduced local 2026b official KB. A full v2 official KB is required before Phase R5 can complete. |
+| Phase R5 - Reconcile completion state and final gates | In progress | The full v2 official 2026b KB is now present and verified, so the external artifact blocker is cleared. The strict release gate now fails on implementation evidence: required official semantic rows remain empty for PS3.5 VRs, PS3.10/PS3.18 media/web rows, and PS3.16 SR template/context/code rows. |
 
 ## Active Work
 
@@ -50,11 +50,44 @@ Status values:
 | Current phase | Phase R5 - Reconcile completion state and final gates |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed remediation commit | `0e572a4` completed Phase R4 reference-answer hardening. |
-| Last verification | Blocker assessment reran on 2026-06-14. Sandboxed `make test`, `make test-dicom-current`, and `make test-dicom-release` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated reruns passed for `make lint`, `make typecheck`, `make test` with 325 passed and 18 skipped, and `make test-dicom-current` with 1 passed. Escalated `make test-dicom-release` failed as expected with 7 failures because the local 2026b official KB is reduced and lacks required v2 parts, semantic rows, DocBook structure rows, and the pinned positive examples. |
-| Current blocker | A full official v2 KB is not present locally. The current 2026b cache is still PS3.3/PS3.4/PS3.6-only, so the strict release gate cannot pass until PS3.5, PS3.7, PS3.8, PS3.10, PS3.16, and PS3.18 DocBook artifacts are fetched and the KB is rebuilt with the required semantic rows. |
-| Commit-ready summary | Records Phase R5 final reconciliation and the remaining external prerequisite after the repaired strict release gate correctly rejects the reduced local 2026b official KB. |
-| Next recommended action | Fetch or otherwise provide the full official v2 part set for a concrete edition, rebuild the local KB with `--force`, then rerun `make test-dicom-release`; if it passes, update `IMPLEMENTATION_PROGRESS.md` and `REMEDIATION_PROGRESS.md` to mark Phase R5 and v2 release hardening complete. |
+| Last completed remediation commit | `0e572a4` completed Phase R4 reference-answer hardening; later docs commits record Phase R5 status changes. |
+| Last verification | Phase R5 unblock verification ran on 2026-06-15. `uv run --dev dicom-kb verify --edition 2026b` passed for all nine DocBook artifacts and the rebuilt DB. Sandboxed `make lint`, `make typecheck`, `make test`, `make test-dicom-current`, and `make test-dicom-release` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated reruns passed for `make lint`, `make typecheck`, `make test` with 325 passed and 18 skipped, and `make test-dicom-current` with 1 passed. Escalated `make test-dicom-release` failed with 7 failures because the strict release gate now finds the full artifact/structure prerequisite satisfied but required official semantic rows are still absent or incomplete. |
+| Current blocker | No external artifact blocker remains. The rebuilt 2026b cache contains DocBook XML and DocBook structure for PS3.3, PS3.4, PS3.5, PS3.6, PS3.7, PS3.8, PS3.10, PS3.16, and PS3.18. The remaining blocker is implementation work: official parser/import paths still produce zero rows for `vr_definition`, `dicom_media_type`, `dicomweb_transaction`, `sr_template`, `sr_template_row`, `context_group`, `context_group_row`, and `coded_concept`. |
+| Commit-ready summary | Records that Phase R5 is unblocked by local official artifacts and now exposes official-shape parser/import gaps. |
+| Next recommended action | Repair official-shape parsing/importing for PS3.5 VR definitions, PS3.10/PS3.18 media and DICOMweb rows, and PS3.16 SR template/context group/code rows; rebuild the official KB; rerun `make test-dicom-release`; mark Phase R5 complete only after the strict release gate passes. |
+
+## Phase R5 Unblock Evidence
+
+Verification date: 2026-06-15.
+
+- Local cache selected by the integration fixtures: edition `2026b` from
+  `/Users/beatrice/.cache/dicom-standard-kb`, resolved from `current`.
+- `uv run --dev dicom-kb verify --edition 2026b`: passed with `status: ok`
+  for the manifest and database.
+- Manifest and build metadata now cover DocBook XML artifacts for:
+  `PS3.3`, `PS3.4`, `PS3.5`, `PS3.6`, `PS3.7`, `PS3.8`, `PS3.10`,
+  `PS3.16`, and `PS3.18`.
+- Citation-preserving structure exists for every required part:
+  `doc_node` rows are present for each part, and `raw_table_ir` rows are
+  present for each part.
+- Required semantic row counts in the rebuilt official DB:
+  - `vr_definition`: 0
+  - `transfer_syntax_detail`: 63
+  - `file_meta_requirement`: 15
+  - `dicom_media_type`: 0
+  - `dicomweb_transaction`: 0
+  - `sr_template`: 0
+  - `sr_template_row`: 0
+  - `context_group`: 0
+  - `context_group_row`: 0
+  - `coded_concept`: 0
+  - `attribute_value_term`: 4644
+- Stored build metrics loaded all required parts and recorded parser warnings
+  by part: `PS3.5`: 55, `PS3.10`: 4, `PS3.16`: 2238, `PS3.18`: 208,
+  `PS3.7`: 85, and `PS3.8`: 35.
+- `make test-dicom-release` now fails because required semantic rows and
+  pinned examples are not satisfied, not because official artifacts or
+  DocBook structure are missing.
 
 ## Phase R0 - Reproduce and Inventory the Gap
 

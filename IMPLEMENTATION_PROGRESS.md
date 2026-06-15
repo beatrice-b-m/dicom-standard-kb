@@ -37,7 +37,7 @@ Status values:
 | Phase 6 - Contextual enumerated values and defined terms | Complete | Existing `attribute_value_term` coverage is documented; deterministic IOD/SOP/module/macro context resolution works through the shared PS3.3/PS3.4 graph, and ambiguous contextual value-term matches now return candidates instead of a merged answer. |
 | Phase 7 - Selected PS3.7/PS3.8 semantics | Complete | Selected PS3.7 DIMSE service-behavior and PS3.8 association-PDU parser slices are in place for synthetic fixtures, with cited PS3.7/PS3.8 retrieval fallback coverage and agent regression traces through `retrieve_standard_text`. |
 | Phase 8 - Evaluation harness expansion | Complete | The final v2 workflow prompt batch raises the suite to 101 prompt cases; every implemented v2 public tool appears in deterministic expected traces, unsupported normative-claim checks cover the major v2 domains, and the full agent regression suite passes. |
-| Phase 9 - V2 release hardening | Blocked | Remediation found that the earlier integration gate could pass against a PS3.3/PS3.4/PS3.6-only official KB. `make test-dicom-release` is now the strict opt-in v2 official release gate and correctly rejects the reduced local 2026b KB; a full v2 official KB is required before this phase can complete. |
+| Phase 9 - V2 release hardening | In progress | Remediation found that the earlier integration gate could pass against a reduced official KB. The full v2 official 2026b artifacts are now present and verified, so the external cache blocker is cleared. `make test-dicom-release` now fails on remaining official-shape parser/import gaps for required semantic rows and pinned v2 examples. |
 
 ## Acceptance Criteria Tracker
 
@@ -58,10 +58,10 @@ Status values:
 | Current owner/agent | Codex |
 | Branch | main |
 | Last completed commit | `0e572a4` completed Phase R4 reference-answer hardening. |
-| Last verification | Phase R5 final verification on 2026-06-14: escalated `make lint`, `make typecheck`, `make test`, and `make test-dicom-current` passed after sandboxed uv-cache permission failures; escalated `make test-dicom-release` failed as expected with 7 failures because the local 2026b official KB lacks the required v2 DocBook parts, semantic rows, DocBook structure rows, and pinned positive examples. Post-edit `uv run --dev pytest tests/unit/test_metadata.py tests/unit/test_distribution_audit.py -q` passed with 9 passed. |
-| Current blocker | Full v2 official KB not available locally; the current 2026b cache is reduced to PS3.3/PS3.4/PS3.6. |
-| Commit-ready summary | Records final reconciliation and the remaining external prerequisite for v2 release hardening. |
-| Next recommended action | Fetch or provide the full official v2 part set for a concrete edition, rebuild the local KB, rerun `make test-dicom-release`, and mark Phase 9 complete only if the strict release gate passes. |
+| Last verification | Phase R5 unblock verification on 2026-06-15: `uv run --dev dicom-kb verify --edition 2026b` passed for all nine DocBook artifacts and DB metadata; escalated `make lint`, `make typecheck`, `make test`, and `make test-dicom-current` passed after sandboxed uv-cache permission failures; escalated `make test-dicom-release` failed with 7 failures because the official KB now has required artifacts/DocBook structure but still lacks required semantic rows for PS3.5, PS3.10/PS3.18, and PS3.16 pinned examples. |
+| Current blocker | No external artifact blocker remains; the remaining blocker is official-shape parser/import work for `vr_definition`, `dicom_media_type`, `dicomweb_transaction`, `sr_template`, `sr_template_row`, `context_group`, `context_group_row`, and `coded_concept`. |
+| Commit-ready summary | Records that full official v2 artifacts unblock remediation and expose remaining parser/import gaps. |
+| Next recommended action | Repair official-shape semantic parsing/importing for the empty required tables, rebuild the official KB, rerun `make test-dicom-release`, and mark Phase 9 complete only if the strict release gate passes. |
 
 ## Phase 0 - V2 Contract Baseline
 
