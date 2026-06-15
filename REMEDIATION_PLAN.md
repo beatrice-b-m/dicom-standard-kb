@@ -1,6 +1,7 @@
 # Remediation Plan
 
 Date: 2026-06-14
+Last updated: 2026-06-15
 
 Source: `IMPLEMENTATION_PLAN_REVIEW.md`
 
@@ -15,6 +16,11 @@ This remediation plan converts those findings into scoped phases. A phase is
 complete only when its focused tests pass and `REMEDIATION_PROGRESS.md`
 records the commit, verification commands, blockers, and next action.
 
+Post-completion review on 2026-06-15 found that the original false-positive
+release-gate class is repaired, but several official-data and gate-coverage
+gaps remain. The post-review phases R6-R10 below are now part of this plan and
+must be resolved before remediation is again marked complete.
+
 ## Scope
 
 In scope:
@@ -24,6 +30,12 @@ In scope:
 - Agent regression scoring that requires successful cited tool results for
   positive v2 claims.
 - Official-shape PS3.16 parsing for TID, CID, and coded-concept content.
+- Official-shape PS3.16 SR template concept-name quality where concept cells
+  use official `D`/`B` xref markers.
+- Official-shape PS3.18 DICOMweb transaction and media-type correctness beyond
+  the single RetrieveStudy/application-dicom release golden.
+- Real-KB eval and release gates that cover promised positive v2 workflows
+  instead of excluding them silently.
 - Durable progress reconciliation after each remediation slice.
 
 Out of scope:
@@ -50,6 +62,14 @@ Out of scope:
 - Generic source-reference fallback calls must not satisfy positive v2
   semantic cases.
 - All parsed facts remain edition-pinned and citation-preserving.
+- Release readiness cannot be established by nonzero row counts alone; exact
+  promised examples and workflow paths must resolve with the expected status,
+  citations, and semantically relevant payload fields.
+- Real-KB eval exclusions for positive v2 workflows are temporary blockers, not
+  completion evidence. Each exclusion must be removed or documented as an
+  explicit unsupported product decision.
+- Official DocBook xrefs used as compact display markers must be resolved into
+  useful public payload text when the target label is available.
 
 ## Phase R0 - Reproduce and Inventory the Gap
 
@@ -274,6 +294,163 @@ Exit criteria:
 - The original findings in `IMPLEMENTATION_PLAN_REVIEW.md` are either fixed
   or recorded as explicit external blockers.
 
+## Phase R6 - Capture Post-Completion Review Findings
+
+Goal: turn the 2026-06-15 review findings into durable, actionable work before
+any further remediation code changes.
+
+Deliverables:
+
+- Record the post-review direct official-KB spot checks for:
+  `lookup dicomweb RetrieveStudy`, `lookup dicomweb StoreInstances`,
+  `lookup media-type "WADO-RS response"`,
+  `lookup media-type "STOW-RS request"`, and `lookup sr-template 1500`.
+- Record which strict release and real-KB eval tests passed and which positive
+  workflow cases remain excluded.
+- Mark post-review remediation as open in `REMEDIATION_PROGRESS.md` and point
+  the next agent at the first code slice.
+- Replace stale `Pending current commit` references with the actual committed
+  hashes from `git log --oneline -3`.
+
+Verification:
+
+- `uv run --dev pytest tests/unit/test_part05_parser.py tests/unit/test_part16_parser.py tests/unit/test_part18_parser.py tests/unit/test_query_resolver.py -q`
+- `make test-dicom-release`
+- Direct CLI spot checks listed above.
+
+Exit criteria:
+
+- `REMEDIATION_PROGRESS.md` accurately states that R0-R5 are historical
+  completed work, while R6-R10 are open post-review remediation.
+
+## Phase R7 - Repair Official PS3.18 DICOMweb and Media Ingestion
+
+Goal: make official PS3.18 parsed rows semantically correct for promised
+DICOMweb and media-type workflows, not only nonempty.
+
+Deliverables:
+
+- Fix transaction overview/resource matching so Retrieve, Store, Search, and
+  resource tables cannot receive overview text from an unrelated section or
+  transaction row.
+- Add official-shape parser tests that would fail if `RetrieveStudy` response
+  constraints contain unrelated Modality Performed Procedure Step text.
+- Parse or derive official rows needed for `StoreInstances` to return `ok` with
+  a PS3.18 citation, POST method, route, resource category, and request/response
+  constraints.
+- Parse or derive PS3.18 media-type rows needed for `WADO-RS response` and
+  `STOW-RS request` lookup contexts to return `ok` with PS3.18 citations.
+- Avoid hard-coded single-row media coverage that only satisfies
+  `application/dicom` while leaving promised workflow contexts unresolved.
+
+Tests:
+
+- Unit parser/import/resolver tests for official-shape `RetrieveStudy`,
+  `StoreInstances`, `WADO-RS response`, and `STOW-RS request`.
+- Direct official-KB CLI checks for the same examples after rebuilding the
+  local official edition.
+- A strict release-golden or release-workflow test that fails if any of these
+  examples returns `not_found` or cites the wrong part.
+
+Exit criteria:
+
+- The rebuilt official KB returns `ok` for `RetrieveStudy`, `StoreInstances`,
+  `WADO-RS response`, and `STOW-RS request`.
+- `RetrieveStudy` payload fields are semantically relevant to RetrieveStudy and
+  do not contain unrelated transaction prose.
+
+## Phase R8 - Align Real-KB Eval and Release Gates With Promised Workflows
+
+Goal: ensure tests cannot mark remediation complete while positive v2 workflow
+cases are excluded or under-asserted.
+
+Deliverables:
+
+- Remove `agent.v2.workflow.dicomweb_retrieve_media_type` and
+  `agent.v2.workflow.dicomweb_store_media_type` from the real-KB unsupported
+  exclusion set once Phase R7 data is present.
+- Decide whether `agent.v2.media_type.dicom_file` should be backed by PS3.10,
+  PS3.18, or an explicit product limitation; encode that decision in tests and
+  progress notes.
+- Strengthen strict release tests so they cover exact positive workflow
+  examples, not only existence of broad semantic table rows.
+- Ensure the release requirement helper cannot pass solely because
+  `dicom_media_type` and `dicomweb_transaction` have nonzero counts.
+
+Tests:
+
+- Real-KB eval integration runs positive v2 DICOMweb/media workflow cases
+  against a release-ready official KB.
+- Release tests fail when `StoreInstances`, `WADO-RS response`, or
+  `STOW-RS request` are missing.
+- Existing offline agent regression remains deterministic.
+
+Exit criteria:
+
+- No positive v2 DICOMweb/media workflow case is silently excluded from
+  release-ready real-KB eval.
+
+## Phase R9 - Repair PS3.16 SR Template Concept Names
+
+Goal: preserve useful public concept-name text for official SR template rows
+whose cells contain compact `D`/`B` markers with DocBook xrefs.
+
+Deliverables:
+
+- Resolve concept-cell xrefs to meaningful target labels when the official row
+  text is only a compact display marker such as `D` or `B`.
+- Preserve include target extraction while improving `concept_name`; do not
+  regress include TID/CID references.
+- Add tests that fail if TID 1500 official-shape rows with available xrefs
+  expose only `D`, `B`, or `null` as concept names.
+- Decide how to represent genuinely blank official concept names and document
+  that behavior in tests.
+
+Tests:
+
+- Parser tests for official-shape TID 1500 concept names with xref-backed
+  target labels.
+- Resolver tests proving `lookup_sr_template("1500")` returns useful
+  concept-name payloads for rows with resolvable xrefs.
+- Existing context-group and coded-concept tests continue to pass.
+
+Exit criteria:
+
+- Public SR template rows no longer lose available concept semantics to
+  single-letter xref markers.
+
+## Phase R10 - Final Post-Review Reconciliation
+
+Goal: close the post-review remediation tranche with accurate durable evidence.
+
+Deliverables:
+
+- Update `REMEDIATION_PROGRESS.md` with completed R6-R9 commits and exact
+  verification commands.
+- Update `IMPLEMENTATION_PROGRESS.md` only when post-review fixes make the v2
+  release-hardening claim true again.
+- Confirm no stale `Pending current commit` markers remain in remediation or
+  implementation progress trackers.
+- Confirm distribution constraints still hold.
+
+Required final verification:
+
+```bash
+make lint
+make typecheck
+make test
+make test-dicom-current
+make test-dicom-release
+```
+
+Exit criteria:
+
+- `REMEDIATION_PROGRESS.md` has no unresolved post-review blockers.
+- Strict release and real-KB eval gates cover the promised v2 positive
+  examples and workflows.
+- All post-review findings are fixed or explicitly recorded as product-scope
+  exclusions with tests enforcing that boundary.
+
 ## Suggested Commit Boundaries
 
 - One commit for baseline evidence/progress updates.
@@ -284,6 +461,11 @@ Exit criteria:
 - One commit for strict official golden tests.
 - One commit for agent-regression scorer and runner hardening.
 - One commit for final documentation and progress reconciliation.
+- One commit for post-completion review finding documentation.
+- One commit for PS3.18 transaction/media parser and release-gate repairs.
+- One commit for real-KB eval exclusion removal or explicit scope decision.
+- One commit for PS3.16 SR template concept-name quality repairs.
+- One commit for final post-review reconciliation.
 
 Do not batch unrelated parser, release-gate, scorer, CLI, MCP, or docs work
 unless the files are required for the same coherent remediation slice.
