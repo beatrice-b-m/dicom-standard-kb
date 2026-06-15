@@ -1,0 +1,77 @@
+<book xmlns="http://docbook.org/ns/docbook" xmlns:xml="http://www.w3.org/XML/1998/namespace" xml:id="ps3_18_official_shape">
+  <chapter xml:id="chapter_18">
+    <title>PS3.18 Official-Shape Web Services</title>
+    <section xml:id="sect_8.7.3.1">
+      <title>Instance Media Types</title>
+      <para>The application/dicom Media Type specifies a representation of Instances.</para>
+      <table xml:id="table_8.7.3-2">
+        <caption>Transfer Syntax UIDs for application/dicom Media Types</caption>
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th>Transfer Syntax UID</th>
+            <th>Transfer Syntax Name</th>
+            <th>Optionality</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Single Frame Image</td>
+            <td>1.2.840.10008.1.2.1</td>
+            <td>Explicit VR Little Endian</td>
+            <td>D</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+    <section xml:id="sect_10.3">
+      <title>Transactions Overview</title>
+      <table xml:id="table_10.3-1">
+        <caption>Studies Service Transactions</caption>
+        <thead>
+          <tr>
+            <th rowspan="2">Transaction Name</th>
+            <th rowspan="2">Method</th>
+            <th colspan="2">Payload</th>
+            <th rowspan="2">Description</th>
+          </tr>
+          <tr>
+            <th>Request</th>
+            <th>Success Response</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Retrieve</td>
+            <td>GET</td>
+            <td>N/A</td>
+            <td>Instance(s), Metadata, Renderings, Pixel Data, or Bulk Data</td>
+            <td>Retrieve one or more representations of DICOM Resources.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+    <section xml:id="sect_10.4.1.1.1">
+      <title>Instance Resources</title>
+      <table xml:id="table_10.4.1-1">
+        <caption>Retrieve Transaction Instance Resources</caption>
+        <thead>
+          <tr>
+            <th>Resource</th>
+            <th>URI Template</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Study Instances</td>
+            <td>/studies/{study}</td>
+          </tr>
+          <tr>
+            <td>Series Instances</td>
+            <td>/studies/{study}/series/{series}</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </chapter>
+</book>

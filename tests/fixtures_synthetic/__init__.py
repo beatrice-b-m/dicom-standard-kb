@@ -35,3 +35,6 @@ PS316_OFFICIAL_SHAPE_DOCBOOK = (
 PS318_WEB_SERVICES_DOCBOOK = (
     FIXTURE_DIR / "synthetic_ps3_18_web_services_docbook.xml"
 ).read_text(encoding="utf-8")
+PS318_OFFICIAL_SHAPE_DOCBOOK = (
+    FIXTURE_DIR / "synthetic_ps3_18_official_shape_docbook.xml"
+).read_text(encoding="utf-8")

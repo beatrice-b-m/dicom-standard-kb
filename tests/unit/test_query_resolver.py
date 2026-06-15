@@ -63,6 +63,7 @@ from tests.fixtures_synthetic import (
     PS310_MEDIA_STORAGE_DOCBOOK,
     PS316_CONTENT_MAPPING_DOCBOOK,
     PS316_OFFICIAL_SHAPE_DOCBOOK,
+    PS318_OFFICIAL_SHAPE_DOCBOOK,
     PS318_WEB_SERVICES_DOCBOOK,
 )
 
@@ -211,6 +212,29 @@ def _part18_connection(tmp_path: Path) -> sqlite3.Connection:
     connection = connect_sqlite(tmp_path / "kb.sqlite")
     apply_migrations(connection)
     document = parse_docbook_xml(PS318_WEB_SERVICES_DOCBOOK, part="PS3.18")
+    parsed_part18 = parse_part18(document, edition="2026b")
+    import_docbook_structure(
+        connection,
+        edition="2026b",
+        document=document,
+    )
+    import_dicomweb_transactions(
+        connection,
+        edition="2026b",
+        transactions=parsed_part18.dicomweb_transactions,
+    )
+    import_dicom_media_types(
+        connection,
+        edition="2026b",
+        media_types=parsed_part18.media_types,
+    )
+    return connection
+
+
+def _part18_official_shape_connection(tmp_path: Path) -> sqlite3.Connection:
+    connection = connect_sqlite(tmp_path / "kb.sqlite")
+    apply_migrations(connection)
+    document = parse_docbook_xml(PS318_OFFICIAL_SHAPE_DOCBOOK, part="PS3.18")
     parsed_part18 = parse_part18(document, edition="2026b")
     import_docbook_structure(
         connection,
@@ -919,6 +943,28 @@ def test_lookup_media_type_matches_ps318_dicomweb_context(tmp_path: Path) -> Non
     assert response.refs[0].anchor == "table_18-2"
 
 
+def test_lookup_media_type_returns_official_shape_application_dicom(
+    tmp_path: Path,
+) -> None:
+    response = lookup_media_type(
+        _part18_official_shape_connection(tmp_path),
+        media_type_or_context="application/dicom",
+        edition="2026b",
+    )
+
+    assert response.status == "ok"
+    assert response.result == {
+        "media_type": "application/dicom",
+        "service_context": "Instance Media Types",
+        "transfer_syntax_constraints": [
+            "1.2.840.10008.1.2.1 Explicit VR Little Endian (D)",
+        ],
+        "directions": ["response"],
+    }
+    assert response.refs[0].part == "PS3.18"
+    assert response.refs[0].anchor == "table_8.7.3-2"
+
+
 def test_lookup_media_type_validates_empty_input_and_reports_not_found(
     tmp_path: Path,
 ) -> None:
@@ -1050,6 +1096,35 @@ def test_lookup_dicomweb_transaction_returns_ps318_transaction_by_name(
     assert response.refs[0].part == "PS3.18"
     assert response.refs[0].table == "Synthetic Transactions"
     assert response.refs[0].anchor == "table_18-1"
+    assert response.classification.evidence_level == "parsed_table"
+
+
+def test_lookup_dicomweb_transaction_returns_official_shape_retrieve_study(
+    tmp_path: Path,
+) -> None:
+    response = lookup_dicomweb_transaction(
+        _part18_official_shape_connection(tmp_path),
+        name_or_route="RetrieveStudy",
+        edition="2026b",
+    )
+
+    assert response.status == "ok"
+    assert response.result == {
+        "transaction_name": "RetrieveStudy",
+        "resource_category": "study",
+        "http_method": "GET",
+        "route_template": "/studies/{study}",
+        "request_constraints": ["Target resource: Study Instances"],
+        "response_constraints": [
+            "Success response payload: Instance(s), Metadata, Renderings, "
+            "Pixel Data, or Bulk Data",
+            "Retrieve one or more representations of DICOM Resources.",
+        ],
+        "status_codes": [],
+        "media_type_refs": ["application/dicom", "application/dicom+json"],
+    }
+    assert response.refs[0].part == "PS3.18"
+    assert response.refs[0].anchor == "table_10.4.1-1"
     assert response.classification.evidence_level == "parsed_table"
 
 

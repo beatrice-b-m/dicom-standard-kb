@@ -37,7 +37,7 @@ Status values:
 | Phase 6 - Contextual enumerated values and defined terms | Complete | Existing `attribute_value_term` coverage is documented; deterministic IOD/SOP/module/macro context resolution works through the shared PS3.3/PS3.4 graph, and ambiguous contextual value-term matches now return candidates instead of a merged answer. |
 | Phase 7 - Selected PS3.7/PS3.8 semantics | Complete | Selected PS3.7 DIMSE service-behavior and PS3.8 association-PDU parser slices are in place for synthetic fixtures, with cited PS3.7/PS3.8 retrieval fallback coverage and agent regression traces through `retrieve_standard_text`. |
 | Phase 8 - Evaluation harness expansion | Complete | The final v2 workflow prompt batch raises the suite to 101 prompt cases; every implemented v2 public tool appears in deterministic expected traces, unsupported normative-claim checks cover the major v2 domains, and the full agent regression suite passes. |
-| Phase 9 - V2 release hardening | In progress | Remediation found that the earlier integration gate could pass against a reduced official KB. The full v2 official 2026b artifacts are now present and verified, so the external cache blocker is cleared. Official PS3.5 VR rows now import and the PN release golden passes; `make test-dicom-release` still fails on remaining official-shape parser/import gaps for media/DICOMweb and PS3.16 semantic rows and pinned examples. |
+| Phase 9 - V2 release hardening | In progress | Remediation found that the earlier integration gate could pass against a reduced official KB. The full v2 official 2026b artifacts are present and verified, so the external cache blocker is cleared. Official PS3.5 VR rows and PS3.18 media/DICOMweb rows now import; the PN, application/dicom, and RetrieveStudy release goldens pass. `make test-dicom-release` still fails on remaining official-shape parser/import gaps for PS3.16 semantic rows and pinned examples. |
 
 ## Acceptance Criteria Tracker
 
@@ -57,11 +57,11 @@ Status values:
 | Current phase | V2 release evidence remediation |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed commit | Pending current remediation commit adds official-shape PS3.5 VR parsing; `0e572a4` completed Phase R4 reference-answer hardening. |
-| Last verification | Phase R5 PS3.5 slice verification on 2026-06-15: focused PS3.5 parser/build tests passed; escalated `make lint` and `make typecheck` passed after sandboxed uv-cache permission failures; escalated `uv run --dev dicom-kb build --edition 2026b --force` rebuilt the official KB with 34 `vr_definition` rows; the strict PN release golden passed; escalated `make test-dicom-release` now fails with 6 failures because media/DICOMweb and PS3.16 official semantic rows are still absent. |
-| Current blocker | No external artifact blocker remains; official PS3.5 VR rows now import. The remaining blocker is official-shape parser/import work for `dicom_media_type`, `dicomweb_transaction`, `sr_template`, `sr_template_row`, `context_group`, `context_group_row`, and `coded_concept`. |
-| Commit-ready summary | Adds official-shape PS3.5 VR parser/build evidence and narrows the strict release blocker to media/DICOMweb and PS3.16 rows. |
-| Next recommended action | Repair official-shape parsing/importing for PS3.10/PS3.18 media-type and DICOMweb rows, starting with `application/dicom` and `RetrieveStudy`; rebuild the official KB; rerun `make test-dicom-release`; mark Phase 9 complete only if the strict release gate passes. |
+| Last completed commit | Pending current remediation commit adds official-shape PS3.18 media/DICOMweb parsing; `0e572a4` completed Phase R4 reference-answer hardening, and the prior tracker state recorded a pending PS3.5 slice. |
+| Last verification | Phase R5 PS3.18 slice verification on 2026-06-15: focused PS3.18 parser/resolver tests passed; escalated `make lint`, `make typecheck`, and `make test` passed after sandboxed uv-cache permission failures; `uv run --dev dicom-kb build --edition 2026b --force` rebuilt the official KB with 1 `dicom_media_type` row and 42 `dicomweb_transaction` rows; the strict application/dicom and RetrieveStudy release goldens passed; escalated `make test-dicom-release` now fails with 4 failures because PS3.16 official semantic rows are still absent. |
+| Current blocker | No external artifact blocker remains; official PS3.5 VR rows and PS3.18 media/DICOMweb rows now import. The remaining blocker is official-shape parser/import work for `sr_template`, `sr_template_row`, `context_group`, `context_group_row`, and `coded_concept`. |
+| Commit-ready summary | Adds official-shape PS3.18 parser/build evidence and narrows the strict release blocker to PS3.16 rows. |
+| Next recommended action | Repair official-shape PS3.16 parsing/importing for SR template, context group, and coded-concept rows, starting with TID 1500, CID 29, and CT/DCM; rebuild the official KB; rerun `make test-dicom-release`; mark Phase 9 complete only if the strict release gate passes. |
 
 ## Phase 0 - V2 Contract Baseline
 
@@ -574,15 +574,15 @@ Commits:
 | bc8075f | Added exact strict official positive goldens for PN, application/dicom, RetrieveStudy, TID 1500, CID 29, and CT/DCM, and wired them into `make test-dicom-release`. | `uv run --dev pytest tests/unit/test_makefile.py tests/unit/test_metadata.py tests/integration_requires_dicom_download/test_release_gate.py tests/integration_requires_dicom_download/test_release_goldens.py -rs`; `uv run --dev ruff check tests/integration_requires_dicom_download/test_release_goldens.py tests/unit/test_makefile.py tests/unit/test_metadata.py`; `make test`; `make test-dicom-release`; `make lint` |
 | 0930013 | Hardened positive v2 agent-regression scoring to require `ok` status and required-part citations from expected semantic tools, and gated the real-KB eval smoke integration on release-ready official data. | `uv run --dev pytest tests/agent_regression tests/integration_requires_dicom_download/test_eval_runner.py -rs`; `uv run --dev ruff check src/dicom_kb/eval/expected_tool_traces.py src/dicom_kb/eval/scoring.py src/dicom_kb/eval/runner.py src/dicom_kb/eval/prompt_cases.py tests/agent_regression/test_scoring.py tests/integration_requires_dicom_download/test_eval_runner.py`; `make lint`; `make typecheck`; `make test` |
 | 0e572a4 | Derived reference-answer content from recorded tool responses, kept positive v2 semantic cases off the generic Modality fallback path, and updated synthetic fixtures so workflow prompts are backed by successful payload evidence. | `uv run --dev pytest tests/agent_regression -q`; `uv run --dev pytest tests/integration_requires_dicom_download/test_eval_runner.py -rs`; `uv run --dev pytest tests/agent_regression tests/unit/test_db_importers.py tests/unit/test_part07_parser.py tests/unit/test_part08_parser.py tests/unit/test_query_resolver.py -q`; `uv run --dev ruff check src/dicom_kb/eval/runner.py src/dicom_kb/eval/scoring.py tests/agent_regression/test_runner.py tests/unit/test_db_importers.py tests/unit/test_part07_parser.py tests/unit/test_part08_parser.py tests/unit/test_query_resolver.py`; `make lint`; `make typecheck`; `make test` |
-| Pending current commit | Records Phase 9/R5 final verification and the remaining full-official-KB prerequisite. | `make lint`; `make typecheck`; `make test`; `make test-dicom-current`; `make test-dicom-release`; `uv run --dev pytest tests/unit/test_metadata.py tests/unit/test_distribution_audit.py -q` |
+| Pending current commit | Adds official-shape PS3.18 media/DICOMweb parsing/import evidence and narrows the remaining strict release blocker to PS3.16 rows. | `uv run --dev pytest tests/unit/test_part18_parser.py tests/unit/test_query_resolver.py -k 'part18 or media_type or dicomweb_transaction' -q`; `uv run --dev ruff check src/dicom_kb/parsers/part18_web_services.py tests/unit/test_part18_parser.py tests/unit/test_query_resolver.py tests/fixtures_synthetic/__init__.py`; `make lint`; `make typecheck`; `make test`; `uv run --dev dicom-kb build --edition 2026b --force`; `env DICOM_KB_RUN_RELEASE=1 uv run --dev pytest tests/integration_requires_dicom_download/test_release_goldens.py -k 'application_dicom_media_type or retrieve_study_transaction' -q`; `make test-dicom-release` |
 
 Notes:
 
 - Phase 9 release evidence remediation has repaired the false-positive gates.
   The strict `make test-dicom-release` target is now the final v2
-  official-edition gate; it currently fails against the reduced local 2026b KB
-  until the missing v2 official parts, semantic rows, DocBook structure rows,
-  and pinned positive example results are present.
+  official-edition gate; it currently fails against the rebuilt local 2026b
+  KB until the missing PS3.16 semantic rows and pinned TID 1500, CID 29, and
+  CT/DCM positive example results are present.
 
 ## Decision Log
 
