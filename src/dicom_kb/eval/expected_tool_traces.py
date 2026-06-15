@@ -67,7 +67,7 @@ EXPECTED_TOOL_TRACES: dict[str, tuple[ExpectedToolCall, ...]] = {
             tool="retrieve_standard_text",
             arguments={
                 "part": "PS3.7",
-                "section_or_anchor": "sect_7_1",
+                "section_or_anchor": "sect_7.1",
                 "max_chars": "800",
             },
         ),
@@ -77,7 +77,7 @@ EXPECTED_TOOL_TRACES: dict[str, tuple[ExpectedToolCall, ...]] = {
             tool="retrieve_standard_text",
             arguments={
                 "part": "PS3.8",
-                "section_or_anchor": "sect_8_1",
+                "section_or_anchor": "sect_9.3",
                 "max_chars": "800",
             },
         ),
@@ -320,7 +320,7 @@ EXPECTED_TOOL_TRACES: dict[str, tuple[ExpectedToolCall, ...]] = {
     "agent.v2.workflow.dicomweb_ambiguous_route_candidates": (
         ExpectedToolCall(
             tool="lookup_dicomweb_transaction",
-            arguments={"name_or_route": "/studies/{studyInstanceUID}"},
+            arguments={"name_or_route": "/studies/{study}"},
         ),
     ),
     "agent.v2.workflow.sr_template_context_group_code": (

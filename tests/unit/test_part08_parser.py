@@ -26,9 +26,9 @@ def test_parse_part08_classifies_association_pdu_tables_and_warns_on_gaps() -> N
     pdu_table = result.recognized_tables[0]
     assert pdu_table.table_kind == "association_pdu"
     assert pdu_table.source_ref.part == "PS3.8"
-    assert pdu_table.source_ref.section == "sect_8_1"
+    assert pdu_table.source_ref.section == "sect_9.3"
     assert pdu_table.source_ref.table_id == "table_8-1"
-    assert pdu_table.source_ref.title == "Synthetic Association PDUs"
+    assert pdu_table.source_ref.title == "ASSOCIATE-RQ PDU Fields"
     assert [
         (record.pdu, record.direction, record.behavior)
         for record in result.pdu_behaviors
@@ -71,12 +71,12 @@ def test_part08_docbook_structure_persists_nodes_refs_and_raw_table_ir(
         JOIN source_ref ref ON ref.id = node.source_ref_id
         WHERE node.xml_id = ?
         """,
-        ("sect_8_1",),
+        ("sect_9.3",),
     ).fetchone()
     assert dict(section) == {
-        "title": "Association PDU Behavior Overview",
+        "title": "PDU Fields Overview",
         "part": "PS3.8",
-        "xml_id": "sect_8_1",
+        "xml_id": "sect_9.3",
     }
 
     raw_table = connection.execute(
@@ -89,7 +89,7 @@ def test_part08_docbook_structure_persists_nodes_refs_and_raw_table_ir(
         ("table_8-1",),
     ).fetchone()
     payload = json.loads(raw_table["ir_json"])
-    assert payload["title"] == "Synthetic Association PDUs"
+    assert payload["title"] == "ASSOCIATE-RQ PDU Fields"
     assert payload["rows"][1]["cells"][0]["text"] == "A-ASSOCIATE-RQ"
     assert (
         payload["rows"][1]["cells"][2]["text"]

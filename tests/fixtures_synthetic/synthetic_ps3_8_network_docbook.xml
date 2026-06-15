@@ -1,11 +1,11 @@
 <book xmlns="http://docbook.org/ns/docbook" xmlns:xml="http://www.w3.org/XML/1998/namespace" xml:id="ps3_8">
   <chapter xml:id="chapter_8">
     <title>PS3.8 Synthetic Network</title>
-    <section xml:id="sect_8_1">
-      <title>Association PDU Behavior Overview</title>
+    <section xml:id="sect_9.3">
+      <title>PDU Fields Overview</title>
       <para>Synthetic PS3.8 fixture for generic DocBook ingestion. The A-ASSOCIATE-RQ PDU starts association establishment so peer DICOM AEs can negotiate presentation contexts before DIMSE messages are exchanged.</para>
       <table xml:id="table_8-1">
-        <title>Synthetic Association PDUs</title>
+        <title>ASSOCIATE-RQ PDU Fields</title>
         <tgroup cols="3">
           <thead>
             <row><entry>PDU</entry><entry>Direction</entry><entry>Behavior</entry></row>

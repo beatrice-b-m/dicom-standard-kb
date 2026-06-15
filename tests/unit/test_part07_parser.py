@@ -26,7 +26,7 @@ def test_parse_part07_classifies_dimse_service_tables_and_warns_on_gaps() -> Non
     service_table = result.recognized_tables[0]
     assert service_table.table_kind == "dimse_service"
     assert service_table.source_ref.part == "PS3.7"
-    assert service_table.source_ref.section == "sect_7_1"
+    assert service_table.source_ref.section == "sect_7.1"
     assert service_table.source_ref.table_id == "table_7-1"
     assert service_table.source_ref.title == "Synthetic Message Services"
     assert [
@@ -66,12 +66,12 @@ def test_part07_docbook_structure_persists_nodes_refs_and_raw_table_ir(
         JOIN source_ref ref ON ref.id = node.source_ref_id
         WHERE node.xml_id = ?
         """,
-        ("sect_7_1",),
+        ("sect_7.1",),
     ).fetchone()
     assert dict(section) == {
-        "title": "DIMSE Service Behavior Overview",
+        "title": "DIMSE Services Overview",
         "part": "PS3.7",
-        "xml_id": "sect_7_1",
+        "xml_id": "sect_7.1",
     }
 
     raw_table = connection.execute(

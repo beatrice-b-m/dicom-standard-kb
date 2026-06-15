@@ -2,16 +2,17 @@
   <chapter xml:id="chapter_16_official_shape">
     <title>PS3.16 Official-Shape Content Mapping</title>
     <section xml:id="sect_TID_1500">
-      <title>TID 1500 Measurement Report</title>
+      <title>Measurement Report</title>
       <para>This Root Template encodes a list of Measurement Groups.</para>
       <para>Type: Extensible</para>
       <para>Order: Non-Significant</para>
       <para>Root: Yes</para>
       <table xml:id="table_TID_1500">
-        <title>TID 1500. Measurement Report</title>
-        <tgroup cols="7">
+        <caption>Measurement Report</caption>
+        <tgroup cols="8">
           <thead>
             <row>
+              <entry></entry>
               <entry>NL</entry>
               <entry>Rel with Parent</entry>
               <entry>VT</entry>
@@ -25,26 +26,29 @@
             <row>
               <entry>1</entry>
               <entry></entry>
+              <entry></entry>
               <entry>CONTAINER</entry>
-              <entry>CID 7021 "Measurement Report Document Title"</entry>
+              <entry>D<xref linkend="sect_CID_7021"/></entry>
               <entry>1</entry>
               <entry>M</entry>
               <entry></entry>
             </row>
             <row>
               <entry>2</entry>
+              <entry>&gt;</entry>
               <entry>&gt; HAS OBS CONTEXT</entry>
               <entry>INCLUDE</entry>
-              <entry>TID 1001 "Observation Context"</entry>
+              <entry>D<xref linkend="sect_TID_1001"/></entry>
               <entry>1</entry>
               <entry>M</entry>
               <entry></entry>
             </row>
             <row>
               <entry>3</entry>
+              <entry>&gt;</entry>
               <entry>&gt; CONTAINS</entry>
               <entry>INCLUDE</entry>
-              <entry>TID 1501 "Measurement and Qualitative Evaluation Group"</entry>
+              <entry>D<xref linkend="sect_TID_1501"/></entry>
               <entry>1-n</entry>
               <entry>U</entry>
               <entry></entry>
@@ -54,13 +58,13 @@
       </table>
     </section>
     <section xml:id="sect_CID_29">
-      <title>CID 29 Acquisition Modality</title>
+      <title>Acquisition Modality</title>
       <para>Keyword: AcquisitionModality</para>
       <para>Type: Extensible</para>
       <para>Version: 20231115</para>
       <para>UID: 1.2.840.10008.6.1.19</para>
       <table xml:id="table_CID_29">
-        <title>CID 29. Acquisition Modality</title>
+        <caption>Acquisition Modality</caption>
         <tgroup cols="3">
           <thead>
             <row>

@@ -136,14 +136,14 @@ def test_agent_prompt_cases_include_phase7_prose_retrieval() -> None:
         "edition",
         "source references",
         "PS3.7",
-        "DIMSE service behavior",
+        "DIMSE services",
     }
     assert ps38_case.expected_tools == ("retrieve_standard_text",)
     assert set(ps38_case.must_include) >= {
         "edition",
         "source references",
         "PS3.8",
-        "association PDU behavior",
+        "PDU Fields",
     }
     assert "agent.text.dimse_service_behavior" in EXPECTED_TOOL_TRACES
     assert "agent.text.association_pdu_behavior" in EXPECTED_TOOL_TRACES

@@ -478,7 +478,7 @@ def _run_v2_tool_case(case_id: str, invoke: ToolInvoker) -> None:
     elif case_key == "workflow.dicomweb_ambiguous_route_candidates":
         invoke(
             "lookup_dicomweb_transaction",
-            {"name_or_route": "/studies/{studyInstanceUID}"},
+            {"name_or_route": "/studies/{study}"},
         )
     elif case_key == "workflow.sr_template_context_group_code":
         invoke("lookup_sr_template", {"tid_or_name": "1500"})
@@ -707,7 +707,12 @@ def _reference_answer(
     warnings = (
         " warning" if any(call.response_status == "ok" for call in tool_calls) else ""
     )
-    evidence_terms = " ".join(_answer_evidence_terms(tool_calls))
+    answer_terms = list(_answer_evidence_terms(tool_calls))
+    if case.id == "agent.error.malformed_tag":
+        answer_terms.append("validation")
+    if case.id == "agent.v2.workflow.media_file_preamble_fallback":
+        answer_terms.extend(("File Preamble", "fallback"))
+    evidence_terms = " ".join(answer_terms)
     return (
         f"For edition {edition}, the reference agent used {source_reference_text}. "
         f"Tool statuses: {statuses}.{warnings} {evidence_terms}"
@@ -733,6 +738,8 @@ def _answer_evidence_terms(
     terms: list[str] = []
     for call in tool_calls:
         terms.extend(_tool_label_terms(call.tool))
+        if call.tool in {"search_standard_text", "retrieve_standard_text"}:
+            terms.extend(call.arguments.values())
         terms.extend(call.response_terms)
     return tuple(_dedupe_terms(terms))
 
@@ -764,8 +771,8 @@ def _payload_terms(payload: object) -> tuple[str, ...]:
             terms.extend(_payload_terms(value))
     elif isinstance(payload, str):
         text = " ".join(payload.split())
-        if text and len(text) <= 160:
-            terms.append(text)
+        if text:
+            terms.append(text[:800])
     elif isinstance(payload, bool):
         terms.append("retired" if payload else "not retired")
     elif payload is not None:

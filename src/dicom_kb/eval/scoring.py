@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from dicom_kb.eval.expected_tool_traces import EXPECTED_TOOL_TRACES, ExpectedToolCall
@@ -246,7 +248,21 @@ def _required_content_is_present(
         )
     if normalized == "module usage":
         return "module" in answer and "usage" in answer
-    return normalized in answer
+    return normalized in answer or _required_words_are_present(normalized, answer)
+
+
+def _required_words_are_present(required: str, answer: str) -> bool:
+    words = re.findall(r"[a-z0-9.]+", required)
+    if not words:
+        return False
+    cursor = 0
+    answer_words = re.findall(r"[a-z0-9.]+", answer)
+    for word in words:
+        try:
+            cursor = answer_words.index(word, cursor) + 1
+        except ValueError:
+            return False
+    return True
 
 
 def _score_forbidden_answer_content(

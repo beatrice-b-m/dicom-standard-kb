@@ -94,15 +94,15 @@ TEXT_RETRIEVAL_TARGETS = (
     ("ct_iod_table", "PS3.3", "table_A.3-1", "CT Image IOD modules"),
     ("mr_iod_table", "PS3.3", "table_A.4-1", "MR Image IOD modules"),
     ("general_series", "PS3.3", "table_C.7-5a", "General Series attributes"),
-    ("data_elements", "PS3.6", "table_6-1", "data element registry"),
-    ("uids", "PS3.6", "table_A-1", "UID registry"),
-    ("dimse_service_behavior", "PS3.7", "sect_7_1", "DIMSE service behavior"),
-    ("association_pdu_behavior", "PS3.8", "sect_8_1", "association PDU behavior"),
+    ("data_elements", "PS3.6", "table_6-1", "DICOM Data Elements"),
+    ("uids", "PS3.6", "table_A-1", "UID Values"),
+    ("dimse_service_behavior", "PS3.7", "sect_7.1", "DIMSE services"),
+    ("association_pdu_behavior", "PS3.8", "sect_9.3", "PDU Fields"),
 )
 SEARCH_QUERIES = (
     ("ct_image", "CT Image IOD", "PS3.3"),
     ("modality", "Modality attribute", "PS3.3"),
-    ("transfer_syntax", "Transfer Syntax UID", "PS3.6"),
+    ("transfer_syntax", "Transfer Syntax UID", "UID Values"),
     ("segmentation", "Segmentation Storage", "PS3.4"),
     ("patient_module", "Patient Module", "PS3.3"),
 )
@@ -415,7 +415,7 @@ V2_WORKFLOW_CASES = (
     (
         "workflow.dicomweb_ambiguous_route_candidates",
         (
-            "Resolve /studies/{studyInstanceUID} and report candidate "
+            "Resolve /studies/{study} and report candidate "
             "DICOMweb transactions instead of guessing."
         ),
         ("lookup_dicomweb_transaction",),

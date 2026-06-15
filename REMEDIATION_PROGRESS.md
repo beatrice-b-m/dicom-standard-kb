@@ -41,7 +41,7 @@ Status values:
 | Phase R2 - Repair official-shape PS3.16 ingestion | Complete | Official-shape parser, build/import, and resolver coverage now proves TID 1500, CID 29, and CT/DCM fixture rows persist with PS3.16 citations and return `ok`. |
 | Phase R3 - Pin strict official goldens | Complete | Strict release-only positive tests now pin PN, application/dicom, RetrieveStudy, TID 1500, CID 29, and CT/DCM and fail on `not_found`, missing fields, or missing required-part citations. |
 | Phase R4 - Harden agent regression scoring | Complete | Positive v2 expected traces now require `ok` status and required-part citations; reference answers derive terms from observed tool responses instead of prompt fixtures, and positive v2 semantic cases no longer receive generic fallback citations. |
-| Phase R5 - Reconcile completion state and final gates | In progress | The full v2 official 2026b KB is present and verified. Official PS3.5 VR rows and official PS3.18 media/DICOMweb rows now import, so the PN, application/dicom, and RetrieveStudy release goldens pass; the strict release gate still fails on PS3.16 SR template/context/code rows. |
+| Phase R5 - Reconcile completion state and final gates | Complete | The rebuilt official 2026b KB now imports PS3.16 SR template, context group, and coded-concept rows; the strict PN, application/dicom, RetrieveStudy, TID 1500, CID 29, and CT/DCM release goldens pass, and final lint/type/test/current/release gates are recorded. |
 
 ## Active Work
 
@@ -50,11 +50,11 @@ Status values:
 | Current phase | Phase R5 - Reconcile completion state and final gates |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed remediation commit | Pending current commit for official-shape PS3.18 media/DICOMweb parsing; the previous committed remediation was `0e572a4` for Phase R4 reference-answer hardening, and the prior tracker state recorded a pending PS3.5 slice. |
-| Last verification | Phase R5 PS3.18 slice verification ran on 2026-06-15. Focused parser/resolver tests passed; sandboxed `make lint`, `make typecheck`, `make test`, release-golden, and release-gate commands that use `uv` failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`, and escalated reruns executed. `make lint`, `make typecheck`, and `make test` passed. The official 2026b KB rebuild passed and imported 1 `dicom_media_type` row and 42 `dicomweb_transaction` rows. The strict application/dicom and RetrieveStudy release goldens passed. Full `make test-dicom-release` now reports 3 passed and 4 failed: only the PS3.16 prerequisite and pinned TID 1500, CID 29, and CT/DCM examples fail. |
-| Current blocker | No external artifact blocker remains. The rebuilt 2026b cache contains DocBook XML and DocBook structure for PS3.3, PS3.4, PS3.5, PS3.6, PS3.7, PS3.8, PS3.10, PS3.16, and PS3.18. Official PS3.5 VR rows and PS3.18 media/DICOMweb rows now import. The remaining blocker is implementation work: official parser/import paths still produce zero rows for `sr_template`, `sr_template_row`, `context_group`, `context_group_row`, and `coded_concept`. |
-| Commit-ready summary | Adds official-shape PS3.18 parsing for `application/dicom` and Studies Service Retrieve resources, fixture coverage, resolver coverage, and verifies the rebuilt official KB now satisfies the media/DICOMweb release goldens. |
-| Next recommended action | Repair official-shape PS3.16 parsing/importing for SR template, context group, and coded-concept rows, starting with the pinned TID 1500, CID 29, and CT/DCM release examples; rebuild the official KB; rerun `make test-dicom-release`. |
+| Last completed remediation commit | Pending current commit for official-shape PS3.16 parsing/importing and final R5 gate reconciliation; previous remediation commit was `de4f7db` for official-shape PS3.18 media/DICOMweb parsing. |
+| Last verification | Phase R5 final verification ran on 2026-06-15. Focused PS3.16/eval/router tests passed. `make lint`, `make typecheck`, `make test`, `make test-dicom-current`, and `make test-dicom-release` all passed after sandboxed uv-cache permission failures were rerun escalated. The official 2026b KB rebuild passed and imported 405 `sr_template` rows, 4295 `sr_template_row` rows, 1436 `context_group` rows, 17211 `context_group_row` rows, and 14177 `coded_concept` rows. |
+| Current blocker | None. The rebuilt 2026b cache contains all required v2 parts, required semantic rows, and citation-preserving DocBook structure; the strict release gate passes. |
+| Commit-ready summary | Adds official-shape PS3.16 TID/CID/code parsing from official IDs and xrefs, collision-resistant coded-concept IDs, route-template placeholder canonicalization, and real-KB eval alignment after the official KB became release-ready. |
+| Next recommended action | None for `REMEDIATION_PLAN.md`; remediation is complete. Future work should come from a new plan or roadmap item, not this remediation tracker. |
 
 ## Phase R5 Unblock Evidence
 
@@ -70,27 +70,24 @@ Verification date: 2026-06-15.
 - Citation-preserving structure exists for every required part:
   `doc_node` rows are present for each part, and `raw_table_ir` rows are
   present for each part.
-- Required semantic row counts in the rebuilt official DB after the PS3.18
-  official-shape media/DICOMweb slice:
+- Required semantic row counts in the rebuilt official DB after the PS3.16
+  official-shape slice:
   - `vr_definition`: 34
   - `transfer_syntax_detail`: 63
   - `file_meta_requirement`: 15
   - `dicom_media_type`: 1
   - `dicomweb_transaction`: 42
-  - `sr_template`: 0
-  - `sr_template_row`: 0
-  - `context_group`: 0
-  - `context_group_row`: 0
-  - `coded_concept`: 0
+  - `sr_template`: 405
+  - `sr_template_row`: 4295
+  - `context_group`: 1436
+  - `context_group_row`: 17211
+  - `coded_concept`: 14177
   - `attribute_value_term`: 4644
 - Stored build metrics loaded all required parts and recorded parser warnings
-  by part: `PS3.5`: 54, `PS3.10`: 4, `PS3.16`: 2238, `PS3.18`: 190,
-  `PS3.7`: 85, and `PS3.8`: 35.
-- `make test-dicom-release` now passes the PN VR, application/dicom, and
-  RetrieveStudy release goldens and fails because remaining PS3.16 semantic
-  rows and pinned TID 1500, CID 29, and CT/DCM examples are not satisfied,
-  not because official artifacts, DocBook structure, media rows, or
-  DICOMweb rows are missing.
+  by part including `PS3.16`: 397 and `PS3.18`: 190 after the final rebuild.
+- `make test-dicom-release` passes the strict prerequisite test and all six
+  pinned v2 release goldens: PN, application/dicom, RetrieveStudy, TID 1500,
+  CID 29, and CT/DCM.
 
 ## Phase R0 - Reproduce and Inventory the Gap
 
@@ -275,7 +272,7 @@ Commits:
 
 ## Phase R5 - Reconcile Completion State and Final Gates
 
-Status: `In progress`
+Status: `Complete`
 
 Scope:
 
@@ -299,18 +296,11 @@ Commits:
 
 | Commit | Summary | Verification |
 |---|---|---|
-| Pending current commit | Adds official-shape PS3.18 media/DICOMweb parsing/import evidence and removes `dicom_media_type` and `dicomweb_transaction` from the remaining strict release-gate blocker list. | `uv run --dev pytest tests/unit/test_part18_parser.py tests/unit/test_query_resolver.py -k 'part18 or media_type or dicomweb_transaction' -q`; `uv run --dev ruff check src/dicom_kb/parsers/part18_web_services.py tests/unit/test_part18_parser.py tests/unit/test_query_resolver.py tests/fixtures_synthetic/__init__.py`; `make lint`; `make typecheck`; `make test`; `uv run --dev dicom-kb build --edition 2026b --force`; `env DICOM_KB_RUN_RELEASE=1 uv run --dev pytest tests/integration_requires_dicom_download/test_release_goldens.py -k 'application_dicom_media_type or retrieve_study_transaction' -q`; `make test-dicom-release` |
+| Pending current commit | Adds official-shape PS3.16 parsing/import evidence, fixes coded-concept ID collisions, aligns release-ready real-KB eval behavior, and records final R5 gates. | `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py tests/unit/test_query_resolver.py tests/agent_regression tests/integration_requires_dicom_download/test_eval_runner.py -k 'official_shape or part16 or sr_template or context_group or code_meaning or dicomweb_transaction or media_type or prompt_cases or reference_agent or scoring' -rs`; `uv run --dev ruff check ...`; `uv run --dev dicom-kb build --edition 2026b --force`; `make lint`; `make typecheck`; `make test`; `make test-dicom-current`; `make test-dicom-release` |
 
 ## Blockers and Open Decisions
 
-- No external artifact blocker remains. Phase R5 cannot complete until the
-  official-shape import gaps for PS3.16 SR template/context group/code rows
-  are fixed. The current rebuilt 2026b official KB has 34 `vr_definition`
-  rows, 1 `dicom_media_type` row, and 42 `dicomweb_transaction` rows, but
-  zero rows for `sr_template`, `sr_template_row`, `context_group`,
-  `context_group_row`, and `coded_concept`.
-  Next action: repair official-shape PS3.16 parsing/importing for TID 1500,
-  CID 29, and CT/DCM.
+- No blockers or open decisions remain for `REMEDIATION_PLAN.md`.
 
 ## Verification Log
 
