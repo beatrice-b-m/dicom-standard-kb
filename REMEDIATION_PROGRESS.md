@@ -46,7 +46,7 @@ Status values:
 | Phase R7 - Repair official PS3.18 DICOMweb and media ingestion | Complete | Parser and official-KB rebuild resolve `StoreInstances`, `WADO-RS response`, and `STOW-RS request` with PS3.18 citations; strict release goldens now fail if those examples regress. |
 | Phase R8 - Align real-KB eval and release gates with promised workflows | Complete | Real-KB eval now includes the positive DICOMweb/media workflow cases and `agent.v2.media_type.dicom_file`, backed by structured `application/dicom` evidence from PS3.10 or PS3.18. |
 | Phase R9 - Repair PS3.16 SR template concept names | Complete | Official-shape TID 1500 rows now resolve compact `D`, `B`, or blank concept cells through available DocBook xref target labels while preserving genuinely blank concept names as `null`. |
-| Phase R10 - Final post-review reconciliation | Not started | Must run only after R7-R9 are fixed and verified. |
+| Phase R10 - Final post-review reconciliation | Complete | Final gates passed against the rebuilt local 2026b KB, real-KB eval covers the promised positive workflow cases, and no post-review blockers remain. |
 
 ## Active Work
 
@@ -55,11 +55,11 @@ Status values:
 | Current phase | Phase R10 - Final post-review reconciliation |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed remediation commit | `0fd0a18` completed R8 by supporting `agent.v2.media_type.dicom_file` in real-KB eval; this R9 concept-name slice is ready as the next commit. |
-| Last verification | Current R9 slice on 2026-06-15: focused PS3.16 parser/build/resolver tests passed; focused ruff passed; sandboxed `make lint` and `make typecheck` failed on uv-cache permissions, then escalated reruns passed. |
-| Current blocker | None for R9. R10 final reconciliation and full release gates remain. |
-| Commit-ready summary | R9 resolves compact official PS3.16 SR template concept-name xref markers to target section labels, preserves include TID extraction, and keeps genuinely blank concept-name cells as `null`. |
-| Next recommended action | Start R10 final post-review reconciliation: record the R9 commit hash, run the final verification gates (`make lint`, `make typecheck`, `make test`, `make test-dicom-current`, `make test-dicom-release`), update `IMPLEMENTATION_PROGRESS.md` only if the release-hardening evidence changes, and confirm no stale pending markers remain. |
+| Last completed remediation commit | `4be65af` completed R9 by resolving official-shape PS3.16 SR template concept-name xrefs. |
+| Last verification | R10 final verification on 2026-06-15: `make lint`, `make typecheck`, `make test`, `make test-dicom-current`, `make test-dicom-release`, and the real-KB eval integration passed; sandboxed make gates first failed on uv-cache permissions and then passed with escalation. |
+| Current blocker | None. Post-review remediation findings are fixed or covered by release/eval gates. |
+| Commit-ready summary | R10 records final gate evidence, reconciles R9/R10 status, updates v2 release-hardening handoff notes, and confirms no stale pending markers or tracked generated official artifacts remain. |
+| Next recommended action | No remediation action remains in `REMEDIATION_PLAN.md`; continue only if a new review, roadmap item, or external release prerequisite is introduced. |
 
 ## Post-Completion Review Findings
 
@@ -455,11 +455,11 @@ Commits:
 
 | Commit | Summary | Verification |
 |---|---|---|
-| Current slice commit | Resolves official-shape PS3.16 SR template concept names through compact concept-cell xrefs while preserving include target extraction and representing genuinely blank concept names as `null`. | `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'part16 or sr_template or context_group or code_meaning or build_fixture_imports_v2_parts' -q`; `uv run --dev ruff check src/dicom_kb/parsers/part16_content_mapping.py tests/unit/test_part16_parser.py tests/unit/test_build.py tests/unit/test_query_resolver.py`; sandboxed `make lint` failed on uv-cache permissions, escalated `make lint` passed; sandboxed `make typecheck` failed on uv-cache permissions, escalated `make typecheck` passed. |
+| 4be65af | Resolves official-shape PS3.16 SR template concept names through compact concept-cell xrefs while preserving include target extraction and representing genuinely blank concept names as `null`. | `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'part16 or sr_template or context_group or code_meaning or build_fixture_imports_v2_parts' -q`; `uv run --dev ruff check src/dicom_kb/parsers/part16_content_mapping.py tests/unit/test_part16_parser.py tests/unit/test_build.py tests/unit/test_query_resolver.py`; sandboxed `make lint` failed on uv-cache permissions, escalated `make lint` passed; sandboxed `make typecheck` failed on uv-cache permissions, escalated `make typecheck` passed. |
 
 ## Phase R10 - Final Post-Review Reconciliation
 
-Status: `Not started`
+Status: `Complete`
 
 Scope:
 
@@ -471,13 +471,19 @@ Scope:
 
 Completion checklist:
 
-- [ ] `make lint` recorded.
-- [ ] `make typecheck` recorded.
-- [ ] `make test` recorded.
-- [ ] `make test-dicom-current` recorded.
-- [ ] `make test-dicom-release` recorded.
-- [ ] Overall remediation marked complete only after open findings are closed or
+- [x] `make lint` recorded.
+- [x] `make typecheck` recorded.
+- [x] `make test` recorded.
+- [x] `make test-dicom-current` recorded.
+- [x] `make test-dicom-release` recorded.
+- [x] Overall remediation marked complete only after open findings are closed or
       explicitly scoped out.
+
+Commits:
+
+| Commit | Summary | Verification |
+|---|---|---|
+| This R10 reconciliation commit | Records final post-review gate evidence, updates the R9 commit hash, reconciles implementation handoff notes, and confirms no stale pending markers or tracked generated official artifacts remain. | `make lint`; `make typecheck`; `make test`; `make test-dicom-current`; `make test-dicom-release`; `uv run --dev pytest tests/integration_requires_dicom_download/test_eval_runner.py -rs`; `git ls-files | rg '(^|/)(artifacts|db|indexes)/|\\.sqlite$|\\.db$|\\.pdf$|\\.xml$|\\.html$|vector|terminology'` |
 
 ## Blockers and Open Decisions
 
@@ -488,6 +494,7 @@ Completion checklist:
   `agent.v2.media_type.dicom_file`; there is no remaining R8 blocker.
 - PS3.16 SR template concept-name quality is repaired for official-shape rows
   that use compact xref markers when target section labels are available.
+- No post-review blockers or open decisions remain for R6-R10.
 
 ## Verification Log
 
@@ -594,3 +601,10 @@ Completion checklist:
 | 2026-06-15 | `uv run --dev ruff check src/dicom_kb/parsers/part16_content_mapping.py tests/unit/test_part16_parser.py tests/unit/test_build.py tests/unit/test_query_resolver.py` | Passed | Focused lint for the R9 parser and fixture-coupled tests. |
 | 2026-06-15 | `make lint` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev ruff check .` with all checks passed. |
 | 2026-06-15 | `make typecheck` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev mypy` with no issues in 57 source files. |
+| 2026-06-15 | `make lint` | Failed in sandbox; passed escalated | R10 final verification. Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev ruff check .` with all checks passed. |
+| 2026-06-15 | `make typecheck` | Failed in sandbox; passed escalated | R10 final verification. Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev mypy` with no issues in 57 source files. |
+| 2026-06-15 | `make test` | Failed in sandbox; passed escalated | R10 final verification. Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun passed with 342 passed and 15 skipped. |
+| 2026-06-15 | `make test-dicom-current` | Failed in sandbox; passed escalated | R10 final verification. Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun passed with 1 passed. |
+| 2026-06-15 | `make test-dicom-release` | Failed in sandbox; passed escalated | R10 final verification. Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated strict release gate passed with 10 passed. |
+| 2026-06-15 | `uv run --dev pytest tests/integration_requires_dicom_download/test_eval_runner.py -rs` | Passed | R10 supporting verification; 1 passed, confirming release-ready real-KB eval still runs the positive v2 DICOMweb/media workflow cases. |
+| 2026-06-15 | `git ls-files | rg '(^|/)(artifacts|db|indexes)/|\\.sqlite$|\\.db$|\\.pdf$|\\.xml$|\\.html$|vector|terminology'` | Passed | Distribution audit by tracked-file scan found only source code, migrations, and synthetic XML fixtures; no official artifacts, generated DBs, indexes, or standalone terminology dumps are tracked. |

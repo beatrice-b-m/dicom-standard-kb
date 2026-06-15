@@ -57,11 +57,11 @@ Status values:
 | Current phase | V2 release evidence remediation |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed commit | `44eb4df` added official-shape PS3.16 parsing/importing and final strict release evidence; `8c3a8d5` repaired the post-review official-shape PS3.18 media/DICOMweb workflow parsing. |
-| Last verification | Phase R7 release-coverage verification on 2026-06-15: targeted strict release goldens for `StoreInstances`, `WADO-RS response`, and `STOW-RS request` passed; escalated `make lint`, `make typecheck`, `make test`, and `make test-dicom-release` passed after sandboxed uv-cache permission failures. |
+| Last completed commit | `4be65af` repaired official-shape PS3.16 SR template concept-name quality after the R7/R8 post-review fixes. |
+| Last verification | Final R10 verification on 2026-06-15: `make lint`, `make typecheck`, `make test`, `make test-dicom-current`, `make test-dicom-release`, and the real-KB eval integration passed; sandboxed make gates first failed on uv-cache permissions and then passed with escalation. |
 | Current blocker | None. The strict v2 official release gate passes against the rebuilt local 2026b KB. |
-| Commit-ready summary | No pending release-gate documentation work. `fc4e853` records strict release goldens for the post-review PS3.18 Store/WADO/STOW workflow examples. |
-| Next recommended action | Continue post-review remediation from `REMEDIATION_PROGRESS.md`; the next remediation slice is R8 real-KB eval exclusion alignment. |
+| Commit-ready summary | R10 final reconciliation records the repaired post-review evidence and confirms the v2 release-hardening claim is backed by strict release and real-KB eval gates. |
+| Next recommended action | No v2 remediation action remains in `REMEDIATION_PLAN.md`; start only a new reviewed roadmap or maintenance slice. |
 
 ## Phase 0 - V2 Contract Baseline
 
