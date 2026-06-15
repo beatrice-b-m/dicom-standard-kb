@@ -72,6 +72,60 @@ def test_release_golden_retrieve_study_transaction(
     _assert_ref(response.refs, part="PS3.18")
 
 
+def test_release_golden_store_instances_transaction(
+    connection: sqlite3.Connection, edition: str
+) -> None:
+    response = lookup_dicomweb_transaction(
+        connection,
+        name_or_route="StoreInstances",
+        edition=edition,
+    )
+    result = _strict_ok_result(response)
+
+    assert result["transaction_name"] == "StoreInstances"
+    assert result["http_method"] == "POST"
+    assert result["route_template"]
+    assert result["resource_category"]
+    assert result["request_constraints"]
+    assert result["response_constraints"]
+    assert "multipart/related" in result["media_type_refs"]
+    _assert_ref(response.refs, part="PS3.18")
+
+
+def test_release_golden_wado_rs_response_media_type(
+    connection: sqlite3.Connection, edition: str
+) -> None:
+    response = lookup_media_type(
+        connection,
+        media_type_or_context="WADO-RS response",
+        edition=edition,
+    )
+    result = _strict_ok_result(response)
+
+    assert result["media_type"] == "multipart/related"
+    assert result["service_context"] == "WADO-RS response"
+    assert result["transfer_syntax_constraints"]
+    assert result["directions"] == ["response"]
+    _assert_ref(response.refs, part="PS3.18")
+
+
+def test_release_golden_stow_rs_request_media_type(
+    connection: sqlite3.Connection, edition: str
+) -> None:
+    response = lookup_media_type(
+        connection,
+        media_type_or_context="STOW-RS request",
+        edition=edition,
+    )
+    result = _strict_ok_result(response)
+
+    assert result["media_type"] == "multipart/related"
+    assert result["service_context"] == "STOW-RS request"
+    assert result["transfer_syntax_constraints"]
+    assert result["directions"] == ["request"]
+    _assert_ref(response.refs, part="PS3.18")
+
+
 def test_release_golden_tid_1500_template(
     connection: sqlite3.Connection, edition: str
 ) -> None:

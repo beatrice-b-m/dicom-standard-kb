@@ -43,8 +43,8 @@ Status values:
 | Phase R4 - Harden agent regression scoring | Complete | Positive v2 expected traces now require `ok` status and required-part citations; reference answers derive terms from observed tool responses instead of prompt fixtures, and positive v2 semantic cases no longer receive generic fallback citations. |
 | Phase R5 - Reconcile completion state and final gates | Complete | Historical reconciliation completed in `44eb4df`, but post-completion review found narrower release-gate coverage and remaining official-data quality gaps. Treat R6-R10 as the active remediation tranche before marking the overall effort complete again. |
 | Phase R6 - Capture post-completion review findings | Complete | `3fc8732` records the 2026-06-15 review findings and reopens remediation with concrete R7-R10 phases. |
-| Phase R7 - Repair official PS3.18 DICOMweb and media ingestion | In progress | Parser and official-KB rebuild now resolve `StoreInstances`, `WADO-RS response`, and `STOW-RS request` with PS3.18 citations, and `RetrieveStudy` no longer includes unrelated MPPS response prose. R7 still needs strict release/workflow coverage for these examples. |
-| Phase R8 - Align real-KB eval and release gates with promised workflows | Not started | Real-KB eval excludes positive DICOMweb/media workflow cases, and strict release goldens do not cover the missing workflow examples. |
+| Phase R7 - Repair official PS3.18 DICOMweb and media ingestion | Complete | Parser and official-KB rebuild resolve `StoreInstances`, `WADO-RS response`, and `STOW-RS request` with PS3.18 citations; strict release goldens now fail if those examples regress. |
+| Phase R8 - Align real-KB eval and release gates with promised workflows | In progress | Real-KB eval still excludes positive DICOMweb/media workflow cases; strict release coverage for the workflow examples is now in place. |
 | Phase R9 - Repair PS3.16 SR template concept names | Not started | Official TID 1500 rows expose compact `D`, `B`, or `null` concept names when xref-backed target labels are available. |
 | Phase R10 - Final post-review reconciliation | Not started | Must run only after R7-R9 are fixed and verified. |
 
@@ -52,14 +52,14 @@ Status values:
 
 | Field | Value |
 |---|---|
-| Current phase | Phase R7 - Repair official PS3.18 DICOMweb and media ingestion |
+| Current phase | Phase R8 - Align real-KB eval and release gates with promised workflows |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed remediation commit | `bca3708` recorded the post-review handoff commit; previous code remediation commit was `44eb4df`. |
-| Last verification | Current R7 parser slice verification on 2026-06-15: focused PS3.18 parser/resolver tests passed; focused lint passed; escalated `make lint` and `make typecheck` passed; the official 2026b KB rebuilt successfully with 42 `dicomweb_transaction` rows and 3 `dicom_media_type` rows; direct CLI checks returned `ok` for `RetrieveStudy`, `StoreInstances`, `WADO-RS response`, and `STOW-RS request`; focused strict release goldens for `application/dicom` and `RetrieveStudy` passed. |
-| Current blocker | R7 still lacks strict release/workflow tests for `StoreInstances`, `WADO-RS response`, and `STOW-RS request`. R8 must remove or formalize the real-KB eval exclusions, and R9 must repair PS3.16 concept-name payload quality. |
-| Commit-ready summary | Pending current commit repairs PS3.18 official overview matching, Store transaction naming, and derived WADO/STOW media contexts with focused parser/resolver coverage. |
-| Next recommended action | Continue with the release/eval coverage boundary: add strict release or release-workflow tests that fail if `StoreInstances`, `WADO-RS response`, or `STOW-RS request` regress, then remove or explicitly scope the corresponding real-KB eval exclusions. |
+| Last completed remediation commit | `8c3a8d5` repaired official PS3.18 workflow parsing; pending current commit adds strict release coverage for the repaired workflow examples. |
+| Last verification | Current R7 release-coverage slice on 2026-06-15: targeted strict release goldens for `StoreInstances`, `WADO-RS response`, and `STOW-RS request` passed; focused lint passed; escalated `make lint`, `make typecheck`, `make test`, and `make test-dicom-release` passed. |
+| Current blocker | R8 must remove or formalize the real-KB eval exclusions, and R9 must repair PS3.16 concept-name payload quality. |
+| Commit-ready summary | Pending current commit adds strict release goldens for `StoreInstances`, `WADO-RS response`, and `STOW-RS request`, completing R7 release/workflow coverage. |
+| Next recommended action | Start R8 by removing the real-KB eval exclusions for `agent.v2.workflow.dicomweb_retrieve_media_type` and `agent.v2.workflow.dicomweb_store_media_type`, then run the real-KB eval against the release-ready official KB. |
 
 ## Post-Completion Review Findings
 
@@ -88,10 +88,10 @@ remediation through phases R6-R10 in `REMEDIATION_PLAN.md`.
   `agent.v2.workflow.dicomweb_store_media_type`. These exclusions must be
   removed after data support lands, or converted into explicit product-scope
   decisions with tests enforcing that boundary.
-- The strict release gate covers PN, application/dicom, RetrieveStudy, TID
-  1500, CID 29, and CT/DCM, but it does not cover `StoreInstances`,
-  `WADO-RS response`, or `STOW-RS request`. R8 should expand release goldens or
-  release workflow checks so these examples cannot regress silently.
+- The strict release gate covers PN, application/dicom, RetrieveStudy,
+  StoreInstances, WADO-RS response, STOW-RS request, TID 1500, CID 29, and
+  CT/DCM, so the post-review PS3.18 workflow examples can no longer regress
+  silently in release checks.
 - PS3.16 TID 1500 rows resolve, but public `concept_name` values still include
   compact official display markers such as `D`, `B`, and `null` when xref-backed
   target labels are available. R9 should preserve include targets while
@@ -126,10 +126,11 @@ Verification date: 2026-06-15.
   - `attribute_value_term`: 4644
 - Stored build metrics loaded all required parts and recorded parser warnings
   by part including `PS3.16`: 397 and `PS3.18`: 190 after the final rebuild.
-- `make test-dicom-release` passes the strict prerequisite test and all six
-  pinned v2 release goldens: PN, application/dicom, RetrieveStudy, TID 1500,
-  CID 29, and CT/DCM. Post-completion review found that these six goldens are
-  not sufficient to prove all promised DICOMweb/media workflow examples.
+- `make test-dicom-release` now passes the strict prerequisite test and ten
+  pinned v2 release goldens: PN, application/dicom, RetrieveStudy,
+  StoreInstances, WADO-RS response, STOW-RS request, TID 1500, CID 29, and
+  CT/DCM. The post-review PS3.18 workflow examples are now covered by strict
+  release checks.
 
 ## Phase R0 - Reproduce and Inventory the Gap
 
@@ -369,7 +370,7 @@ Commits:
 
 ## Phase R7 - Repair Official PS3.18 DICOMweb and Media Ingestion
 
-Status: `In progress`
+Status: `Complete`
 
 Scope:
 
@@ -389,18 +390,19 @@ Completion checklist:
       official KB.
 - [x] `lookup_media_type("STOW-RS request")` returns `ok` against the rebuilt
       official KB.
-- [ ] Strict release or release-workflow tests fail when any of the above
+- [x] Strict release or release-workflow tests fail when any of the above
       examples is missing.
 
 Commits:
 
 | Commit | Summary | Verification |
 |---|---|---|
-| Pending current commit | Repairs official PS3.18 overview/resource matching, derives WADO-RS response and STOW-RS request media contexts, and keeps `StoreInstances` uniquely resolvable from official Store resource rows. | `uv run --dev pytest tests/unit/test_part18_parser.py tests/unit/test_query_resolver.py -k 'part18 or media_type or dicomweb_transaction' -q`; `uv run --dev ruff check src/dicom_kb/parsers/part18_web_services.py tests/unit/test_part18_parser.py tests/unit/test_query_resolver.py`; `make lint`; `make typecheck`; `uv run --dev dicom-kb build --edition 2026b --force`; direct CLI checks for `RetrieveStudy`, `StoreInstances`, `WADO-RS response`, and `STOW-RS request`; `env DICOM_KB_RUN_RELEASE=1 uv run --dev pytest tests/integration_requires_dicom_download/test_release_goldens.py -k 'application_dicom_media_type or retrieve_study_transaction' -q` |
+| 8c3a8d5 | Repairs official PS3.18 overview matching, Store transaction naming, and derived WADO/STOW media contexts. | `uv run --dev pytest tests/unit/test_part18_parser.py tests/unit/test_query_resolver.py -k 'part18 or media_type or dicomweb_transaction' -q`; `uv run --dev ruff check src/dicom_kb/parsers/part18_web_services.py tests/unit/test_part18_parser.py tests/unit/test_query_resolver.py`; `make lint`; `make typecheck`; `uv run --dev dicom-kb build --edition 2026b --force`; direct CLI checks for `RetrieveStudy`, `StoreInstances`, `WADO-RS response`, and `STOW-RS request`; `env DICOM_KB_RUN_RELEASE=1 uv run --dev pytest tests/integration_requires_dicom_download/test_release_goldens.py -k 'application_dicom_media_type or retrieve_study_transaction' -q` |
+| Pending current commit | Adds strict release goldens for `StoreInstances`, `WADO-RS response`, and `STOW-RS request` so those workflow examples cannot regress silently. | `DICOM_KB_RUN_RELEASE=1 uv run --dev pytest tests/integration_requires_dicom_download/test_release_goldens.py -k 'store_instances or wado_rs or stow_rs' -q`; `uv run --dev ruff check tests/integration_requires_dicom_download/test_release_goldens.py`; `make lint`; `make typecheck`; `make test`; `make test-dicom-release` |
 
 ## Phase R8 - Align Real-KB Eval and Release Gates With Promised Workflows
 
-Status: `Not started`
+Status: `In progress`
 
 Scope:
 
@@ -419,7 +421,7 @@ Completion checklist:
       release-ready official KB.
 - [ ] `agent.v2.media_type.dicom_file` is either supported in real-KB eval or
       documented as out of scope with tests enforcing that boundary.
-- [ ] Release tests fail if exact positive DICOMweb/media workflow examples are
+- [x] Release tests fail if exact positive DICOMweb/media workflow examples are
       absent.
 
 ## Phase R9 - Repair PS3.16 SR Template Concept Names
@@ -465,11 +467,9 @@ Completion checklist:
 
 ## Blockers and Open Decisions
 
-- PS3.18 parser correctness is an active blocker for completion: direct
-  official-KB lookups for `StoreInstances`, `WADO-RS response`, and
-  `STOW-RS request` now return `ok`, and `RetrieveStudy` no longer has
-  unrelated MPPS response prose. The remaining PS3.18 blocker is release/eval
-  coverage for these exact workflow examples.
+- PS3.18 parser and strict release coverage are complete for the post-review
+  workflow examples: `StoreInstances`, `WADO-RS response`, and
+  `STOW-RS request` now resolve and are pinned by release goldens.
 - Real-KB eval excludes positive DICOMweb/media workflow cases. This is a test
   coverage blocker until R8 removes the exclusions or records an explicit
   product-scope decision.
@@ -554,3 +554,10 @@ Completion checklist:
 | 2026-06-15 | `make test` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun passed with 332 passed and 16 skipped. |
 | 2026-06-15 | `uv run --dev pytest tests/unit/test_metadata.py -q` | Passed | 7 passed after updating the durable progress trackers. |
 | 2026-06-15 | `uv run --dev pytest tests/unit/test_metadata.py -q` | Passed | 7 passed after documenting the post-completion review findings and reopening remediation phases R6-R10. |
+| 2026-06-15 | `DICOM_KB_RUN_RELEASE=1 uv run --dev pytest tests/integration_requires_dicom_download/test_release_goldens.py -k 'store_instances or wado_rs or stow_rs' -q` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun passed 3 strict release goldens. |
+| 2026-06-15 | `uv run --dev ruff check tests/integration_requires_dicom_download/test_release_goldens.py` | Passed | Focused lint for the new strict release workflow goldens. |
+| 2026-06-15 | `make lint` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev ruff check .` with all checks passed. |
+| 2026-06-15 | `make typecheck` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev mypy` with no issues in 57 source files. |
+| 2026-06-15 | `make test` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun passed with 341 passed and 15 skipped. |
+| 2026-06-15 | `make test-dicom-release` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated strict release gate passed with 10 passed. |
+| 2026-06-15 | `uv run --dev pytest tests/unit/test_metadata.py -q` | Passed | 7 passed after tracker updates for the R7 release-coverage slice. |
