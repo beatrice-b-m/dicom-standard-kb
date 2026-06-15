@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from dataclasses import dataclass
 from typing import cast
@@ -365,7 +366,12 @@ class Part18Repository:
         ]
         if exact_name:
             return exact_name
-        return [record for record in records if record.route_template == normalized]
+        normalized_route = _canonical_route_template(normalized)
+        return [
+            record
+            for record in records
+            if _canonical_route_template(record.route_template) == normalized_route
+        ]
 
 
 class DocumentRepository:
@@ -1381,6 +1387,17 @@ def _media_context_matches(record: DicomMediaType, normalized: str) -> bool:
     context = record.service_context.casefold() if record.service_context else ""
     directions = {direction.casefold() for direction in record.directions}
     return normalized == context or normalized in directions
+
+
+def _canonical_route_template(route_template: str) -> str:
+    placeholder_index = 0
+
+    def replace_placeholder(_match: re.Match[str]) -> str:
+        nonlocal placeholder_index
+        placeholder_index += 1
+        return f"{{var{placeholder_index}}}"
+
+    return re.sub(r"\{[^}/]+\}", replace_placeholder, route_template.strip())
 
 
 def _sr_template_label(tid: str) -> str:

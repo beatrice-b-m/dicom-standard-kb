@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
@@ -289,7 +290,7 @@ def _parse_sr_template_table(
             and value_type is not None
             and value_type.upper() == "INCLUDE"
         ):
-            include_tid = _find_identifier(concept_name, prefix="TID")
+            include_tid = _sr_template_include_target(row)
         template_rows.append(
             SRTemplateRow(
                 id=f"{template_id}.row.{row_order}",
@@ -504,6 +505,16 @@ def _metadata_from_context(
         identifier, name = _identifier_and_name_from_title(
             section_title, prefix=prefix, normalizer=normalizer
         )
+    if identifier is None:
+        identifier = _identifier_from_id(
+            table.xml_id, prefix=prefix, normalizer=normalizer
+        )
+        name = name or table.title or section_title or None
+    if identifier is None:
+        identifier = _identifier_from_id(
+            table.parent_xml_id, prefix=prefix, normalizer=normalizer
+        )
+        name = name or table.title or section_title or None
     return _TableMetadata(
         identifier=identifier,
         name=name,
@@ -522,6 +533,18 @@ def _identifier_and_name_from_title(
     normalized = normalizer(match.group("number"))
     name = match.group("name").strip(" .:-")
     return normalized, name or None
+
+
+def _identifier_from_id(
+    value: str | None, *, prefix: str, normalizer: Callable[[str | None], str | None]
+) -> str | None:
+    if value is None:
+        return None
+    pattern = rf"(?:^|[_-]){re.escape(prefix)}[_-]*(?P<number>[0-9A-Za-z]+)\b"
+    match = re.search(pattern, value, flags=re.IGNORECASE)
+    if match is None:
+        return None
+    return normalizer(match.group("number"))
 
 
 def _metadata_value(text: str, label: str) -> str | None:
@@ -548,6 +571,18 @@ def _find_identifier(value: str | None, *, prefix: str) -> str | None:
     if prefix.upper() == "CID":
         return _normalize_cid(match.group("number"))
     return match.group(0)
+
+
+def _sr_template_include_target(row: ParsedRow) -> str | None:
+    targets: list[str] = []
+    for cell in row.cells:
+        targets.append(cell.text)
+        targets.extend(cell.xrefs)
+    for target in targets:
+        include_tid = _find_identifier(target, prefix="TID")
+        if include_tid is not None:
+            return include_tid
+    return None
 
 
 def _context_group_include_target(row: ParsedRow) -> str | None:
@@ -583,6 +618,10 @@ def _coded_concept_id(
     ]
     if coding_scheme_version:
         parts.append(_identifier_fragment(coding_scheme_version))
+    digest_input = "|".join(
+        (code_value, coding_scheme_designator, coding_scheme_version)
+    ).encode("utf-8")
+    parts.append(hashlib.sha1(digest_input).hexdigest()[:8])
     return ".".join(parts)
 
 

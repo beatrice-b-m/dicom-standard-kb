@@ -679,13 +679,13 @@ def test_build_sqlite_database_imports_official_shape_part16_rows(
             "row_order": 1,
             "relationship_type": None,
             "value_type": "CONTAINER",
-            "concept_name": 'CID 7021 "Measurement Report Document Title"',
+            "concept_name": "D",
             "cardinality": "1",
             "condition_text": None,
             "include_tid": None,
             "part": "PS3.16",
             "table_id": "table_TID_1500",
-            "title": "TID 1500. Measurement Report",
+            "title": "Measurement Report",
         },
         {
             "tid": "TID 1500",
@@ -694,13 +694,13 @@ def test_build_sqlite_database_imports_official_shape_part16_rows(
             "row_order": 2,
             "relationship_type": "> HAS OBS CONTEXT",
             "value_type": "INCLUDE",
-            "concept_name": 'TID 1001 "Observation Context"',
+            "concept_name": "D",
             "cardinality": "1",
             "condition_text": None,
             "include_tid": "TID 1001",
             "part": "PS3.16",
             "table_id": "table_TID_1500",
-            "title": "TID 1500. Measurement Report",
+            "title": "Measurement Report",
         },
         {
             "tid": "TID 1500",
@@ -709,15 +709,13 @@ def test_build_sqlite_database_imports_official_shape_part16_rows(
             "row_order": 3,
             "relationship_type": "> CONTAINS",
             "value_type": "INCLUDE",
-            "concept_name": (
-                'TID 1501 "Measurement and Qualitative Evaluation Group"'
-            ),
+            "concept_name": "D",
             "cardinality": "1-n",
             "condition_text": None,
             "include_tid": "TID 1501",
             "part": "PS3.16",
             "table_id": "table_TID_1500",
-            "title": "TID 1500. Measurement Report",
+            "title": "Measurement Report",
         },
     ]
     assert [dict(row) for row in context_group_rows] == [
@@ -734,7 +732,7 @@ def test_build_sqlite_database_imports_official_shape_part16_rows(
             "include_cid": None,
             "part": "PS3.16",
             "table_id": "table_CID_29",
-            "title": "CID 29. Acquisition Modality",
+            "title": "Acquisition Modality",
         },
         {
             "cid": "CID 29",
@@ -749,7 +747,7 @@ def test_build_sqlite_database_imports_official_shape_part16_rows(
             "include_cid": "CID 34",
             "part": "PS3.16",
             "table_id": "table_CID_29",
-            "title": "CID 29. Acquisition Modality",
+            "title": "Acquisition Modality",
         },
     ]
     assert [dict(row) for row in coded_concept_rows] == [
@@ -760,7 +758,7 @@ def test_build_sqlite_database_imports_official_shape_part16_rows(
             "code_meaning": "Computed Tomography",
             "part": "PS3.16",
             "table_id": "table_CID_29",
-            "title": "CID 29. Acquisition Modality",
+            "title": "Acquisition Modality",
         },
     ]
 

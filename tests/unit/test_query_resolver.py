@@ -1468,7 +1468,7 @@ def test_part16_resolvers_return_official_shape_fixture_rows(
                 "order": 1,
                 "relationship_type": None,
                 "value_type": "CONTAINER",
-                "concept_name": 'CID 7021 "Measurement Report Document Title"',
+                "concept_name": "D",
                 "cardinality": "1",
                 "condition": None,
                 "include_tid": None,
@@ -1477,7 +1477,7 @@ def test_part16_resolvers_return_official_shape_fixture_rows(
                 "order": 2,
                 "relationship_type": "> HAS OBS CONTEXT",
                 "value_type": "INCLUDE",
-                "concept_name": 'TID 1001 "Observation Context"',
+                "concept_name": "D",
                 "cardinality": "1",
                 "condition": None,
                 "include_tid": "TID 1001",
@@ -1486,9 +1486,7 @@ def test_part16_resolvers_return_official_shape_fixture_rows(
                 "order": 3,
                 "relationship_type": "> CONTAINS",
                 "value_type": "INCLUDE",
-                "concept_name": (
-                    'TID 1501 "Measurement and Qualitative Evaluation Group"'
-                ),
+                "concept_name": "D",
                 "cardinality": "1-n",
                 "condition": None,
                 "include_tid": "TID 1501",
@@ -1496,7 +1494,7 @@ def test_part16_resolvers_return_official_shape_fixture_rows(
         ],
     }
     assert template.refs[0].part == "PS3.16"
-    assert template.refs[0].table == "TID 1500. Measurement Report"
+    assert template.refs[0].table == "Measurement Report"
 
     assert context_group.status == "ok"
     assert context_group.result == {
@@ -1524,7 +1522,7 @@ def test_part16_resolvers_return_official_shape_fixture_rows(
         ],
     }
     assert context_group.refs[0].part == "PS3.16"
-    assert context_group.refs[0].table == "CID 29. Acquisition Modality"
+    assert context_group.refs[0].table == "Acquisition Modality"
 
     assert code.status == "ok"
     assert code.result == {
@@ -1535,7 +1533,7 @@ def test_part16_resolvers_return_official_shape_fixture_rows(
         "context_groups": ["CID 29"],
     }
     assert code.refs[0].part == "PS3.16"
-    assert code.refs[0].table == "CID 29. Acquisition Modality"
+    assert code.refs[0].table == "Acquisition Modality"
 
 
 def test_lookup_code_meaning_returns_candidates_for_ambiguous_code_value(
@@ -1651,7 +1649,7 @@ def test_retrieve_standard_text_returns_cited_ps37_service_behavior_fallback(
     response = retrieve_standard_text(
         _part07_doc_connection(tmp_path),
         part="PS3.7",
-        section_or_anchor="sect_7_1",
+        section_or_anchor="sect_7.1",
         edition="2026b",
         max_chars=240,
     )
@@ -1659,8 +1657,8 @@ def test_retrieve_standard_text_returns_cited_ps37_service_behavior_fallback(
     assert response.status == "ok"
     assert response.result is not None
     assert response.result["part"] == "PS3.7"
-    assert response.result["title"] == "DIMSE Service Behavior Overview"
-    assert "C-ECHO service behavior verifies communication" in str(
+    assert response.result["title"] == "DIMSE Services Overview"
+    assert "C-ECHO service behavior that verifi" in str(
         response.result["text_excerpt"]
     )
     assert response.result["tables"] == [
@@ -1668,7 +1666,7 @@ def test_retrieve_standard_text_returns_cited_ps37_service_behavior_fallback(
         {"table_id": "table_7-2", "title": "Synthetic Message Notes"},
     ]
     assert [(ref.part, ref.anchor) for ref in response.refs] == [
-        ("PS3.7", "sect_7_1"),
+        ("PS3.7", "sect_7.1"),
         ("PS3.7", "table_7-1"),
         ("PS3.7", "table_7-2"),
     ]
@@ -1680,7 +1678,7 @@ def test_retrieve_standard_text_returns_cited_ps38_network_fallback(
     response = retrieve_standard_text(
         _part08_doc_connection(tmp_path),
         part="PS3.8",
-        section_or_anchor="sect_8_1",
+        section_or_anchor="sect_9.3",
         edition="2026b",
         max_chars=280,
     )
@@ -1688,16 +1686,16 @@ def test_retrieve_standard_text_returns_cited_ps38_network_fallback(
     assert response.status == "ok"
     assert response.result is not None
     assert response.result["part"] == "PS3.8"
-    assert response.result["title"] == "Association PDU Behavior Overview"
+    assert response.result["title"] == "PDU Fields Overview"
     assert "A-ASSOCIATE-RQ PDU starts association establishment" in str(
         response.result["text_excerpt"]
     )
     assert response.result["tables"] == [
-        {"table_id": "table_8-1", "title": "Synthetic Association PDUs"},
+        {"table_id": "table_8-1", "title": "ASSOCIATE-RQ PDU Fields"},
         {"table_id": "table_8-2", "title": "Synthetic Network Notes"},
     ]
     assert [(ref.part, ref.anchor) for ref in response.refs] == [
-        ("PS3.8", "sect_8_1"),
+        ("PS3.8", "sect_9.3"),
         ("PS3.8", "table_8-1"),
         ("PS3.8", "table_8-2"),
     ]

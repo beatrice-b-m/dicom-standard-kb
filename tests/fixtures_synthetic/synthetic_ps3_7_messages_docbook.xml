@@ -1,9 +1,9 @@
 <book xmlns="http://docbook.org/ns/docbook" xmlns:xml="http://www.w3.org/XML/1998/namespace" xml:id="ps3_7">
   <chapter xml:id="chapter_7">
     <title>PS3.7 Synthetic Messages</title>
-    <section xml:id="sect_7_1">
-      <title>DIMSE Service Behavior Overview</title>
-      <para>Synthetic PS3.7 fixture for generic DocBook ingestion. The C-ECHO service behavior verifies communication by exchanging a request and response message pair.</para>
+    <section xml:id="sect_7.1">
+      <title>DIMSE Services Overview</title>
+      <para>Synthetic PS3.7 fixture for generic DocBook ingestion. The DIMSE services include C-ECHO service behavior that verifies communication by exchanging a request and response message pair.</para>
       <table xml:id="table_7-1">
         <title>Synthetic Message Services</title>
         <tgroup cols="3">
