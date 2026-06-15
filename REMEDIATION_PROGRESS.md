@@ -44,7 +44,7 @@ Status values:
 | Phase R5 - Reconcile completion state and final gates | Complete | Historical reconciliation completed in `44eb4df`, but post-completion review found narrower release-gate coverage and remaining official-data quality gaps. Treat R6-R10 as the active remediation tranche before marking the overall effort complete again. |
 | Phase R6 - Capture post-completion review findings | Complete | `3fc8732` records the 2026-06-15 review findings and reopens remediation with concrete R7-R10 phases. |
 | Phase R7 - Repair official PS3.18 DICOMweb and media ingestion | Complete | Parser and official-KB rebuild resolve `StoreInstances`, `WADO-RS response`, and `STOW-RS request` with PS3.18 citations; strict release goldens now fail if those examples regress. |
-| Phase R8 - Align real-KB eval and release gates with promised workflows | In progress | Real-KB eval still excludes positive DICOMweb/media workflow cases; strict release coverage for the workflow examples is now in place. |
+| Phase R8 - Align real-KB eval and release gates with promised workflows | In progress | Real-KB eval now includes the positive DICOMweb/media workflow cases; `agent.v2.media_type.dicom_file` still needs a support-or-scope decision. |
 | Phase R9 - Repair PS3.16 SR template concept names | Not started | Official TID 1500 rows expose compact `D`, `B`, or `null` concept names when xref-backed target labels are available. |
 | Phase R10 - Final post-review reconciliation | Not started | Must run only after R7-R9 are fixed and verified. |
 
@@ -57,9 +57,9 @@ Status values:
 | Branch | main |
 | Last completed remediation commit | `fc4e853` added strict release coverage for the repaired PS3.18 workflow examples; prior parser repair was `8c3a8d5`. |
 | Last verification | Current R7 release-coverage slice on 2026-06-15: targeted strict release goldens for `StoreInstances`, `WADO-RS response`, and `STOW-RS request` passed; focused lint passed; escalated `make lint`, `make typecheck`, `make test`, and `make test-dicom-release` passed. |
-| Current blocker | R8 must remove or formalize the real-KB eval exclusions, and R9 must repair PS3.16 concept-name payload quality. |
-| Commit-ready summary | No pending R7 work. `fc4e853` completed strict release goldens for `StoreInstances`, `WADO-RS response`, and `STOW-RS request`. |
-| Next recommended action | Start R8 by removing the real-KB eval exclusions for `agent.v2.workflow.dicomweb_retrieve_media_type` and `agent.v2.workflow.dicomweb_store_media_type`, then run the real-KB eval against the release-ready official KB. |
+| Current blocker | R8 still needs a support-or-scope decision for `agent.v2.media_type.dicom_file`; R9 must repair PS3.16 concept-name payload quality. |
+| Commit-ready summary | Pending current commit removes the real-KB eval exclusions for the positive DICOMweb/media workflow cases and proves they run against the release-ready official KB. |
+| Next recommended action | Finish R8 by deciding whether `agent.v2.media_type.dicom_file` should be supported by official PS3.10/PS3.18 data in real-KB eval or documented as an explicit product-scope exclusion with tests enforcing that boundary. |
 
 ## Post-Completion Review Findings
 
@@ -82,12 +82,11 @@ remediation through phases R6-R10 in `REMEDIATION_PLAN.md`.
     returned `status: ok`.
   - `uv run --dev dicom-kb lookup media-type "STOW-RS request" --edition 2026b`
     returned `status: ok`.
-- Real-KB eval currently excludes positive workflow cases
-  `agent.v2.media_type.dicom_file`,
-  `agent.v2.workflow.dicomweb_retrieve_media_type`, and
-  `agent.v2.workflow.dicomweb_store_media_type`. These exclusions must be
-  removed after data support lands, or converted into explicit product-scope
-  decisions with tests enforcing that boundary.
+- Real-KB eval now includes positive workflow cases
+  `agent.v2.workflow.dicomweb_retrieve_media_type` and
+  `agent.v2.workflow.dicomweb_store_media_type` against the release-ready
+  official KB. `agent.v2.media_type.dicom_file` remains excluded pending a
+  support-or-scope decision.
 - The strict release gate covers PN, application/dicom, RetrieveStudy,
   StoreInstances, WADO-RS response, STOW-RS request, TID 1500, CID 29, and
   CT/DCM, so the post-review PS3.18 workflow examples can no longer regress
@@ -415,14 +414,20 @@ Scope:
 
 Completion checklist:
 
-- [ ] `agent.v2.workflow.dicomweb_retrieve_media_type` runs against the
+- [x] `agent.v2.workflow.dicomweb_retrieve_media_type` runs against the
       release-ready official KB.
-- [ ] `agent.v2.workflow.dicomweb_store_media_type` runs against the
+- [x] `agent.v2.workflow.dicomweb_store_media_type` runs against the
       release-ready official KB.
 - [ ] `agent.v2.media_type.dicom_file` is either supported in real-KB eval or
       documented as out of scope with tests enforcing that boundary.
 - [x] Release tests fail if exact positive DICOMweb/media workflow examples are
       absent.
+
+Commits:
+
+| Commit | Summary | Verification |
+|---|---|---|
+| Pending current commit | Removed the real-KB eval exclusions for the positive DICOMweb/media workflow cases and asserted those cases are included in the release-ready official-KB run. | `uv run --dev pytest tests/integration_requires_dicom_download/test_eval_runner.py -rs`; `uv run --dev ruff check tests/integration_requires_dicom_download/test_eval_runner.py`; `uv run --dev pytest tests/unit/test_metadata.py -q` |
 
 ## Phase R9 - Repair PS3.16 SR Template Concept Names
 
@@ -470,9 +475,9 @@ Completion checklist:
 - PS3.18 parser and strict release coverage are complete for the post-review
   workflow examples: `StoreInstances`, `WADO-RS response`, and
   `STOW-RS request` now resolve and are pinned by release goldens.
-- Real-KB eval excludes positive DICOMweb/media workflow cases. This is a test
-  coverage blocker until R8 removes the exclusions or records an explicit
-  product-scope decision.
+- Real-KB eval includes the positive DICOMweb/media workflow cases. The
+  remaining R8 blocker is deciding whether `agent.v2.media_type.dicom_file`
+  is release scope or an explicit product-scope exclusion.
 - PS3.16 SR template concept-name quality remains open for official rows that
   use compact xref markers.
 
@@ -541,6 +546,10 @@ Completion checklist:
 | 2026-06-15 | `uv run --dev ruff check src/dicom_kb/parsers/part05_encoding.py tests/unit/test_part05_parser.py tests/unit/test_build.py tests/fixtures_synthetic/__init__.py` | Passed | Focused lint for the PS3.5 parser, fixture export, and tests. |
 | 2026-06-15 | `make lint` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev ruff check .` with all checks passed. |
 | 2026-06-15 | `make typecheck` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev mypy` with no issues in 57 source files. |
+| 2026-06-15 | `uv run --dev pytest tests/integration_requires_dicom_download/test_eval_runner.py -rs` | Passed | 1 passed before the R8 exclusion edit, confirming the release-ready real-KB eval baseline still passed with workflow cases excluded. |
+| 2026-06-15 | `uv run --dev pytest tests/integration_requires_dicom_download/test_eval_runner.py -rs` | Passed | 1 passed after removing the DICOMweb/media workflow exclusions; the test now asserts `agent.v2.workflow.dicomweb_retrieve_media_type` and `agent.v2.workflow.dicomweb_store_media_type` are included in the real-KB run. |
+| 2026-06-15 | `uv run --dev ruff check tests/integration_requires_dicom_download/test_eval_runner.py` | Passed | Focused lint for the real-KB eval inclusion assertion after fixing the set-comparison style warning. |
+| 2026-06-15 | `uv run --dev pytest tests/unit/test_metadata.py -q` | Passed | 7 passed after updating the remediation progress tracker. |
 | 2026-06-15 | `uv run --dev dicom-kb build --edition 2026b --force` | Passed escalated | Rebuilt the local official 2026b KB and imported 34 `vr_definition` rows from official PS3.5. Generated DB remains outside the repo. |
 | 2026-06-15 | `env DICOM_KB_RUN_RELEASE=1 uv run --dev pytest tests/integration_requires_dicom_download/test_release_goldens.py -k pn_vr -q` | Passed escalated | 1 passed; the strict PN VR release golden now succeeds against the rebuilt official KB. |
 | 2026-06-15 | `make test-dicom-release` | Failed as expected escalated | Strict release gate now reports 1 passed and 6 failed. Remaining failures are missing `dicom_media_type`, `dicomweb_transaction`, `sr_template`, `sr_template_row`, `context_group`, `context_group_row`, and `coded_concept` rows plus their pinned examples. |

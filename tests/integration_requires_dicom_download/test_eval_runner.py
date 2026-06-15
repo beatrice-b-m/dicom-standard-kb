@@ -17,8 +17,11 @@ except ModuleNotFoundError:  # pragma: no cover - single-file pytest invocation
     from release_requirements import evaluate_official_kb_release_requirements
 
 
-REAL_KB_UNSUPPORTED_CASE_IDS = {
+REAL_KB_PENDING_SCOPE_CASE_IDS = {
     "agent.v2.media_type.dicom_file",
+}
+
+REAL_KB_REQUIRED_WORKFLOW_CASE_IDS = {
     "agent.v2.workflow.dicomweb_retrieve_media_type",
     "agent.v2.workflow.dicomweb_store_media_type",
 }
@@ -43,13 +46,15 @@ def test_reference_agent_scores_all_cases_against_real_kb(
         cases=tuple(
             case
             for case in AGENT_REGRESSION_CASES
-            if case.id not in REAL_KB_UNSUPPORTED_CASE_IDS
+            if case.id not in REAL_KB_PENDING_SCOPE_CASE_IDS
         ),
     )
 
     report = score_agent_runs(runs)
 
+    run_case_ids = {run.case_id for run in runs}
+    assert run_case_ids >= REAL_KB_REQUIRED_WORKFLOW_CASE_IDS
     assert report.total_runs == len(AGENT_REGRESSION_CASES) - len(
-        REAL_KB_UNSUPPORTED_CASE_IDS
+        REAL_KB_PENDING_SCOPE_CASE_IDS
     )
     assert report.failed_runs == 0
