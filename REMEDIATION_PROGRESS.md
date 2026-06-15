@@ -45,21 +45,21 @@ Status values:
 | Phase R6 - Capture post-completion review findings | Complete | `3fc8732` records the 2026-06-15 review findings and reopens remediation with concrete R7-R10 phases. |
 | Phase R7 - Repair official PS3.18 DICOMweb and media ingestion | Complete | Parser and official-KB rebuild resolve `StoreInstances`, `WADO-RS response`, and `STOW-RS request` with PS3.18 citations; strict release goldens now fail if those examples regress. |
 | Phase R8 - Align real-KB eval and release gates with promised workflows | Complete | Real-KB eval now includes the positive DICOMweb/media workflow cases and `agent.v2.media_type.dicom_file`, backed by structured `application/dicom` evidence from PS3.10 or PS3.18. |
-| Phase R9 - Repair PS3.16 SR template concept names | Not started | Official TID 1500 rows expose compact `D`, `B`, or `null` concept names when xref-backed target labels are available. |
+| Phase R9 - Repair PS3.16 SR template concept names | Complete | Official-shape TID 1500 rows now resolve compact `D`, `B`, or blank concept cells through available DocBook xref target labels while preserving genuinely blank concept names as `null`. |
 | Phase R10 - Final post-review reconciliation | Not started | Must run only after R7-R9 are fixed and verified. |
 
 ## Active Work
 
 | Field | Value |
 |---|---|
-| Current phase | Phase R9 - Repair PS3.16 SR template concept names |
+| Current phase | Phase R10 - Final post-review reconciliation |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed remediation commit | `bba3d92` included the positive DICOMweb/media workflow cases in real-KB eval; prior R7 release coverage was `fc4e853`. |
-| Last verification | Current R8 completion slice on 2026-06-15: focused parser/build/resolver, agent-regression, and real-KB eval tests passed; focused lint passed; escalated `make lint`, `make typecheck`, and `make test` passed after sandboxed uv-cache permission failures. |
-| Current blocker | R9 must repair PS3.16 concept-name payload quality. |
-| Commit-ready summary | Pending current commit supports `agent.v2.media_type.dicom_file` in release-ready real-KB eval by routing it to structured `application/dicom` media-type evidence and preferring canonical `Instance Media Types` rows when duplicate contexts exist. |
-| Next recommended action | Start R9 by adding official-shape parser/resolver tests that fail when TID 1500 concept names expose only compact `D`, `B`, or `null` markers despite available xref target labels. |
+| Last completed remediation commit | `0fd0a18` completed R8 by supporting `agent.v2.media_type.dicom_file` in real-KB eval; this R9 concept-name slice is ready as the next commit. |
+| Last verification | Current R9 slice on 2026-06-15: focused PS3.16 parser/build/resolver tests passed; focused ruff passed; sandboxed `make lint` and `make typecheck` failed on uv-cache permissions, then escalated reruns passed. |
+| Current blocker | None for R9. R10 final reconciliation and full release gates remain. |
+| Commit-ready summary | R9 resolves compact official PS3.16 SR template concept-name xref markers to target section labels, preserves include TID extraction, and keeps genuinely blank concept-name cells as `null`. |
+| Next recommended action | Start R10 final post-review reconciliation: record the R9 commit hash, run the final verification gates (`make lint`, `make typecheck`, `make test`, `make test-dicom-current`, `make test-dicom-release`), update `IMPLEMENTATION_PROGRESS.md` only if the release-hardening evidence changes, and confirm no stale pending markers remain. |
 
 ## Post-Completion Review Findings
 
@@ -93,10 +93,10 @@ remediation through phases R6-R10 in `REMEDIATION_PLAN.md`.
   StoreInstances, WADO-RS response, STOW-RS request, TID 1500, CID 29, and
   CT/DCM, so the post-review PS3.18 workflow examples can no longer regress
   silently in release checks.
-- PS3.16 TID 1500 rows resolve, but public `concept_name` values still include
-  compact official display markers such as `D`, `B`, and `null` when xref-backed
-  target labels are available. R9 should preserve include targets while
-  resolving xrefs into useful concept-name payload text.
+- PS3.16 TID 1500 official-shape fixture rows now resolve compact public
+  `concept_name` markers such as `D`, `B`, and blank xref cells to available
+  target section labels. Include targets remain preserved, and genuinely blank
+  concept-name cells without xrefs remain `null`.
 
 ## Phase R5 Unblock Evidence
 
@@ -430,11 +430,11 @@ Commits:
 | Commit | Summary | Verification |
 |---|---|---|
 | bba3d92 | Removed the real-KB eval exclusions for the positive DICOMweb/media workflow cases and asserted those cases are included in the release-ready official-KB run. | `uv run --dev pytest tests/integration_requires_dicom_download/test_eval_runner.py -rs`; `uv run --dev ruff check tests/integration_requires_dicom_download/test_eval_runner.py`; `uv run --dev pytest tests/unit/test_metadata.py -q` |
-| Pending current commit | Supported `agent.v2.media_type.dicom_file` in real-KB eval by routing the case to `lookup_media_type("application/dicom")`, accepting PS3.10 or PS3.18 citations, and preferring canonical `Instance Media Types` rows when exact media-type matches have multiple contexts. | `uv run --dev pytest tests/unit/test_part18_parser.py tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'part18 or media_type or build_fixture_imports_v2_parts' -q`; `uv run --dev pytest tests/agent_regression/test_runner.py -k 'v2_public_tool_batch or v2_workflow_final_batch' -q`; `uv run --dev pytest tests/integration_requires_dicom_download/test_eval_runner.py -rs`; `uv run --dev pytest tests/agent_regression -q`; `uv run --dev ruff check ...`; `make lint`; `make typecheck`; `make test` |
+| 0fd0a18 | Supported `agent.v2.media_type.dicom_file` in real-KB eval by routing the case to `lookup_media_type("application/dicom")`, accepting PS3.10 or PS3.18 citations, and preferring canonical `Instance Media Types` rows when exact media-type matches have multiple contexts. | `uv run --dev pytest tests/unit/test_part18_parser.py tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'part18 or media_type or build_fixture_imports_v2_parts' -q`; `uv run --dev pytest tests/agent_regression/test_runner.py -k 'v2_public_tool_batch or v2_workflow_final_batch' -q`; `uv run --dev pytest tests/integration_requires_dicom_download/test_eval_runner.py -rs`; `uv run --dev pytest tests/agent_regression -q`; `uv run --dev ruff check ...`; `make lint`; `make typecheck`; `make test` |
 
 ## Phase R9 - Repair PS3.16 SR Template Concept Names
 
-Status: `Not started`
+Status: `Complete`
 
 Scope:
 
@@ -445,11 +445,17 @@ Scope:
 
 Completion checklist:
 
-- [ ] Official-shape parser tests assert useful TID 1500 concept-name text for
+- [x] Official-shape parser tests assert useful TID 1500 concept-name text for
       xref-backed cells.
-- [ ] Resolver tests prove `lookup_sr_template("1500")` does not expose only
+- [x] Resolver tests prove `lookup_sr_template("1500")` does not expose only
       `D`, `B`, or `null` when an xref label is available.
-- [ ] Context-group and coded-concept resolver tests continue to pass.
+- [x] Context-group and coded-concept resolver tests continue to pass.
+
+Commits:
+
+| Commit | Summary | Verification |
+|---|---|---|
+| Current slice commit | Resolves official-shape PS3.16 SR template concept names through compact concept-cell xrefs while preserving include target extraction and representing genuinely blank concept names as `null`. | `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'part16 or sr_template or context_group or code_meaning or build_fixture_imports_v2_parts' -q`; `uv run --dev ruff check src/dicom_kb/parsers/part16_content_mapping.py tests/unit/test_part16_parser.py tests/unit/test_build.py tests/unit/test_query_resolver.py`; sandboxed `make lint` failed on uv-cache permissions, escalated `make lint` passed; sandboxed `make typecheck` failed on uv-cache permissions, escalated `make typecheck` passed. |
 
 ## Phase R10 - Final Post-Review Reconciliation
 
@@ -480,8 +486,8 @@ Completion checklist:
   `STOW-RS request` now resolve and are pinned by release goldens.
 - Real-KB eval includes the positive DICOMweb/media workflow cases and
   `agent.v2.media_type.dicom_file`; there is no remaining R8 blocker.
-- PS3.16 SR template concept-name quality remains open for official rows that
-  use compact xref markers.
+- PS3.16 SR template concept-name quality is repaired for official-shape rows
+  that use compact xref markers when target section labels are available.
 
 ## Verification Log
 
@@ -584,3 +590,7 @@ Completion checklist:
 | 2026-06-15 | `make lint` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev ruff check .` with all checks passed. |
 | 2026-06-15 | `make typecheck` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev mypy` with no issues in 57 source files. |
 | 2026-06-15 | `make test` | Failed in sandbox; failed once escalated, then passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; first escalated run found one stale synthetic media-type count assertion; final escalated rerun passed with 342 passed and 15 skipped. |
+| 2026-06-15 | `uv run --dev pytest tests/unit/test_part16_parser.py tests/unit/test_build.py tests/unit/test_query_resolver.py -k 'part16 or sr_template or context_group or code_meaning or build_fixture_imports_v2_parts' -q` | Passed | 17 passed after resolving compact official-shape PS3.16 concept-name xrefs and preserving blank concept names as `null`. |
+| 2026-06-15 | `uv run --dev ruff check src/dicom_kb/parsers/part16_content_mapping.py tests/unit/test_part16_parser.py tests/unit/test_build.py tests/unit/test_query_resolver.py` | Passed | Focused lint for the R9 parser and fixture-coupled tests. |
+| 2026-06-15 | `make lint` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev ruff check .` with all checks passed. |
+| 2026-06-15 | `make typecheck` | Failed in sandbox; passed escalated | Sandboxed command failed before running because `uv` could not read `/Users/beatrice/.cache/uv/sdists-v9/.git`; escalated rerun completed `uv run --dev mypy` with no issues in 57 source files. |
