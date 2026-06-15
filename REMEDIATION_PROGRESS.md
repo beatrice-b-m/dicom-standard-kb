@@ -55,10 +55,10 @@ Status values:
 | Current phase | Phase R8 - Align real-KB eval and release gates with promised workflows |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed remediation commit | `8c3a8d5` repaired official PS3.18 workflow parsing; pending current commit adds strict release coverage for the repaired workflow examples. |
+| Last completed remediation commit | `fc4e853` added strict release coverage for the repaired PS3.18 workflow examples; prior parser repair was `8c3a8d5`. |
 | Last verification | Current R7 release-coverage slice on 2026-06-15: targeted strict release goldens for `StoreInstances`, `WADO-RS response`, and `STOW-RS request` passed; focused lint passed; escalated `make lint`, `make typecheck`, `make test`, and `make test-dicom-release` passed. |
 | Current blocker | R8 must remove or formalize the real-KB eval exclusions, and R9 must repair PS3.16 concept-name payload quality. |
-| Commit-ready summary | Pending current commit adds strict release goldens for `StoreInstances`, `WADO-RS response`, and `STOW-RS request`, completing R7 release/workflow coverage. |
+| Commit-ready summary | No pending R7 work. `fc4e853` completed strict release goldens for `StoreInstances`, `WADO-RS response`, and `STOW-RS request`. |
 | Next recommended action | Start R8 by removing the real-KB eval exclusions for `agent.v2.workflow.dicomweb_retrieve_media_type` and `agent.v2.workflow.dicomweb_store_media_type`, then run the real-KB eval against the release-ready official KB. |
 
 ## Post-Completion Review Findings
@@ -398,7 +398,7 @@ Commits:
 | Commit | Summary | Verification |
 |---|---|---|
 | 8c3a8d5 | Repairs official PS3.18 overview matching, Store transaction naming, and derived WADO/STOW media contexts. | `uv run --dev pytest tests/unit/test_part18_parser.py tests/unit/test_query_resolver.py -k 'part18 or media_type or dicomweb_transaction' -q`; `uv run --dev ruff check src/dicom_kb/parsers/part18_web_services.py tests/unit/test_part18_parser.py tests/unit/test_query_resolver.py`; `make lint`; `make typecheck`; `uv run --dev dicom-kb build --edition 2026b --force`; direct CLI checks for `RetrieveStudy`, `StoreInstances`, `WADO-RS response`, and `STOW-RS request`; `env DICOM_KB_RUN_RELEASE=1 uv run --dev pytest tests/integration_requires_dicom_download/test_release_goldens.py -k 'application_dicom_media_type or retrieve_study_transaction' -q` |
-| Pending current commit | Adds strict release goldens for `StoreInstances`, `WADO-RS response`, and `STOW-RS request` so those workflow examples cannot regress silently. | `DICOM_KB_RUN_RELEASE=1 uv run --dev pytest tests/integration_requires_dicom_download/test_release_goldens.py -k 'store_instances or wado_rs or stow_rs' -q`; `uv run --dev ruff check tests/integration_requires_dicom_download/test_release_goldens.py`; `make lint`; `make typecheck`; `make test`; `make test-dicom-release` |
+| fc4e853 | Adds strict release goldens for `StoreInstances`, `WADO-RS response`, and `STOW-RS request` so those workflow examples cannot regress silently. | `DICOM_KB_RUN_RELEASE=1 uv run --dev pytest tests/integration_requires_dicom_download/test_release_goldens.py -k 'store_instances or wado_rs or stow_rs' -q`; `uv run --dev ruff check tests/integration_requires_dicom_download/test_release_goldens.py`; `make lint`; `make typecheck`; `make test`; `make test-dicom-release` |
 
 ## Phase R8 - Align Real-KB Eval and Release Gates With Promised Workflows
 
