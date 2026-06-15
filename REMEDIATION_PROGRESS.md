@@ -43,7 +43,7 @@ Status values:
 | Phase R4 - Harden agent regression scoring | Complete | Positive v2 expected traces now require `ok` status and required-part citations; reference answers derive terms from observed tool responses instead of prompt fixtures, and positive v2 semantic cases no longer receive generic fallback citations. |
 | Phase R5 - Reconcile completion state and final gates | Complete | Historical reconciliation completed in `44eb4df`, but post-completion review found narrower release-gate coverage and remaining official-data quality gaps. Treat R6-R10 as the active remediation tranche before marking the overall effort complete again. |
 | Phase R6 - Capture post-completion review findings | Complete | `3fc8732` records the 2026-06-15 review findings and reopens remediation with concrete R7-R10 phases. |
-| Phase R7 - Repair official PS3.18 DICOMweb and media ingestion | Not started | `StoreInstances`, `WADO-RS response`, and `STOW-RS request` return `not_found`; `RetrieveStudy` resolves but includes unrelated response text. |
+| Phase R7 - Repair official PS3.18 DICOMweb and media ingestion | In progress | Parser and official-KB rebuild now resolve `StoreInstances`, `WADO-RS response`, and `STOW-RS request` with PS3.18 citations, and `RetrieveStudy` no longer includes unrelated MPPS response prose. R7 still needs strict release/workflow coverage for these examples. |
 | Phase R8 - Align real-KB eval and release gates with promised workflows | Not started | Real-KB eval excludes positive DICOMweb/media workflow cases, and strict release goldens do not cover the missing workflow examples. |
 | Phase R9 - Repair PS3.16 SR template concept names | Not started | Official TID 1500 rows expose compact `D`, `B`, or `null` concept names when xref-backed target labels are available. |
 | Phase R10 - Final post-review reconciliation | Not started | Must run only after R7-R9 are fixed and verified. |
@@ -55,11 +55,11 @@ Status values:
 | Current phase | Phase R7 - Repair official PS3.18 DICOMweb and media ingestion |
 | Current owner/agent | Codex |
 | Branch | main |
-| Last completed remediation commit | `3fc8732` documented the post-completion review findings and reopened remediation with R7-R10. Previous code remediation commit was `44eb4df`. |
-| Last verification | Post-completion review on 2026-06-15 reran focused parser/resolver tests and the strict release target. Focused tests passed, and escalated `make test-dicom-release` passed with 7 passed. Direct official-KB spot checks then exposed remaining gaps: `StoreInstances`, `WADO-RS response`, and `STOW-RS request` return `not_found`; `RetrieveStudy` returns `ok` but includes unrelated response prose; TID 1500 rows expose compact concept names such as `D`, `B`, and `null`. R6 documentation update verification: `uv run --dev pytest tests/unit/test_metadata.py -q` passed with 7 passed. |
-| Current blocker | Remediation is reopened. R7 must repair PS3.18 official DICOMweb/media parsing, R8 must align real-KB eval and release gates with promised workflows, and R9 must repair PS3.16 concept-name payload quality. |
-| Commit-ready summary | None. R6 documentation capture is committed; next work should make code/test changes for R7. |
-| Next recommended action | Start Phase R7 by fixing official PS3.18 transaction overview/resource matching and adding failing goldens for `StoreInstances`, `WADO-RS response`, and `STOW-RS request`. |
+| Last completed remediation commit | `bca3708` recorded the post-review handoff commit; previous code remediation commit was `44eb4df`. |
+| Last verification | Current R7 parser slice verification on 2026-06-15: focused PS3.18 parser/resolver tests passed; focused lint passed; escalated `make lint` and `make typecheck` passed; the official 2026b KB rebuilt successfully with 42 `dicomweb_transaction` rows and 3 `dicom_media_type` rows; direct CLI checks returned `ok` for `RetrieveStudy`, `StoreInstances`, `WADO-RS response`, and `STOW-RS request`; focused strict release goldens for `application/dicom` and `RetrieveStudy` passed. |
+| Current blocker | R7 still lacks strict release/workflow tests for `StoreInstances`, `WADO-RS response`, and `STOW-RS request`. R8 must remove or formalize the real-KB eval exclusions, and R9 must repair PS3.16 concept-name payload quality. |
+| Commit-ready summary | Pending current commit repairs PS3.18 official overview matching, Store transaction naming, and derived WADO/STOW media contexts with focused parser/resolver coverage. |
+| Next recommended action | Continue with the release/eval coverage boundary: add strict release or release-workflow tests that fail if `StoreInstances`, `WADO-RS response`, or `STOW-RS request` regress, then remove or explicitly scope the corresponding real-KB eval exclusions. |
 
 ## Post-Completion Review Findings
 
@@ -69,20 +69,19 @@ The strict release gate now passes, but that result is narrower than the v2
 workflow surface still described by the eval cases. These findings reopen
 remediation through phases R6-R10 in `REMEDIATION_PLAN.md`.
 
-- PS3.18 transaction/resource matching is too broad. `RetrieveStudy` returns
-  `ok`, but the official 2026b payload includes response text unrelated to
-  RetrieveStudy, including Modality Performed Procedure Step prose. Next agents
-  should inspect overview/resource matching in `part18_web_services.py` and add
-  tests that assert semantically relevant RetrieveStudy payloads, not merely
-  nonempty constraints.
-- Promised DICOMweb/media workflow examples remain unresolved against the
-  rebuilt official 2026b KB:
+- PS3.18 transaction/resource matching was too broad. Current R7 parser work
+  keeps multiple transaction overview rows and selects the matching table family
+  for each resource table. After rebuilding the official 2026b KB,
+  `RetrieveStudy` returns Retrieve-study response payload text and no longer
+  includes Modality Performed Procedure Step prose.
+- Promised DICOMweb/media workflow examples now resolve against the rebuilt
+  official 2026b KB:
   - `uv run --dev dicom-kb lookup dicomweb StoreInstances --edition 2026b`
-    returned `status: not_found`.
+    returned `status: ok`.
   - `uv run --dev dicom-kb lookup media-type "WADO-RS response" --edition 2026b`
-    returned `status: not_found`.
+    returned `status: ok`.
   - `uv run --dev dicom-kb lookup media-type "STOW-RS request" --edition 2026b`
-    returned `status: not_found`.
+    returned `status: ok`.
 - Real-KB eval currently excludes positive workflow cases
   `agent.v2.media_type.dicom_file`,
   `agent.v2.workflow.dicomweb_retrieve_media_type`, and
@@ -370,7 +369,7 @@ Commits:
 
 ## Phase R7 - Repair Official PS3.18 DICOMweb and Media Ingestion
 
-Status: `Not started`
+Status: `In progress`
 
 Scope:
 
@@ -382,16 +381,22 @@ Scope:
 
 Completion checklist:
 
-- [ ] `RetrieveStudy` response constraints no longer contain unrelated
+- [x] `RetrieveStudy` response constraints no longer contain unrelated
       transaction prose.
-- [ ] `lookup_dicomweb_transaction("StoreInstances")` returns `ok` against the
+- [x] `lookup_dicomweb_transaction("StoreInstances")` returns `ok` against the
       rebuilt official KB.
-- [ ] `lookup_media_type("WADO-RS response")` returns `ok` against the rebuilt
+- [x] `lookup_media_type("WADO-RS response")` returns `ok` against the rebuilt
       official KB.
-- [ ] `lookup_media_type("STOW-RS request")` returns `ok` against the rebuilt
+- [x] `lookup_media_type("STOW-RS request")` returns `ok` against the rebuilt
       official KB.
 - [ ] Strict release or release-workflow tests fail when any of the above
       examples is missing.
+
+Commits:
+
+| Commit | Summary | Verification |
+|---|---|---|
+| Pending current commit | Repairs official PS3.18 overview/resource matching, derives WADO-RS response and STOW-RS request media contexts, and keeps `StoreInstances` uniquely resolvable from official Store resource rows. | `uv run --dev pytest tests/unit/test_part18_parser.py tests/unit/test_query_resolver.py -k 'part18 or media_type or dicomweb_transaction' -q`; `uv run --dev ruff check src/dicom_kb/parsers/part18_web_services.py tests/unit/test_part18_parser.py tests/unit/test_query_resolver.py`; `make lint`; `make typecheck`; `uv run --dev dicom-kb build --edition 2026b --force`; direct CLI checks for `RetrieveStudy`, `StoreInstances`, `WADO-RS response`, and `STOW-RS request`; `env DICOM_KB_RUN_RELEASE=1 uv run --dev pytest tests/integration_requires_dicom_download/test_release_goldens.py -k 'application_dicom_media_type or retrieve_study_transaction' -q` |
 
 ## Phase R8 - Align Real-KB Eval and Release Gates With Promised Workflows
 
@@ -461,9 +466,10 @@ Completion checklist:
 ## Blockers and Open Decisions
 
 - PS3.18 parser correctness is an active blocker for completion: direct
-  official-KB lookups show `StoreInstances`, `WADO-RS response`, and
-  `STOW-RS request` return `not_found`, while `RetrieveStudy` has unrelated
-  response prose.
+  official-KB lookups for `StoreInstances`, `WADO-RS response`, and
+  `STOW-RS request` now return `ok`, and `RetrieveStudy` no longer has
+  unrelated MPPS response prose. The remaining PS3.18 blocker is release/eval
+  coverage for these exact workflow examples.
 - Real-KB eval excludes positive DICOMweb/media workflow cases. This is a test
   coverage blocker until R8 removes the exclusions or records an explicit
   product-scope decision.

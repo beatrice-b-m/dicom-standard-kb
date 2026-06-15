@@ -965,6 +965,51 @@ def test_lookup_media_type_returns_official_shape_application_dicom(
     assert response.refs[0].anchor == "table_8.7.3-2"
 
 
+def test_lookup_media_type_returns_official_shape_wado_response_context(
+    tmp_path: Path,
+) -> None:
+    response = lookup_media_type(
+        _part18_official_shape_connection(tmp_path),
+        media_type_or_context="WADO-RS response",
+        edition="2026b",
+    )
+
+    assert response.status == "ok"
+    assert response.result == {
+        "media_type": "multipart/related",
+        "service_context": "WADO-RS response",
+        "transfer_syntax_constraints": [
+            "Retrieve response payload: Instance(s), Metadata, Renderings, "
+            "Pixel Data, or Bulk Data",
+        ],
+        "directions": ["response"],
+    }
+    assert response.refs[0].part == "PS3.18"
+    assert response.refs[0].anchor == "table_10.4.1-1"
+
+
+def test_lookup_media_type_returns_official_shape_stow_request_context(
+    tmp_path: Path,
+) -> None:
+    response = lookup_media_type(
+        _part18_official_shape_connection(tmp_path),
+        media_type_or_context="STOW-RS request",
+        edition="2026b",
+    )
+
+    assert response.status == "ok"
+    assert response.result == {
+        "media_type": "multipart/related",
+        "service_context": "STOW-RS request",
+        "transfer_syntax_constraints": [
+            "Store request payload: DICOM Instances",
+        ],
+        "directions": ["request"],
+    }
+    assert response.refs[0].part == "PS3.18"
+    assert response.refs[0].anchor == "table_10.5.1-1"
+
+
 def test_lookup_media_type_validates_empty_input_and_reports_not_found(
     tmp_path: Path,
 ) -> None:
@@ -1125,6 +1170,37 @@ def test_lookup_dicomweb_transaction_returns_official_shape_retrieve_study(
     }
     assert response.refs[0].part == "PS3.18"
     assert response.refs[0].anchor == "table_10.4.1-1"
+    assert response.classification.evidence_level == "parsed_table"
+
+
+def test_lookup_dicomweb_transaction_returns_official_shape_store_instances(
+    tmp_path: Path,
+) -> None:
+    response = lookup_dicomweb_transaction(
+        _part18_official_shape_connection(tmp_path),
+        name_or_route="StoreInstances",
+        edition="2026b",
+    )
+
+    assert response.status == "ok"
+    assert response.result == {
+        "transaction_name": "StoreInstances",
+        "resource_category": "study",
+        "http_method": "POST",
+        "route_template": "/studies/{study}",
+        "request_constraints": [
+            "Target resource: Study Instances",
+            "Request payload: DICOM Instances",
+        ],
+        "response_constraints": [
+            "Success response payload: Store Instances Response Module",
+            "Store one or more DICOM Instances.",
+        ],
+        "status_codes": [],
+        "media_type_refs": ["multipart/related", "application/dicom"],
+    }
+    assert response.refs[0].part == "PS3.18"
+    assert response.refs[0].anchor == "table_10.5.1-1"
     assert response.classification.evidence_level == "parsed_table"
 
 
