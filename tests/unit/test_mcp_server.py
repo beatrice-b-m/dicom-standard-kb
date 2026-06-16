@@ -21,6 +21,8 @@ from dicom_kb.mcp.server import (
 )
 from tests.unit.test_cli_lookup import _fixture_db
 
+_RICH_BOX_CHARS = str.maketrans("", "", "\u256d\u2500\u256e\u2502\u2570\u256f")
+
 
 @dataclass(frozen=True)
 class _RegisteredTool:
@@ -408,13 +410,17 @@ def test_mcp_cli_missing_db_names_fetch_and_build_commands(tmp_path: Path) -> No
         ],
     )
 
-    output = " ".join(strip_ansi(result.output).split())
+    output = _normalized_cli_output(result.output)
 
     assert result.exit_code != 0
     assert "SQLite KB does not exist" in output
     assert "dicom-kb fetch --edition current" in output
     assert "dicom-kb build --edition <resolved-edition>" in output
     assert "dicom-kb build-fixture --edition 2026b" in output
+
+
+def _normalized_cli_output(output: str) -> str:
+    return " ".join(strip_ansi(output).translate(_RICH_BOX_CHARS).split())
 
 
 def test_mcp_cli_exposes_serve_command_without_optional_dependency() -> None:

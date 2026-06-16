@@ -20,22 +20,23 @@ gates, examples, and agent regression utilities.
 
 - `uv run --dev ruff check .`: passed.
 - `uv run --dev mypy`: passed.
-- `uv run --dev pytest`: 341 passed, 15 skipped, 1 failed.
+- `uv run --dev pytest`: 342 passed, 15 skipped.
 - `uv run --dev dicom-kb build-fixture --edition 2026b --db /private/tmp/dicom-kb-review-20260616.sqlite --force`: passed.
 - Sample fixture queries for data element lookup, UID lookup, DICOMweb lookup,
   and attribute-context resolution returned valid JSON envelopes.
 
-## Current Finding
+## Resolved Finding
 
-The full pytest suite is not green. The failing test is
+The full pytest suite previously failed in
 `tests/unit/test_mcp_server.py::test_mcp_cli_missing_db_names_fetch_and_build_commands`.
 The source error message in `src/dicom_kb/mcp/server.py` includes the expected
 command text, but Typer/Rich wraps the rendered CLI error panel and inserts box
 column characters between `dicom-kb build` and `--edition`. The test normalizes
 whitespace but not Rich panel separators, so it fails against rendered output.
 
-The likely fix is to make the assertion robust to Rich wrapping, or configure
-the test runner width/color rendering so the command is not split by the panel.
+The test now normalizes Rich box-drawing characters before asserting the
+actionable command snippets, so the assertion targets the message content
+rather than the terminal panel layout.
 
 ## Notes
 
