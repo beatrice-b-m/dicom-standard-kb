@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import os
 import sqlite3
 import subprocess
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from dicom_kb.db.importers import (
     ImportSummary,
@@ -251,13 +253,46 @@ def build_sqlite_database(
     target_path = (
         db_path if db_path is not None else default_db_path(cache_dir, manifest.edition)
     )
-    if target_path.exists():
-        if not force:
-            raise DatabaseExistsError(f"SQLite KB already exists: {target_path}")
-        target_path.unlink()
+    if target_path.exists() and not force:
+        raise DatabaseExistsError(f"SQLite KB already exists: {target_path}")
 
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    # Stage on the destination filesystem so publication is atomic. Importers
+    # commit independently; their partial output must never become the live KB.
+    with TemporaryDirectory(
+        prefix=f".{target_path.name}-", dir=target_path.parent
+    ) as tmp:
+        staging_path = Path(tmp) / "build.sqlite"
+        summary = _build_staged_database(
+            manifest=manifest,
+            cache_dir=cache_dir,
+            staging_path=staging_path,
+            target_path=target_path,
+            quality_gates=quality_gates,
+        )
+        if force:
+            staging_path.replace(target_path)
+        else:
+            try:
+                os.link(staging_path, target_path)
+            except FileExistsError as exc:
+                raise DatabaseExistsError(
+                    f"SQLite KB already exists: {target_path}"
+                ) from exc
+        return summary
+
+
+def _build_staged_database(
+    *,
+    manifest: SourceManifest,
+    cache_dir: Path,
+    staging_path: Path,
+    target_path: Path,
+    quality_gates: QualityGateSettings | None,
+) -> BuildSummary:
+    """Build and check a private database before the caller publishes it."""
     documents = _load_docbook_documents(cache_dir=cache_dir, manifest=manifest)
-    connection = connect_sqlite(target_path)
+    connection = connect_sqlite(staging_path)
     warnings: list[str] = []
     parse_warnings_by_part: dict[str, int] = {}
     summaries: list[ImportSummary] = []
