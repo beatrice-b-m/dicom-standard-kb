@@ -4,12 +4,14 @@ import os
 import sqlite3
 from collections.abc import Iterator
 from pathlib import Path
+from typing import NoReturn
 
 import pytest
 
 from dicom_kb.build import default_db_path
+from dicom_kb.db.models import read_sqlite
 from dicom_kb.sources.downloader import DEFAULT_CACHE_DIR
-from dicom_kb.sources.manifest import manifest_path, read_manifest
+from dicom_kb.sources.manifest import SourceManifest, manifest_path, read_manifest
 
 
 def _cache_dir() -> Path:
@@ -44,7 +46,7 @@ def cache_dir() -> Path:
 def edition(cache_dir: Path) -> str:
     discovered = _discover_edition(cache_dir)
     if discovered is None:
-        pytest.skip(
+        _missing_prerequisite(
             "no built DICOM KB found; run `dicom-kb fetch --edition current` "
             "and `dicom-kb build --edition <resolved>`"
         )
@@ -55,7 +57,7 @@ def edition(cache_dir: Path) -> str:
 def db_path(cache_dir: Path, edition: str) -> Path:
     path = default_db_path(cache_dir, edition)
     if not path.exists():
-        pytest.skip(
+        _missing_prerequisite(
             f"no built SQLite KB for edition {edition!r} at {path}; run "
             f"`dicom-kb build --edition {edition}`"
         )
@@ -64,18 +66,20 @@ def db_path(cache_dir: Path, edition: str) -> Path:
 
 @pytest.fixture(scope="session")
 def connection(db_path: Path) -> Iterator[sqlite3.Connection]:
-    connection = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
-    connection.row_factory = sqlite3.Row
-    connection.execute("PRAGMA foreign_keys = ON")
-    try:
-        yield connection
-    finally:
-        connection.close()
+    with read_sqlite(db_path) as reader:
+        yield reader
 
 
 @pytest.fixture(scope="session")
-def manifest(cache_dir: Path, edition: str) -> object:
+def manifest(cache_dir: Path, edition: str) -> SourceManifest:
     path = manifest_path(cache_dir, edition)
     if not path.exists():
-        pytest.skip(f"no source manifest for edition {edition!r} at {path}")
+        _missing_prerequisite(f"no source manifest for edition {edition!r} at {path}")
     return read_manifest(path)
+
+
+def _missing_prerequisite(message: str) -> NoReturn:
+    """Only optional smoke checks may skip unavailable local artifacts."""
+    if os.environ.get("DICOM_KB_RUN_RELEASE") == "1":
+        pytest.fail(f"strict release prerequisite missing: {message}", pytrace=False)
+    pytest.skip(message)

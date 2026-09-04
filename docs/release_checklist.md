@@ -36,7 +36,7 @@ make test-dicom-release
 make test-dicom-current
 ```
 
-The integration target is smoke coverage. The release target requires all
+The integration target is smoke coverage. The release target fails on missing prerequisites and requires all
 baseline parts and positive semantic examples; its required tables, parts, and
 cases live in `tests/integration_requires_dicom_download/release_requirements.py`
 and `test_release_goldens.py`. Update those executable requirements with new
