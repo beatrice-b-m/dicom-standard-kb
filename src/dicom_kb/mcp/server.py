@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import sqlite3
 from dataclasses import dataclass
 from importlib import import_module
 from pathlib import Path
 from typing import Any
 
 from dicom_kb.build import default_db_path
+from dicom_kb.db.models import read_sqlite
 from dicom_kb.mcp.schemas import MCP_TOOL_NAMES
 from dicom_kb.mcp.tools import dispatch_mcp_tool, register_mcp_tools
 from dicom_kb.sources.downloader import DEFAULT_CACHE_DIR
@@ -56,7 +56,7 @@ def execute_mcp_tool(
     if tool_name not in MCP_TOOL_NAMES:
         raise ValueError(f"unknown MCP tool: {tool_name}")
 
-    with _connect_query_db(config.resolved_db_path) as connection:
+    with read_sqlite(config.resolved_db_path) as connection:
         response = dispatch_mcp_tool(
             connection,
             tool_name=tool_name,
@@ -87,14 +87,6 @@ def serve_mcp_stdio(config: MCPServerConfig) -> None:
     server = create_mcp_server(config)
     server.run(transport="stdio")
 
-
-def _connect_query_db(path: Path) -> sqlite3.Connection:
-    if not path.exists():
-        raise FileNotFoundError(f"SQLite KB does not exist: {path}")
-    connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
-    connection.row_factory = sqlite3.Row
-    connection.execute("PRAGMA foreign_keys = ON")
-    return connection
 
 def _load_fastmcp() -> Any:
     try:
