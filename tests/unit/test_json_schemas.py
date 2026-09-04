@@ -74,9 +74,7 @@ def test_standard_ref_schema_matches_public_contract_fields() -> None:
 def test_tool_response_schema_matches_public_envelope_contract() -> None:
     schema = _schema("tool_response.schema.json")
     properties = schema["properties"]
-    expected_required = [
-        name for name in ToolResponse.model_fields if name != "notice"
-    ]
+    expected_required = [name for name in ToolResponse.model_fields if name != "notice"]
 
     assert set(properties) == set(ToolResponse.model_fields)
     assert properties["status"]["enum"] == list(get_args(ResponseStatus))
@@ -165,9 +163,7 @@ def test_representative_v2_payloads_match_schema_required_fields() -> None:
     sr_rows = representative_payloads["srTemplateResult"]["rows"]
     assert set(sr_rows[0]) == set(defs["srTemplateRowResult"]["required"])
     context_group_rows = representative_payloads["contextGroupResult"]["rows"]
-    assert set(context_group_rows[0]) == set(
-        defs["contextGroupRowResult"]["required"]
-    )
+    assert set(context_group_rows[0]) == set(defs["contextGroupRowResult"]["required"])
 
 
 def test_tool_response_requires_classification_metadata() -> None:

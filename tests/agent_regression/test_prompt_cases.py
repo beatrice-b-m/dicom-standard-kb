@@ -43,9 +43,7 @@ def test_agent_prompt_case_floor_ids_and_edition_pins() -> None:
 
 def test_agent_prompt_cases_cover_all_v1_tools() -> None:
     covered_tool_names = {
-        tool
-        for case in AGENT_REGRESSION_CASES
-        for tool in case.expected_tools
+        tool for case in AGENT_REGRESSION_CASES for tool in case.expected_tools
     }
 
     assert covered_tool_names >= V1_AGENT_TOOL_NAMES
@@ -53,14 +51,10 @@ def test_agent_prompt_cases_cover_all_v1_tools() -> None:
 
 def test_agent_prompt_cases_cover_v2_public_tools() -> None:
     covered_tool_names = {
-        tool
-        for case in AGENT_REGRESSION_CASES
-        for tool in case.expected_tools
+        tool for case in AGENT_REGRESSION_CASES for tool in case.expected_tools
     }
     v2_case_ids = {
-        case.id
-        for case in AGENT_REGRESSION_CASES
-        if case.id.startswith("agent.v2.")
+        case.id for case in AGENT_REGRESSION_CASES if case.id.startswith("agent.v2.")
     }
 
     assert covered_tool_names >= V2_AGENT_TOOL_NAMES

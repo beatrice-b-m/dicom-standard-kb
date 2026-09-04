@@ -271,9 +271,9 @@ def test_v2_tables_accept_minimal_rows_with_source_refs(tmp_path: Path) -> None:
 
     assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
     counts = {
-        table_name: connection.execute(
-            f"SELECT count(*) FROM {table_name}"
-        ).fetchone()[0]
+        table_name: connection.execute(f"SELECT count(*) FROM {table_name}").fetchone()[
+            0
+        ]
         for table_name in V2_TABLES
     }
     assert counts == {table_name: 1 for table_name in V2_TABLES}

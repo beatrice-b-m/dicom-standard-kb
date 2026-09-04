@@ -56,9 +56,7 @@ TABLE_TOOLS = frozenset(
         "lookup_defined_terms",
     }
 )
-CROSS_REFERENCE_TOOLS = frozenset(
-    {"lookup_sop_class", "resolve_attribute_context"}
-)
+CROSS_REFERENCE_TOOLS = frozenset({"lookup_sop_class", "resolve_attribute_context"})
 TEXT_TOOLS = frozenset({"retrieve_standard_text", "search_standard_text"})
 V2_CROSS_REFERENCE_TOOLS = frozenset({"lookup_transfer_syntax"})
 V2_TEXT_TOOLS = frozenset({"explain_encoding_rule"})

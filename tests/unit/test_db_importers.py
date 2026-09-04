@@ -57,8 +57,7 @@ def test_import_part06_and_lookup_tag_uid(tmp_path: Path) -> None:
     assert element is not None
     assert element.tag == "(0008,0060)"
     assert element.source_ref.canonical_url == (
-        "https://dicom.nema.org/medical/dicom/2026b/output/chtml/"
-        "part06/table_6-1.html"
+        "https://dicom.nema.org/medical/dicom/2026b/output/chtml/part06/table_6-1.html"
     )
 
     uid = UIDRepository(connection).find_by_uid_or_keyword(

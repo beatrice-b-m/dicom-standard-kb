@@ -124,8 +124,7 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
         for import_summary in summary.import_summaries
     )
     assert any(
-        import_summary.sr_templates == 1
-        for import_summary in summary.import_summaries
+        import_summary.sr_templates == 1 for import_summary in summary.import_summaries
     )
     assert any(
         import_summary.sr_template_rows == 2
@@ -407,10 +406,7 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
             "media_type": "application/dicom",
             "service_context": "PS3.10 file",
             "transfer_syntax_constraints_json": json.dumps(
-                (
-                    "Encoded using the Transfer Syntax UID in the "
-                    "File Meta Information",
-                ),
+                ("Encoded using the Transfer Syntax UID in the File Meta Information",),
                 separators=(",", ":"),
             ),
             "directions_json": json.dumps(("file",), separators=(",", ":")),
@@ -624,13 +620,11 @@ def test_build_sqlite_database_imports_official_shape_part16_rows(
     assert summary.metrics.parts_loaded == ("PS3.16",)
     assert summary.warnings == ()
     assert any(
-        import_summary.sr_templates == 1
-        and import_summary.sr_template_rows == 4
+        import_summary.sr_templates == 1 and import_summary.sr_template_rows == 4
         for import_summary in summary.import_summaries
     )
     assert any(
-        import_summary.context_groups == 1
-        and import_summary.context_group_rows == 2
+        import_summary.context_groups == 1 and import_summary.context_group_rows == 2
         for import_summary in summary.import_summaries
     )
     assert any(

@@ -62,8 +62,7 @@ class OfficialKbReleaseRequirements:
             )
         if self.missing_semantic_tables:
             messages.append(
-                "missing semantic rows in: "
-                + ", ".join(self.missing_semantic_tables)
+                "missing semantic rows in: " + ", ".join(self.missing_semantic_tables)
             )
         if self.missing_docbook_structure_parts:
             messages.append(

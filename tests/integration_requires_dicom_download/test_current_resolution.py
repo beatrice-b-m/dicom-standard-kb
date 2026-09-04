@@ -22,4 +22,3 @@ def test_official_current_resolution_pins_concrete_edition() -> None:
     assert resolved.resolved_from == "current"
     assert resolved.edition != "current"
     assert EDITION_RE.fullmatch(resolved.edition)
-

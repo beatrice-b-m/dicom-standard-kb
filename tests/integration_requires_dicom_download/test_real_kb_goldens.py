@@ -238,9 +238,7 @@ def test_real_kb_transfer_syntax_encoding_goldens(
 ) -> None:
     _require_phase2_encoding_rows(connection, edition)
 
-    response = lookup_transfer_syntax(
-        connection, uid_or_keyword=uid, edition=edition
-    )
+    response = lookup_transfer_syntax(connection, uid_or_keyword=uid, edition=edition)
     result = _ok_result(response)
 
     assert result == {"uid_value": uid, **expected}
@@ -264,9 +262,7 @@ def test_real_kb_vr_definition_golden(
 def test_real_kb_ps310_media_type_golden(
     connection: sqlite3.Connection, edition: str
 ) -> None:
-    expected = _require_unique_media_type(
-        connection, edition, source_part="PS3.10"
-    )
+    expected = _require_unique_media_type(connection, edition, source_part="PS3.10")
 
     response = lookup_media_type(
         connection,
@@ -428,10 +424,7 @@ def test_real_kb_iod_goldens_resolve_with_anchor_modules(
         connection, iod_name=iod_name, edition=edition
     )
     modules_result = _ok_result(modules_response)
-    modules = {
-        module["module_name"]: module
-        for module in modules_result["modules"]
-    }
+    modules = {module["module_name"]: module for module in modules_result["modules"]}
     assert modules["Patient"]["usage"] == "M"
     assert modules["SOP Common"]["usage"] == "M"
     _assert_ref(modules_response.refs, part="PS3.3")
@@ -514,8 +507,7 @@ def test_real_kb_module_macro_include_expands_with_dual_provenance(
     )
     result = _ok_result(response)
     assert any(
-        attribute.get("expanded_from_include_id")
-        for attribute in result["attributes"]
+        attribute.get("expanded_from_include_id") for attribute in result["attributes"]
     )
     assert len({ref.anchor for ref in response.refs if ref.part == "PS3.3"}) >= 2
 
@@ -571,9 +563,7 @@ def _assert_ref(
     assert all(ref.official_url for ref in matches if ref.anchor is not None)
 
 
-def _require_phase2_encoding_rows(
-    connection: sqlite3.Connection, edition: str
-) -> None:
+def _require_phase2_encoding_rows(connection: sqlite3.Connection, edition: str) -> None:
     try:
         row = connection.execute(
             """
@@ -690,9 +680,7 @@ def _require_unique_dicomweb_transaction(
     return row
 
 
-def _require_sr_template(
-    connection: sqlite3.Connection, edition: str
-) -> sqlite3.Row:
+def _require_sr_template(connection: sqlite3.Connection, edition: str) -> sqlite3.Row:
     _require_v2_rows(connection, edition, "sr_template", part="PS3.16")
     row = connection.execute(
         """
@@ -716,9 +704,7 @@ def _require_sr_template(
     return row
 
 
-def _require_context_group(
-    connection: sqlite3.Connection, edition: str
-) -> sqlite3.Row:
+def _require_context_group(connection: sqlite3.Connection, edition: str) -> sqlite3.Row:
     _require_v2_rows(connection, edition, "context_group", part="PS3.16")
     row = connection.execute(
         """
@@ -785,9 +771,7 @@ def _require_unique_code_meaning(
     return row
 
 
-def _attribute_by_tag(
-    attributes: list[dict[str, Any]], tag: str
-) -> dict[str, Any]:
+def _attribute_by_tag(attributes: list[dict[str, Any]], tag: str) -> dict[str, Any]:
     for attribute in attributes:
         if attribute.get("attribute_tag") == tag:
             return attribute

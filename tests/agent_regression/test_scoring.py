@@ -170,9 +170,7 @@ def test_agent_score_requires_positive_v2_tool_part_citation() -> None:
     scorecard = score_agent_run(case, run)
 
     assert scorecard.passed is False
-    assert [issue.code for issue in scorecard.issues] == [
-        "citation_part_mismatch"
-    ]
+    assert [issue.code for issue in scorecard.issues] == ["citation_part_mismatch"]
 
 
 def test_agent_score_reports_expected_argument_mismatch() -> None:

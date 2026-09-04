@@ -676,8 +676,7 @@ def test_v1_tool_responses_include_classification_metadata(tmp_path: Path) -> No
         ) == expected[response.tool]
         assert response.parse_confidence.level in {"high", "medium", "low"}
         assert (
-            response.parse_confidence.source
-            == response.classification.evidence_level
+            response.parse_confidence.source == response.classification.evidence_level
         )
 
 
@@ -1304,9 +1303,7 @@ def test_lookup_dicomweb_transaction_returns_candidates_for_ambiguous_route(
     assert [
         candidate["transaction_name"] for candidate in response.result["candidates"]
     ] == ["RetrieveStudy", "StoreInstances"]
-    methods = {
-        candidate["http_method"] for candidate in response.result["candidates"]
-    }
+    methods = {candidate["http_method"] for candidate in response.result["candidates"]}
     assert methods == {"GET", "POST"}
     assert {ref.table for ref in response.refs} == {"Synthetic Transactions"}
     assert {ref.anchor for ref in response.refs} == {"table_18-1"}
@@ -1331,9 +1328,7 @@ def test_lookup_dicomweb_transaction_validates_empty_input_and_reports_not_found
     assert empty.status == "validation_error"
     assert empty.result == {"message": "name_or_route must not be empty."}
     assert missing.status == "not_found"
-    assert missing.result == {
-        "message": "No DICOMweb transaction matched the input."
-    }
+    assert missing.result == {"message": "No DICOMweb transaction matched the input."}
 
 
 def test_lookup_context_group_returns_ps316_rows_and_include_rows(
@@ -1408,9 +1403,10 @@ def test_lookup_context_group_returns_candidates_for_ambiguous_name(
     assert response.status == "validation_error"
     assert response.result is not None
     assert response.result["message"] == "Context group input matched multiple rows."
-    assert [
-        candidate["cid"] for candidate in response.result["candidates"]
-    ] == ["CID 29", "CID 30"]
+    assert [candidate["cid"] for candidate in response.result["candidates"]] == [
+        "CID 29",
+        "CID 30",
+    ]
     assert response.result["candidates"][0]["rows"][1]["include_cid"] == "CID 30"
     assert response.result["candidates"][1]["rows"] == []
     assert {ref.part for ref in response.refs} == {"PS3.16"}
@@ -1506,9 +1502,10 @@ def test_lookup_sr_template_returns_candidates_for_ambiguous_name(
     assert response.status == "validation_error"
     assert response.result is not None
     assert response.result["message"] == "SR template input matched multiple rows."
-    assert [
-        candidate["tid"] for candidate in response.result["candidates"]
-    ] == ["TID 1500", "TID 1501"]
+    assert [candidate["tid"] for candidate in response.result["candidates"]] == [
+        "TID 1500",
+        "TID 1501",
+    ]
     assert response.result["candidates"][0]["rows"][1]["include_tid"] == "TID 1501"
     assert response.result["candidates"][1]["rows"] == []
     assert {ref.part for ref in response.refs} == {"PS3.16"}
@@ -1787,9 +1784,7 @@ def test_retrieve_standard_text_returns_cited_ps37_service_behavior_fallback(
     assert response.result is not None
     assert response.result["part"] == "PS3.7"
     assert response.result["title"] == "DIMSE Services Overview"
-    assert "C-ECHO service behavior that verifi" in str(
-        response.result["text_excerpt"]
-    )
+    assert "C-ECHO service behavior that verifi" in str(response.result["text_excerpt"])
     assert response.result["tables"] == [
         {"table_id": "table_7-1", "title": "Synthetic Message Services"},
         {"table_id": "table_7-2", "title": "Synthetic Message Notes"},
@@ -2404,8 +2399,7 @@ def test_resolve_attribute_context_withholds_ambiguous_override_text(
     assert response.result["effective_type"] is None
     assert response.classification.machine_decidability == "partially_decidable"
     assert response.warnings == [
-        "ambiguous type override language found in source refs: "
-        "2026b.PS3.3.table_A.3-1"
+        "ambiguous type override language found in source refs: 2026b.PS3.3.table_A.3-1"
     ]
 
 

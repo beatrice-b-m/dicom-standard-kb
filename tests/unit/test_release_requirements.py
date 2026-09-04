@@ -25,9 +25,7 @@ def test_release_requirements_accept_complete_official_kb() -> None:
 
     assert requirements.ok is True
     assert requirements.failure_message() == ""
-    require_official_kb_release_ready(
-        connection, edition="2026b", manifest=manifest
-    )
+    require_official_kb_release_ready(connection, edition="2026b", manifest=manifest)
 
 
 def test_release_requirements_report_missing_docbook_part() -> None:
@@ -91,9 +89,7 @@ def _release_ready_connection(
     connection.row_factory = sqlite3.Row
     apply_migrations(connection)
     _insert_source_refs(connection)
-    _insert_docbook_structure(
-        connection, omit_parts=omit_structure_parts or set()
-    )
+    _insert_docbook_structure(connection, omit_parts=omit_structure_parts or set())
     _insert_semantic_rows(connection, omit_tables=omit_tables or set())
     return connection
 

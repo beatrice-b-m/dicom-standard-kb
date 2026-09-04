@@ -1,2 +1,1 @@
 """DocBook parsing primitives."""
-

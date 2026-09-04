@@ -80,8 +80,7 @@ def test_parse_part18_official_shape_derives_release_examples() -> None:
     result = parse_part18(document, edition="2026b")
 
     assert [
-        (table.table_id, table.table_kind)
-        for table in result.recognized_tables
+        (table.table_id, table.table_kind) for table in result.recognized_tables
     ] == [
         ("table_8.7.3-2", "media_type"),
         ("table_10.3-1", "dicomweb_transaction_overview"),
@@ -179,8 +178,8 @@ def test_parse_part18_deduplicates_derived_official_media_contexts() -> None:
 """
     document = parse_docbook_xml(
         PS318_OFFICIAL_SHAPE_DOCBOOK.replace(
-            "    <section xml:id=\"sect_10.5.1.1.1\">",
-            f"{duplicate_retrieve_table}    <section xml:id=\"sect_10.5.1.1.1\">",
+            '    <section xml:id="sect_10.5.1.1.1">',
+            f'{duplicate_retrieve_table}    <section xml:id="sect_10.5.1.1.1">',
         ),
         part="PS3.18",
     )

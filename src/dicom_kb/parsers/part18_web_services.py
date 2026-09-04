@@ -183,7 +183,7 @@ def _is_media_type_table(headers: dict[str, int]) -> bool:
 
 
 def _is_official_transaction_overview_table(
-    header_names: dict[int, tuple[str, ...]]
+    header_names: dict[int, tuple[str, ...]],
 ) -> bool:
     return (
         _column_with_header(header_names, "transaction name") is not None
@@ -226,9 +226,7 @@ def _official_transaction_overviews(
         header_names = _header_names_by_column(table)
         if not _is_official_transaction_overview_table(header_names):
             continue
-        for overview in _parse_official_transaction_overview_table(
-            table, header_names
-        ):
+        for overview in _parse_official_transaction_overview_table(table, header_names):
             overviews.setdefault(overview.transaction_name.casefold(), []).append(
                 overview
             )
@@ -548,7 +546,9 @@ def _media_types_for_official_transaction_resource_table(
                 edition_id=edition,
                 media_type="multipart/related",
                 service_context="STOW-RS request",
-                transfer_syntax_constraints=(_store_request_media_constraint(overview),),
+                transfer_syntax_constraints=(
+                    _store_request_media_constraint(overview),
+                ),
                 directions=("request",),
                 source_ref=source_ref,
             )
