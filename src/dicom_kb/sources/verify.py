@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from dicom_kb.db.models import read_sqlite
 from dicom_kb.sources.checksums import sha256_file
 from dicom_kb.sources.manifest import (
     ManifestChecksumError,
@@ -188,17 +189,16 @@ def _verify_database(
             (f"SQLite KB does not exist: {db_path}",),
         )
     try:
-        connection = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
-        connection.row_factory = sqlite3.Row
-        row = connection.execute(
-            """
-            SELECT edition_id, source_manifest_sha256, schema_version, metadata_json
-            FROM build_metadata
-            WHERE edition_id = ?
-            """,
-            (manifest.edition,),
-        ).fetchone()
-    except sqlite3.Error as exc:
+        with read_sqlite(db_path) as connection:
+            row = connection.execute(
+                """
+                SELECT edition_id, source_manifest_sha256, schema_version, metadata_json
+                FROM build_metadata
+                WHERE edition_id = ?
+                """,
+                (manifest.edition,),
+            ).fetchone()
+    except (sqlite3.Error, OSError) as exc:
         return (
             DatabaseChecks(
                 path=str(db_path),
@@ -207,9 +207,6 @@ def _verify_database(
             ),
             (),
         )
-    finally:
-        if "connection" in locals():
-            connection.close()
 
     if row is None:
         return (

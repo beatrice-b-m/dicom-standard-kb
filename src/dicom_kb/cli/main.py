@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Annotated
 
@@ -28,6 +29,7 @@ from dicom_kb.config import (
     str_env,
     value_with_precedence,
 )
+from dicom_kb.db.models import read_sqlite
 from dicom_kb.eval.reporting import report_as_jsonable, score_agent_run_file
 from dicom_kb.eval.runner import (
     ExternalAgentError,
@@ -1510,19 +1512,11 @@ def _echo_attribute_context_response(
 
 def _connect_query_db(
     path: Path | None, *, cache_dir: Path, edition: str
-) -> sqlite3.Connection:
-    return _connect_existing_db(
-        path if path is not None else default_db_path(cache_dir, edition)
-    )
-
-
-def _connect_existing_db(path: Path) -> sqlite3.Connection:
-    if not path.exists():
-        raise typer.BadParameter(f"SQLite KB does not exist: {path}")
-    connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
-    connection.row_factory = sqlite3.Row
-    connection.execute("PRAGMA foreign_keys = ON")
-    return connection
+) -> AbstractContextManager[sqlite3.Connection]:
+    resolved = path if path is not None else default_db_path(cache_dir, edition)
+    if not resolved.is_file():
+        raise typer.BadParameter(f"SQLite KB does not exist: {resolved}")
+    return read_sqlite(resolved)
 
 
 def _echo_response(response: ToolResponse) -> None:
