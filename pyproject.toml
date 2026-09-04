@@ -8,7 +8,6 @@ license = { text = "Apache-2.0" }
 authors = [{ name = "dicom-standard-kb contributors" }]
 keywords = ["dicom", "docbook", "knowledge-base", "mcp"]
 dependencies = [
-  "beautifulsoup4>=4.12",
   "lxml>=5.2",
   "pydantic>=2.7",
   "pyyaml>=6.0",
@@ -25,8 +24,6 @@ dev = [
   "mypy>=1.10",
   "pytest>=8.2",
   "ruff>=0.5",
-  "syrupy>=4.6",
-  "hypothesis>=6.100",
   "types-pyyaml>=6.0.12.20260518",
 ]
 
