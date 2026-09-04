@@ -67,7 +67,7 @@ def execute_mcp_tool(
 
 
 def create_mcp_server(config: MCPServerConfig) -> Any:
-    """Create a FastMCP server with all v1 DICOM query tools registered."""
+    """Create a FastMCP server with all DICOM query tools registered."""
     fast_mcp = _load_fastmcp()
     server = fast_mcp("dicom-standard-kb")
     register_mcp_tools(

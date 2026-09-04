@@ -306,7 +306,7 @@ def tool_response(
 def classification_for_tool(
     *, tool: str, status: ResponseStatus
 ) -> ResponseClassification:
-    """Return deterministic Section 11 classification for a tool/status pair."""
+    """Return deterministic evidence classification for a tool/status pair."""
     evidence_level = evidence_level_for_tool(tool)
     if status != "ok":
         return ResponseClassification(

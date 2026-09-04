@@ -3,6 +3,22 @@
 An open-source DICOM-standard knowledge-base builder.
 
 
+## Working guide
+
+Read `docs/development.md` for the code map, invariants, and extension workflow.
+Run `make install` and `make check`; use targeted tests while iterating. Official
+cache integration checks are separate from the offline development suite.
+
+- Keep public resolver, repository, and importer exports stable when reorganizing.
+- Keep domain logic out of CLI/MCP adapters and preserve citation/edition contracts.
+- Use shared CLI options and explicit invocation contexts rather than global state.
+- Keep generated artifacts outside the repository and prefer synthetic fixtures.
+- Public guides and API reference belong in `dicom-standard-kb-docs`, which pins
+  its documented source state. Local docs serve agents and developers working in
+  this checkout. Keep completed plans and progress logs in Git history, not new
+  root-level tracking documents.
+- Follow `docs/release_checklist.md` for distribution and release verification.
+
 ## Git Commit Policy
 
 Every completed task must be tracked in a descriptive, granular git commit.

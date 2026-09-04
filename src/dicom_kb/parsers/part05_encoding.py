@@ -18,7 +18,7 @@ from dicom_kb.ir.models import (
 
 @dataclass(frozen=True)
 class Part05TableSummary:
-    """A recognized PS3.5 table awaiting semantic import in Phase 2."""
+    """A recognized PS3.5 table with bounded parser diagnostics."""
 
     table_id: str | None
     title: str | None
