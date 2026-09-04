@@ -45,9 +45,7 @@ class DicomKBConfig(BaseModel):
 
     @field_validator("require_citations")
     @classmethod
-    def _require_citations_cannot_be_disabled(
-        cls, value: bool | None
-    ) -> bool | None:
+    def _require_citations_cannot_be_disabled(cls, value: bool | None) -> bool | None:
         if value is False:
             raise ValueError("config files cannot disable citation requirements")
         return value

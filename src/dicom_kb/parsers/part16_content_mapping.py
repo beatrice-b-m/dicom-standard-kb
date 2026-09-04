@@ -176,13 +176,9 @@ def _is_sr_template_table(
         headers.keys() & {"name", "template name", "template", "extensibility"}
     ):
         return True
-    return (
-        {"nl", "vt", "concept name"} <= set(headers)
-        and _metadata_from_context(
-            table, sections_by_id, prefix="TID", normalizer=_normalize_tid
-        ).identifier
-        is not None
-    )
+    return {"nl", "vt", "concept name"} <= set(headers) and _metadata_from_context(
+        table, sections_by_id, prefix="TID", normalizer=_normalize_tid
+    ).identifier is not None
 
 
 def _is_context_group_table(
@@ -201,13 +197,11 @@ def _is_context_group_table(
         }
     ):
         return True
-    return (
-        {"coding scheme designator", "code value", "code meaning"} <= set(headers)
-        and _metadata_from_context(
-            table, sections_by_id, prefix="CID", normalizer=_normalize_cid
-        ).identifier
-        is not None
-    )
+    return {"coding scheme designator", "code value", "code meaning"} <= set(
+        headers
+    ) and _metadata_from_context(
+        table, sections_by_id, prefix="CID", normalizer=_normalize_cid
+    ).identifier is not None
 
 
 def _parse_sr_template_table(
@@ -278,9 +272,9 @@ def _parse_sr_template_table(
             ),
         )
 
-        row_count_by_template[template_id] = row_count_by_template.get(
-            template_id, 0
-        ) + 1
+        row_count_by_template[template_id] = (
+            row_count_by_template.get(template_id, 0) + 1
+        )
         row_order = _row_order(row, row_column) or row_count_by_template[template_id]
         value_type = _optional_cell(row, value_type_column)
         concept_name = _sr_template_concept_name(

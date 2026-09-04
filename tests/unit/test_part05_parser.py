@@ -51,9 +51,7 @@ def test_parse_part05_classifies_vr_tables_and_warns_on_gaps() -> None:
     assert pn.value_representation_class == "character string"
     assert pn.length_notes == ("variable length",)
     assert pn.padding_behavior == "space padded"
-    assert pn.character_repertoire_notes == (
-        "uses the default character repertoire",
-    )
+    assert pn.character_repertoire_notes == ("uses the default character repertoire",)
     assert pn.binary_or_text == "text"
     assert result.vr_definitions[1].binary_or_text == "binary"
 

@@ -40,163 +40,150 @@ def test_mcp_stdio_protocol_with_official_client(tmp_path: Path) -> None:
             stdio_client(parameters) as (read_stream, write_stream),
             ClientSession(read_stream, write_stream) as session,
         ):
-                initialized = await session.initialize()
-                assert initialized.serverInfo.name == "dicom-standard-kb"
+            initialized = await session.initialize()
+            assert initialized.serverInfo.name == "dicom-standard-kb"
 
-                listed = await session.list_tools()
-                tools_by_name = {tool.name: tool for tool in listed.tools}
-                assert tuple(tools_by_name) == MCP_TOOL_NAMES
-                for tool_name in MCP_TOOL_NAMES:
-                    schema = tools_by_name[tool_name].inputSchema
-                    assert schema["type"] == "object"
-                    assert schema["properties"]
+            listed = await session.list_tools()
+            tools_by_name = {tool.name: tool for tool in listed.tools}
+            assert tuple(tools_by_name) == MCP_TOOL_NAMES
+            for tool_name in MCP_TOOL_NAMES:
+                schema = tools_by_name[tool_name].inputSchema
+                assert schema["type"] == "object"
+                assert schema["properties"]
 
-                element_result = await session.call_tool(
-                    "dicom_lookup_data_element",
-                    {"tag_or_keyword": "Modality"},
-                )
-                element_payload = _tool_payload(element_result)
-                assert element_payload["edition"] == "2026b"
-                assert element_payload["tool"] == "lookup_data_element"
-                assert element_payload["status"] == "ok"
-                assert element_payload["classification"] == {
-                    "evidence_level": "parsed_registry",
-                    "machine_decidability": "decidable",
-                    "normativity": "normative",
-                }
-                assert element_payload["parse_confidence"] == {
-                    "level": "high",
-                    "source": "parsed_registry",
-                }
-                assert element_payload["refs"]
-                assert element_payload["warnings"] == []
-                assert "notice" not in element_payload
+            element_result = await session.call_tool(
+                "dicom_lookup_data_element",
+                {"tag_or_keyword": "Modality"},
+            )
+            element_payload = _tool_payload(element_result)
+            assert element_payload["edition"] == "2026b"
+            assert element_payload["tool"] == "lookup_data_element"
+            assert element_payload["status"] == "ok"
+            assert element_payload["classification"] == {
+                "evidence_level": "parsed_registry",
+                "machine_decidability": "decidable",
+                "normativity": "normative",
+            }
+            assert element_payload["parse_confidence"] == {
+                "level": "high",
+                "source": "parsed_registry",
+            }
+            assert element_payload["refs"]
+            assert element_payload["warnings"] == []
+            assert "notice" not in element_payload
 
-                modules_result = await session.call_tool(
-                    "dicom_list_modules_for_iod",
-                    {"iod_name": "CT Image"},
-                )
-                modules_payload = _tool_payload(modules_result)
-                assert modules_payload["edition"] == "2026b"
-                assert modules_payload["tool"] == "list_modules_for_iod"
-                assert modules_payload["status"] == "ok"
-                assert modules_payload["classification"] == {
-                    "evidence_level": "parsed_table",
-                    "machine_decidability": "decidable",
-                    "normativity": "normative",
-                }
-                assert modules_payload["parse_confidence"] == {
-                    "level": "high",
-                    "source": "parsed_table",
-                }
-                assert modules_payload["refs"]
-                assert modules_payload["warnings"] == []
-                assert "notice" not in modules_payload
-                assert modules_payload["result"]["modules"][0]["module_name"] == (
-                    "Patient"
-                )
+            modules_result = await session.call_tool(
+                "dicom_list_modules_for_iod",
+                {"iod_name": "CT Image"},
+            )
+            modules_payload = _tool_payload(modules_result)
+            assert modules_payload["edition"] == "2026b"
+            assert modules_payload["tool"] == "list_modules_for_iod"
+            assert modules_payload["status"] == "ok"
+            assert modules_payload["classification"] == {
+                "evidence_level": "parsed_table",
+                "machine_decidability": "decidable",
+                "normativity": "normative",
+            }
+            assert modules_payload["parse_confidence"] == {
+                "level": "high",
+                "source": "parsed_table",
+            }
+            assert modules_payload["refs"]
+            assert modules_payload["warnings"] == []
+            assert "notice" not in modules_payload
+            assert modules_payload["result"]["modules"][0]["module_name"] == ("Patient")
 
-                media_type_result = await session.call_tool(
-                    "dicom_lookup_media_type",
-                    {"media_type_or_context": "file"},
-                )
-                media_type_payload = _tool_payload(media_type_result)
-                assert media_type_payload["edition"] == "2026b"
-                assert media_type_payload["tool"] == "lookup_media_type"
-                assert media_type_payload["status"] == "ok"
-                assert media_type_payload["result"]["media_type"] == (
-                    "application/dicom"
-                )
-                assert media_type_payload["result"]["service_context"] == (
-                    "PS3.10 file"
-                )
-                assert media_type_payload["refs"][0]["part"] == "PS3.10"
+            media_type_result = await session.call_tool(
+                "dicom_lookup_media_type",
+                {"media_type_or_context": "file"},
+            )
+            media_type_payload = _tool_payload(media_type_result)
+            assert media_type_payload["edition"] == "2026b"
+            assert media_type_payload["tool"] == "lookup_media_type"
+            assert media_type_payload["status"] == "ok"
+            assert media_type_payload["result"]["media_type"] == ("application/dicom")
+            assert media_type_payload["result"]["service_context"] == ("PS3.10 file")
+            assert media_type_payload["refs"][0]["part"] == "PS3.10"
 
-                dicomweb_media_type_result = await session.call_tool(
-                    "dicom_lookup_media_type",
-                    {"media_type_or_context": "STOW-RS request"},
-                )
-                dicomweb_media_type_payload = _tool_payload(
-                    dicomweb_media_type_result
-                )
-                assert dicomweb_media_type_payload["edition"] == "2026b"
-                assert dicomweb_media_type_payload["tool"] == "lookup_media_type"
-                assert dicomweb_media_type_payload["status"] == "ok"
-                assert dicomweb_media_type_payload["result"]["media_type"] == (
-                    "multipart/related"
-                )
-                assert dicomweb_media_type_payload["result"]["service_context"] == (
-                    "STOW-RS request"
-                )
-                assert dicomweb_media_type_payload["refs"][0]["part"] == "PS3.18"
+            dicomweb_media_type_result = await session.call_tool(
+                "dicom_lookup_media_type",
+                {"media_type_or_context": "STOW-RS request"},
+            )
+            dicomweb_media_type_payload = _tool_payload(dicomweb_media_type_result)
+            assert dicomweb_media_type_payload["edition"] == "2026b"
+            assert dicomweb_media_type_payload["tool"] == "lookup_media_type"
+            assert dicomweb_media_type_payload["status"] == "ok"
+            assert dicomweb_media_type_payload["result"]["media_type"] == (
+                "multipart/related"
+            )
+            assert dicomweb_media_type_payload["result"]["service_context"] == (
+                "STOW-RS request"
+            )
+            assert dicomweb_media_type_payload["refs"][0]["part"] == "PS3.18"
 
-                dicomweb_result = await session.call_tool(
-                    "dicom_lookup_dicomweb_transaction",
-                    {"name_or_route": "RetrieveStudy"},
-                )
-                dicomweb_payload = _tool_payload(dicomweb_result)
-                assert dicomweb_payload["edition"] == "2026b"
-                assert dicomweb_payload["tool"] == "lookup_dicomweb_transaction"
-                assert dicomweb_payload["status"] == "ok"
-                assert dicomweb_payload["result"]["transaction_name"] == (
-                    "RetrieveStudy"
-                )
-                assert dicomweb_payload["result"]["http_method"] == "GET"
-                assert dicomweb_payload["result"]["route_template"] == (
-                    "/studies/{studyInstanceUID}"
-                )
-                assert dicomweb_payload["refs"][0]["part"] == "PS3.18"
+            dicomweb_result = await session.call_tool(
+                "dicom_lookup_dicomweb_transaction",
+                {"name_or_route": "RetrieveStudy"},
+            )
+            dicomweb_payload = _tool_payload(dicomweb_result)
+            assert dicomweb_payload["edition"] == "2026b"
+            assert dicomweb_payload["tool"] == "lookup_dicomweb_transaction"
+            assert dicomweb_payload["status"] == "ok"
+            assert dicomweb_payload["result"]["transaction_name"] == ("RetrieveStudy")
+            assert dicomweb_payload["result"]["http_method"] == "GET"
+            assert dicomweb_payload["result"]["route_template"] == (
+                "/studies/{studyInstanceUID}"
+            )
+            assert dicomweb_payload["refs"][0]["part"] == "PS3.18"
 
-                sr_template_result = await session.call_tool(
-                    "dicom_lookup_sr_template",
-                    {"tid_or_name": "TID 1500"},
-                )
-                sr_template_payload = _tool_payload(sr_template_result)
-                assert sr_template_payload["edition"] == "2026b"
-                assert sr_template_payload["tool"] == "lookup_sr_template"
-                assert sr_template_payload["status"] == "ok"
-                assert sr_template_payload["result"]["tid"] == "TID 1500"
-                assert sr_template_payload["result"]["name"] == (
-                    "Measurement Report"
-                )
-                assert sr_template_payload["result"]["rows"][1]["include_tid"] == (
-                    "TID 1501"
-                )
-                assert sr_template_payload["refs"][0]["part"] == "PS3.16"
+            sr_template_result = await session.call_tool(
+                "dicom_lookup_sr_template",
+                {"tid_or_name": "TID 1500"},
+            )
+            sr_template_payload = _tool_payload(sr_template_result)
+            assert sr_template_payload["edition"] == "2026b"
+            assert sr_template_payload["tool"] == "lookup_sr_template"
+            assert sr_template_payload["status"] == "ok"
+            assert sr_template_payload["result"]["tid"] == "TID 1500"
+            assert sr_template_payload["result"]["name"] == ("Measurement Report")
+            assert sr_template_payload["result"]["rows"][1]["include_tid"] == (
+                "TID 1501"
+            )
+            assert sr_template_payload["refs"][0]["part"] == "PS3.16"
 
-                context_group_result = await session.call_tool(
-                    "dicom_lookup_context_group",
-                    {"cid_or_name": "CID 29"},
-                )
-                context_group_payload = _tool_payload(context_group_result)
-                assert context_group_payload["edition"] == "2026b"
-                assert context_group_payload["tool"] == "lookup_context_group"
-                assert context_group_payload["status"] == "ok"
-                assert context_group_payload["result"]["cid"] == "CID 29"
-                assert context_group_payload["result"]["name"] == (
-                    "Acquisition Modality"
-                )
-                assert context_group_payload["result"]["rows"][0][
-                    "code_meaning"
-                ] == "Computed Tomography"
-                assert context_group_payload["refs"][0]["part"] == "PS3.16"
+            context_group_result = await session.call_tool(
+                "dicom_lookup_context_group",
+                {"cid_or_name": "CID 29"},
+            )
+            context_group_payload = _tool_payload(context_group_result)
+            assert context_group_payload["edition"] == "2026b"
+            assert context_group_payload["tool"] == "lookup_context_group"
+            assert context_group_payload["status"] == "ok"
+            assert context_group_payload["result"]["cid"] == "CID 29"
+            assert context_group_payload["result"]["name"] == ("Acquisition Modality")
+            assert (
+                context_group_payload["result"]["rows"][0]["code_meaning"]
+                == "Computed Tomography"
+            )
+            assert context_group_payload["refs"][0]["part"] == "PS3.16"
 
-                code_meaning_result = await session.call_tool(
-                    "dicom_lookup_code_meaning",
-                    {"code_value": "CT", "scheme": "DCM"},
-                )
-                code_meaning_payload = _tool_payload(code_meaning_result)
-                assert code_meaning_payload["edition"] == "2026b"
-                assert code_meaning_payload["tool"] == "lookup_code_meaning"
-                assert code_meaning_payload["status"] == "ok"
-                assert code_meaning_payload["result"] == {
-                    "code_value": "CT",
-                    "coding_scheme_designator": "DCM",
-                    "coding_scheme_version": None,
-                    "code_meaning": "Computed Tomography",
-                    "context_groups": ["CID 29"],
-                }
-                assert code_meaning_payload["refs"][0]["part"] == "PS3.16"
+            code_meaning_result = await session.call_tool(
+                "dicom_lookup_code_meaning",
+                {"code_value": "CT", "scheme": "DCM"},
+            )
+            code_meaning_payload = _tool_payload(code_meaning_result)
+            assert code_meaning_payload["edition"] == "2026b"
+            assert code_meaning_payload["tool"] == "lookup_code_meaning"
+            assert code_meaning_payload["status"] == "ok"
+            assert code_meaning_payload["result"] == {
+                "code_value": "CT",
+                "coding_scheme_designator": "DCM",
+                "coding_scheme_version": None,
+                "code_meaning": "Computed Tomography",
+                "context_groups": ["CID 29"],
+            }
+            assert code_meaning_payload["refs"][0]["part"] == "PS3.16"
 
     anyio.run(run_client)
 

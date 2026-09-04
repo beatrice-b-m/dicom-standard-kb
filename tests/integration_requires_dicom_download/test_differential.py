@@ -135,9 +135,7 @@ def test_ct_image_module_list_matches_innolitics_json(
         "local": sorted(local_modules),
         "external_value": sorted(external_modules),
     }
-    if local_modules != external_modules and not _is_allowlisted(
-        mismatch, allowlist
-    ):
+    if local_modules != external_modules and not _is_allowlisted(mismatch, allowlist):
         pytest.fail(json.dumps(mismatch, indent=2, sort_keys=True))
 
 

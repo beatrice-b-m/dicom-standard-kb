@@ -622,9 +622,7 @@ def test_cli_lookup_sop_class_outputs_linked_iod(tmp_path: Path) -> None:
 
     assert payload["tool"] == "lookup_sop_class"
     assert payload["status"] == "ok"
-    assert payload["result"]["sop_class"]["uid_value"] == (
-        "1.2.840.10008.5.1.4.1.1.2"
-    )
+    assert payload["result"]["sop_class"]["uid_value"] == ("1.2.840.10008.5.1.4.1.1.2")
     assert payload["result"]["iods"][0]["iod_name"] == "CT Image"
     assert {ref["part"] for ref in payload["refs"]} == {"PS3.3", "PS3.4"}
 

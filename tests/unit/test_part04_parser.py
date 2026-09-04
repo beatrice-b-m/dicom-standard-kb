@@ -61,9 +61,7 @@ def test_parse_part04_derives_storage_iod_when_xref_text_is_empty() -> None:
     result = parse_part04(parse_docbook_xml(xml, part="PS3.4"), edition="2026b")
 
     assert [sop.name for sop in result.sop_classes] == ["CT Image Storage"]
-    assert [edge.iod_id for edge in result.sop_class_iods] == [
-        "2026b.iod.ct_image"
-    ]
+    assert [edge.iod_id for edge in result.sop_class_iods] == ["2026b.iod.ct_image"]
 
 
 def test_parse_part04_prefers_iod_reference_map() -> None:

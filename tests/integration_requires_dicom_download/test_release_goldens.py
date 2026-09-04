@@ -25,9 +25,7 @@ pytestmark = [
 ]
 
 
-def test_release_golden_pn_vr(
-    connection: sqlite3.Connection, edition: str
-) -> None:
+def test_release_golden_pn_vr(connection: sqlite3.Connection, edition: str) -> None:
     response = lookup_vr(connection, vr="PN", edition=edition)
     result = _strict_ok_result(response)
 

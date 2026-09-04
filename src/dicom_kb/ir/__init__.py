@@ -1,2 +1,1 @@
 """Canonical intermediate representation models."""
-

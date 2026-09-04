@@ -285,9 +285,7 @@ V2_UNSUPPORTED_CASES = (
     (
         "unsupported.sr_template.unknown_tid",
         "tid",
-        (
-            "Try to look up TID 999999 and do not invent SR template rows."
-        ),
+        ("Try to look up TID 999999 and do not invent SR template rows."),
         ("lookup_sr_template",),
         ("TID", "not found", "unsupported"),
     ),
@@ -301,10 +299,7 @@ V2_UNSUPPORTED_CASES = (
     (
         "unsupported.context_group.unknown_cid",
         "cid",
-        (
-            "Try to look up CID 999999 and do not invent context-group code "
-            "rows."
-        ),
+        ("Try to look up CID 999999 and do not invent context-group code rows."),
         ("lookup_context_group",),
         ("CID", "not found", "unsupported"),
     ),
@@ -318,10 +313,7 @@ V2_UNSUPPORTED_CASES = (
     (
         "unsupported.code_meaning.unknown_code",
         "code_lookup",
-        (
-            "Try code value ZZZ in scheme DCM and avoid unsupported code "
-            "meaning claims."
-        ),
+        ("Try code value ZZZ in scheme DCM and avoid unsupported code meaning claims."),
         ("lookup_code_meaning",),
         ("code", "not found", "unsupported"),
     ),
@@ -339,10 +331,7 @@ V2_UNSUPPORTED_CASES = (
 V2_WORKFLOW_CASES = (
     (
         "workflow.person_name_vr_defined_terms",
-        (
-            "Check the PN VR and Patient's Name defined terms together, "
-            "with citations."
-        ),
+        ("Check the PN VR and Patient's Name defined terms together, with citations."),
         ("lookup_vr", "lookup_data_element", "lookup_defined_terms"),
         ("PN", "Patient's Name", "defined terms"),
     ),
@@ -354,10 +343,7 @@ V2_WORKFLOW_CASES = (
     ),
     (
         "workflow.ob_pixel_data_encoding",
-        (
-            "Check the OB VR, then look up Pixel Data and cite the dictionary "
-            "evidence."
-        ),
+        ("Check the OB VR, then look up Pixel Data and cite the dictionary evidence."),
         ("lookup_vr", "lookup_data_element"),
         ("OB", "Pixel Data"),
     ),
@@ -369,10 +355,7 @@ V2_WORKFLOW_CASES = (
     ),
     (
         "workflow.implicit_transfer_syntax_uid",
-        (
-            "Look up Implicit VR Little Endian as a UID and as a transfer "
-            "syntax detail."
-        ),
+        ("Look up Implicit VR Little Endian as a UID and as a transfer syntax detail."),
         ("lookup_uid", "lookup_transfer_syntax"),
         ("Implicit VR Little Endian", "encoding"),
     ),
@@ -405,10 +388,7 @@ V2_WORKFLOW_CASES = (
     ),
     (
         "workflow.dicomweb_store_media_type",
-        (
-            "Look up StoreInstances and the STOW-RS request media type "
-            "constraints."
-        ),
+        ("Look up StoreInstances and the STOW-RS request media type constraints."),
         ("lookup_dicomweb_transaction", "lookup_media_type"),
         ("StoreInstances", "STOW-RS request", "multipart/related"),
     ),
@@ -423,10 +403,7 @@ V2_WORKFLOW_CASES = (
     ),
     (
         "workflow.sr_template_context_group_code",
-        (
-            "Look up TID 1500, CID 29, and code CT in scheme DCM with "
-            "PS3.16 citations."
-        ),
+        ("Look up TID 1500, CID 29, and code CT in scheme DCM with PS3.16 citations."),
         ("lookup_sr_template", "lookup_context_group", "lookup_code_meaning"),
         ("TID 1500", "CID 29", "Computed Tomography"),
     ),
@@ -440,6 +417,7 @@ V2_WORKFLOW_CASES = (
         ("File Preamble", "PS3.10", "fallback"),
     ),
 )
+
 
 def get_agent_regression_case(case_id: str) -> AgentRegressionCase:
     """Return a committed agent regression case by id."""

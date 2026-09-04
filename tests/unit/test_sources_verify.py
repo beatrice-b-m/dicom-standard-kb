@@ -22,25 +22,19 @@ def _register_synthetic_artifacts(cache_dir: Path) -> None:
                 part="PS3.3",
                 format="docbook_xml",
                 source=FIXTURE_DIR / "synthetic_ps3_3_ct_image_docbook.xml",
-                destination=(
-                    "artifacts/2026b/raw/source/docbook/part03/part03.xml"
-                ),
+                destination=("artifacts/2026b/raw/source/docbook/part03/part03.xml"),
             ),
             ArtifactRequest(
                 part="PS3.4",
                 format="docbook_xml",
                 source=FIXTURE_DIR / "synthetic_ps3_4_sop_classes_docbook.xml",
-                destination=(
-                    "artifacts/2026b/raw/source/docbook/part04/part04.xml"
-                ),
+                destination=("artifacts/2026b/raw/source/docbook/part04/part04.xml"),
             ),
             ArtifactRequest(
                 part="PS3.6",
                 format="docbook_xml",
                 source=FIXTURE_DIR / "synthetic_ps3_6_registry_docbook.xml",
-                destination=(
-                    "artifacts/2026b/raw/source/docbook/part06/part06.xml"
-                ),
+                destination=("artifacts/2026b/raw/source/docbook/part06/part06.xml"),
             ),
         ],
     )
@@ -121,8 +115,7 @@ def test_verify_edition_cache_reports_db_metadata_mismatch(tmp_path: Path) -> No
     cache_dir, db_path = _build_fixture_cache(tmp_path)
     with sqlite3.connect(db_path) as connection:
         connection.execute(
-            "UPDATE build_metadata SET source_manifest_sha256 = ? "
-            "WHERE edition_id = ?",
+            "UPDATE build_metadata SET source_manifest_sha256 = ? WHERE edition_id = ?",
             ("not-the-manifest", "2026b"),
         )
 
@@ -184,7 +177,5 @@ def test_cli_verify_exits_nonzero_for_failures(tmp_path: Path) -> None:
     payload = json.loads(result.output)
     assert payload["status"] == "failed"
     assert any(
-        check["status"] == "checksum_mismatch"
-        for check in payload["artifact_checks"]
+        check["status"] == "checksum_mismatch" for check in payload["artifact_checks"]
     )
-

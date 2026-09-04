@@ -108,4 +108,3 @@ def _config_file(
         encoding="utf-8",
     )
     return path
-

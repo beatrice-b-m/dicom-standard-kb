@@ -72,9 +72,7 @@ def parse_variablelist(variablelist: etree._Element) -> ParsedVariableList:
         )
         listitem = _first_child(entry, "listitem")
         definition = (
-            normalize_text("".join(listitem.itertext()))
-            if listitem is not None
-            else ""
+            normalize_text("".join(listitem.itertext())) if listitem is not None else ""
         )
         entries.append(
             ParsedVariableEntry(

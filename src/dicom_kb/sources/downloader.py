@@ -261,9 +261,7 @@ def fetch_official_chtml_tree_artifacts(
                 )
             )
     if not artifacts:
-        raise OfficialFetchError(
-            f"no CHTML files were discovered under {root_url!r}"
-        )
+        raise OfficialFetchError(f"no CHTML files were discovered under {root_url!r}")
     return artifacts
 
 
@@ -406,10 +404,7 @@ def official_artifact_destination(
     if normalized_format == HTML_FORMAT:
         return f"artifacts/{edition}/raw/html/part{part_number}.html"
     if normalized_format == CHTML_FORMAT:
-        return (
-            f"artifacts/{edition}/raw/chtml/part{part_number}/"
-            f"{normalized_part}.html"
-        )
+        return f"artifacts/{edition}/raw/chtml/part{part_number}/{normalized_part}.html"
     if normalized_format == TARGETDB_FORMAT:
         return f"artifacts/{edition}/raw/targetdb/PS3_{part_number}_target.db"
     raise OfficialFetchError(f"unsupported artifact format: {artifact_format!r}")
@@ -457,9 +452,7 @@ class _HrefParser(HTMLParser):
         super().__init__()
         self.hrefs: list[str] = []
 
-    def handle_starttag(
-        self, tag: str, attrs: list[tuple[str, str | None]]
-    ) -> None:
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         if tag.lower() != "a":
             return
         for name, value in attrs:

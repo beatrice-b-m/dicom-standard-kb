@@ -91,9 +91,7 @@ def test_real_kb_resolves_ct_modules_and_sop_class(
     assert sop_class.status == "ok"
     assert sop_class.result is not None
     assert sop_class.result["sop_class"]["name"] == "CT Image Storage"
-    assert {
-        iod["iod_name"] for iod in sop_class.result["iods"]
-    } == {"CT Image"}
+    assert {iod["iod_name"] for iod in sop_class.result["iods"]} == {"CT Image"}
 
 
 def test_real_kb_range_tag_lookup_warns(

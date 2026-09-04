@@ -208,8 +208,9 @@ def test_execute_mcp_tool_explains_encoding_rule(tmp_path: Path) -> None:
     assert payload["tool"] == "explain_encoding_rule"
     assert payload["status"] == "ok"
     assert payload["result"]["summary"] == "PN is the Person Name VR."
-    assert "value representation class: character string" in (
-        payload["result"]["structured_facts"]
+    assert (
+        "value representation class: character string"
+        in (payload["result"]["structured_facts"])
     )
 
 
@@ -431,9 +432,7 @@ def test_mcp_cli_exposes_serve_command_without_optional_dependency() -> None:
     mcp_command = get_command(app).commands["mcp"]
     serve_command = mcp_command.commands["serve"]
     option_names = {
-        option
-        for parameter in serve_command.params
-        for option in parameter.opts
+        option for parameter in serve_command.params for option in parameter.opts
     }
     assert "--edition" in option_names
     assert "--db" in option_names

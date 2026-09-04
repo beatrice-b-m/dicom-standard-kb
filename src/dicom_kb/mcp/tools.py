@@ -158,6 +158,7 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
     """Register all supported DICOM MCP tools on a FastMCP server."""
     for spec in MCP_TOOL_SPECS:
         if spec["name"] == "dicom_lookup_data_element":
+
             @_tool(server, name=spec["name"], description=spec["description"])
             def dicom_lookup_data_element(tag_or_keyword: str) -> dict[str, Any]:
                 return executor(
@@ -166,11 +167,13 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
                 )
 
         elif spec["name"] == "dicom_lookup_uid":
+
             @_tool(server, name=spec["name"], description=spec["description"])
             def dicom_lookup_uid(uid_or_keyword: str) -> dict[str, Any]:
                 return executor("dicom_lookup_uid", {"uid_or_keyword": uid_or_keyword})
 
         elif spec["name"] == "dicom_lookup_sop_class":
+
             @_tool(server, name=spec["name"], description=spec["description"])
             def dicom_lookup_sop_class(
                 uid_or_name_or_keyword: str,
@@ -181,11 +184,13 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
                 )
 
         elif spec["name"] == "dicom_lookup_iod":
+
             @_tool(server, name=spec["name"], description=spec["description"])
             def dicom_lookup_iod(iod_name: str) -> dict[str, Any]:
                 return executor("dicom_lookup_iod", {"iod_name": iod_name})
 
         elif spec["name"] == "dicom_lookup_enumerated_values":
+
             @_tool(server, name=spec["name"], description=spec["description"])
             def dicom_lookup_enumerated_values(
                 attribute: str,
@@ -197,6 +202,7 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
                 )
 
         elif spec["name"] == "dicom_lookup_defined_terms":
+
             @_tool(server, name=spec["name"], description=spec["description"])
             def dicom_lookup_defined_terms(
                 attribute: str,
@@ -208,11 +214,13 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
                 )
 
         elif spec["name"] == "dicom_lookup_vr":
+
             @_tool(server, name=spec["name"], description=spec["description"])
             def dicom_lookup_vr(vr: str) -> dict[str, Any]:
                 return executor("dicom_lookup_vr", {"vr": vr})
 
         elif spec["name"] == "dicom_lookup_transfer_syntax":
+
             @_tool(server, name=spec["name"], description=spec["description"])
             def dicom_lookup_transfer_syntax(uid_or_keyword: str) -> dict[str, Any]:
                 return executor(
@@ -221,11 +229,13 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
                 )
 
         elif spec["name"] == "dicom_explain_encoding_rule":
+
             @_tool(server, name=spec["name"], description=spec["description"])
             def dicom_explain_encoding_rule(topic: str) -> dict[str, Any]:
                 return executor("dicom_explain_encoding_rule", {"topic": topic})
 
         elif spec["name"] == "dicom_lookup_media_type":
+
             @_tool(server, name=spec["name"], description=spec["description"])
             def dicom_lookup_media_type(
                 media_type_or_context: str,
@@ -236,6 +246,7 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
                 )
 
         elif spec["name"] == "dicom_lookup_dicomweb_transaction":
+
             @_tool(server, name=spec["name"], description=spec["description"])
             def dicom_lookup_dicomweb_transaction(
                 name_or_route: str,
@@ -246,6 +257,7 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
                 )
 
         elif spec["name"] == "dicom_lookup_sr_template":
+
             @_tool(server, name=spec["name"], description=spec["description"])
             def dicom_lookup_sr_template(tid_or_name: str) -> dict[str, Any]:
                 return executor(
@@ -254,6 +266,7 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
                 )
 
         elif spec["name"] == "dicom_lookup_context_group":
+
             @_tool(server, name=spec["name"], description=spec["description"])
             def dicom_lookup_context_group(cid_or_name: str) -> dict[str, Any]:
                 return executor(
@@ -262,6 +275,7 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
                 )
 
         elif spec["name"] == "dicom_lookup_code_meaning":
+
             @_tool(server, name=spec["name"], description=spec["description"])
             def dicom_lookup_code_meaning(
                 code_value: str,
@@ -273,11 +287,13 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
                 )
 
         elif spec["name"] == "dicom_list_modules_for_iod":
+
             @_tool(server, name=spec["name"], description=spec["description"])
             def dicom_list_modules_for_iod(iod_name: str) -> dict[str, Any]:
                 return executor("dicom_list_modules_for_iod", {"iod_name": iod_name})
 
         elif spec["name"] == "dicom_list_attributes_for_module":
+
             @_tool(server, name=spec["name"], description=spec["description"])
             def dicom_list_attributes_for_module(
                 module_name: str,
@@ -292,6 +308,7 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
                 )
 
         elif spec["name"] == "dicom_resolve_attribute_context":
+
             @_tool(server, name=spec["name"], description=spec["description"])
             def dicom_resolve_attribute_context(
                 attribute: str,
@@ -308,6 +325,7 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
                 )
 
         elif spec["name"] == "dicom_retrieve_standard_text":
+
             @_tool(server, name=spec["name"], description=spec["description"])
             def dicom_retrieve_standard_text(
                 part: str,
@@ -324,6 +342,7 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
                 )
 
         elif spec["name"] == "dicom_search_standard_text":
+
             @_tool(server, name=spec["name"], description=spec["description"])
             def dicom_search_standard_text(
                 query: str,

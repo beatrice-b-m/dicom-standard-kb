@@ -173,32 +173,46 @@ def test_discover_official_archive_editions_from_root_listing(
 def test_official_artifact_urls_and_destinations_are_format_specific() -> None:
     base_url = "https://dicom.example/current/"
 
-    assert official_artifact_url(
-        base_url, part="PS3.6", artifact_format=DOCBOOK_XML_FORMAT
-    ) == "https://dicom.example/current/source/docbook/part06/part06.xml"
-    assert official_artifact_url(
-        base_url, part="PS3.6", artifact_format=PDF_FORMAT
-    ) == "https://dicom.example/current/output/pdf/part06.pdf"
-    assert official_artifact_url(
-        base_url, part="PS3.6", artifact_format=HTML_FORMAT
-    ) == "https://dicom.example/current/output/html/part06.html"
-    assert official_artifact_url(
-        base_url, part="PS3.6", artifact_format="chtml"
-    ) == "https://dicom.example/current/output/chtml/part06/PS3.6.html"
-    assert official_artifact_url(
-        base_url, part="PS3.6", artifact_format=TARGETDB_FORMAT
-    ) == "https://dicom.example/current/output/html/targetdb/PS3_06_target.db"
+    assert (
+        official_artifact_url(
+            base_url, part="PS3.6", artifact_format=DOCBOOK_XML_FORMAT
+        )
+        == "https://dicom.example/current/source/docbook/part06/part06.xml"
+    )
+    assert (
+        official_artifact_url(base_url, part="PS3.6", artifact_format=PDF_FORMAT)
+        == "https://dicom.example/current/output/pdf/part06.pdf"
+    )
+    assert (
+        official_artifact_url(base_url, part="PS3.6", artifact_format=HTML_FORMAT)
+        == "https://dicom.example/current/output/html/part06.html"
+    )
+    assert (
+        official_artifact_url(base_url, part="PS3.6", artifact_format="chtml")
+        == "https://dicom.example/current/output/chtml/part06/PS3.6.html"
+    )
+    assert (
+        official_artifact_url(base_url, part="PS3.6", artifact_format=TARGETDB_FORMAT)
+        == "https://dicom.example/current/output/html/targetdb/PS3_06_target.db"
+    )
 
-    assert official_artifact_destination(
-        "2026b", part="PS3.6", artifact_format=PDF_FORMAT
-    ) == "artifacts/2026b/raw/pdf/part06.pdf"
-    assert official_artifact_destination(
-        "2026b", part="PS3.6", artifact_format=TARGETDB_FORMAT
-    ) == "artifacts/2026b/raw/targetdb/PS3_06_target.db"
-    assert official_archive_release_url(
-        "https://dicom.example/dicom/",
-        edition="2025e",
-    ) == "https://dicom.example/dicom/2025e/"
+    assert (
+        official_artifact_destination("2026b", part="PS3.6", artifact_format=PDF_FORMAT)
+        == "artifacts/2026b/raw/pdf/part06.pdf"
+    )
+    assert (
+        official_artifact_destination(
+            "2026b", part="PS3.6", artifact_format=TARGETDB_FORMAT
+        )
+        == "artifacts/2026b/raw/targetdb/PS3_06_target.db"
+    )
+    assert (
+        official_archive_release_url(
+            "https://dicom.example/dicom/",
+            edition="2025e",
+        )
+        == "https://dicom.example/dicom/2025e/"
+    )
 
 
 def test_official_chtml_tree_destination_rejects_unsafe_paths() -> None:
@@ -251,9 +265,10 @@ def test_fetch_official_docbook_artifacts_writes_manifest(
         / "part06"
         / "part06.xml"
     ).read_bytes() == responses[part_url]
-    assert read_manifest(
-        tmp_path / "cache" / "artifacts" / "2026b" / "manifest.json"
-    ) == manifest
+    assert (
+        read_manifest(tmp_path / "cache" / "artifacts" / "2026b" / "manifest.json")
+        == manifest
+    )
 
 
 def test_fetch_official_docbook_artifacts_defaults_to_v2_parts(
@@ -305,9 +320,7 @@ def test_fetch_official_artifacts_writes_requested_formats(
     docbook_url = official_artifact_url(
         base_url, part="PS3.6", artifact_format=DOCBOOK_XML_FORMAT
     )
-    pdf_url = official_artifact_url(
-        base_url, part="PS3.6", artifact_format=PDF_FORMAT
-    )
+    pdf_url = official_artifact_url(base_url, part="PS3.6", artifact_format=PDF_FORMAT)
     targetdb_url = official_artifact_url(
         base_url, part="PS3.6", artifact_format=TARGETDB_FORMAT
     )
@@ -380,10 +393,7 @@ def test_fetch_official_artifacts_mirrors_chtml_tree(
             b'<a href="https://other.example/elsewhere.html">external</a>'
         ),
         entry_url: b"<html>Part 6 entry</html>",
-        chapter_url: (
-            b'<a href="../">Parent</a>'
-            b'<a href="sect_A.html">section</a>'
-        ),
+        chapter_url: (b'<a href="../">Parent</a><a href="sect_A.html">section</a>'),
         section_url: b"<html>Section A</html>",
     }
 

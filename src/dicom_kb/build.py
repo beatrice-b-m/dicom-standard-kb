@@ -212,9 +212,7 @@ def evaluate_quality_gates(
                 f"{settings.max_unresolved_xref_rate:.6g}"
             )
     if settings.max_unresolved_include_rate is not None:
-        include_total = (
-            metrics.include_rows_resolved + metrics.include_rows_unresolved
-        )
+        include_total = metrics.include_rows_resolved + metrics.include_rows_unresolved
         rate = _rate(metrics.include_rows_unresolved, include_total)
         if rate > settings.max_unresolved_include_rate:
             failures.append(
@@ -313,13 +311,9 @@ def _build_staged_database(
 
         parsed_part06: Part06ParseResult | None = None
         if "PS3.6" in documents:
-            parsed_part06 = parse_part06(
-                documents["PS3.6"], edition=manifest.edition
-            )
+            parsed_part06 = parse_part06(documents["PS3.6"], edition=manifest.edition)
             warnings.extend(
-                _record_warning_messages(
-                    parsed_part06.warnings, parse_warnings_by_part
-                )
+                _record_warning_messages(parsed_part06.warnings, parse_warnings_by_part)
             )
             summaries.append(
                 import_part06(
@@ -343,18 +337,12 @@ def _build_staged_database(
             )
         iod_id_by_ref: dict[str, str] = {}
         if "PS3.3" in documents:
-            parsed_part03 = parse_part03(
-                documents["PS3.3"], edition=manifest.edition
-            )
+            parsed_part03 = parse_part03(documents["PS3.3"], edition=manifest.edition)
             iod_id_by_ref = {
-                ref: iod.id
-                for iod in parsed_part03.iods
-                for ref in _iod_ref_keys(iod)
+                ref: iod.id for iod in parsed_part03.iods for ref in _iod_ref_keys(iod)
             }
             warnings.extend(
-                _record_warning_messages(
-                    parsed_part03.warnings, parse_warnings_by_part
-                )
+                _record_warning_messages(parsed_part03.warnings, parse_warnings_by_part)
             )
             summaries.append(
                 import_part03(
@@ -383,9 +371,7 @@ def _build_staged_database(
                 iod_id_by_ref=iod_id_by_ref,
             )
             warnings.extend(
-                _record_warning_messages(
-                    parsed_part04.warnings, parse_warnings_by_part
-                )
+                _record_warning_messages(parsed_part04.warnings, parse_warnings_by_part)
             )
             summaries.append(
                 import_part04(
@@ -397,13 +383,9 @@ def _build_staged_database(
                 )
             )
         if "PS3.5" in documents:
-            parsed_part05 = parse_part05(
-                documents["PS3.5"], edition=manifest.edition
-            )
+            parsed_part05 = parse_part05(documents["PS3.5"], edition=manifest.edition)
             warnings.extend(
-                _record_warning_messages(
-                    parsed_part05.warnings, parse_warnings_by_part
-                )
+                _record_warning_messages(parsed_part05.warnings, parse_warnings_by_part)
             )
             summaries.append(
                 import_vr_definitions(
@@ -413,31 +395,19 @@ def _build_staged_database(
                 )
             )
         if "PS3.7" in documents:
-            parsed_part07 = parse_part07(
-                documents["PS3.7"], edition=manifest.edition
-            )
+            parsed_part07 = parse_part07(documents["PS3.7"], edition=manifest.edition)
             warnings.extend(
-                _record_warning_messages(
-                    parsed_part07.warnings, parse_warnings_by_part
-                )
+                _record_warning_messages(parsed_part07.warnings, parse_warnings_by_part)
             )
         if "PS3.8" in documents:
-            parsed_part08 = parse_part08(
-                documents["PS3.8"], edition=manifest.edition
-            )
+            parsed_part08 = parse_part08(documents["PS3.8"], edition=manifest.edition)
             warnings.extend(
-                _record_warning_messages(
-                    parsed_part08.warnings, parse_warnings_by_part
-                )
+                _record_warning_messages(parsed_part08.warnings, parse_warnings_by_part)
             )
         if "PS3.10" in documents:
-            parsed_part10 = parse_part10(
-                documents["PS3.10"], edition=manifest.edition
-            )
+            parsed_part10 = parse_part10(documents["PS3.10"], edition=manifest.edition)
             warnings.extend(
-                _record_warning_messages(
-                    parsed_part10.warnings, parse_warnings_by_part
-                )
+                _record_warning_messages(parsed_part10.warnings, parse_warnings_by_part)
             )
             summaries.append(
                 import_file_meta_requirements(
@@ -454,13 +424,9 @@ def _build_staged_database(
                 )
             )
         if "PS3.16" in documents:
-            parsed_part16 = parse_part16(
-                documents["PS3.16"], edition=manifest.edition
-            )
+            parsed_part16 = parse_part16(documents["PS3.16"], edition=manifest.edition)
             warnings.extend(
-                _record_warning_messages(
-                    parsed_part16.warnings, parse_warnings_by_part
-                )
+                _record_warning_messages(parsed_part16.warnings, parse_warnings_by_part)
             )
             summaries.append(
                 import_sr_templates(
@@ -486,13 +452,9 @@ def _build_staged_database(
                 )
             )
         if "PS3.18" in documents:
-            parsed_part18 = parse_part18(
-                documents["PS3.18"], edition=manifest.edition
-            )
+            parsed_part18 = parse_part18(documents["PS3.18"], edition=manifest.edition)
             warnings.extend(
-                _record_warning_messages(
-                    parsed_part18.warnings, parse_warnings_by_part
-                )
+                _record_warning_messages(parsed_part18.warnings, parse_warnings_by_part)
             )
             summaries.append(
                 import_dicomweb_transactions(
