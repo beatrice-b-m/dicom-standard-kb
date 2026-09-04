@@ -1,117 +1,34 @@
-# Release Checklist
+# Release checklist
 
-Run these checks before cutting a release from a clean worktree.
+Run from a clean source checkout. A passing offline suite alone does not establish
+official-edition parser coverage.
 
-## Offline Gates
-
-```bash
-make lint
-make typecheck
-make test
-```
-
-Confirm representative query envelopes include:
-
-- `classification`
-- `parse_confidence`
-- `refs`
-- `warnings`
-- `trace`
-
-Confirm the v2 public surfaces are covered by offline tests:
-
-- PS3.5 encoding: `lookup_vr`, `lookup_transfer_syntax`, and
-  `explain_encoding_rule`.
-- PS3.10/PS3.18 media and web services: `lookup_media_type` and
-  `lookup_dicomweb_transaction`.
-- PS3.16 content mapping: `lookup_sr_template`, `lookup_context_group`, and
-  `lookup_code_meaning`.
-- Contextual value terms: `lookup_enumerated_values` and
-  `lookup_defined_terms` with deterministic IOD, SOP Class, module, or macro
-  contexts.
-- Cited text fallback: `retrieve_standard_text` for prose-only PS3.7, PS3.8,
-  and PS3.10 rules.
-- Agent regression: at least 100 prompt cases, with deterministic expected
-  tool traces before answer synthesis.
-
-## Build and Verification Gates
+## Local verification
 
 ```bash
-dicom-kb build-fixture --edition 2026b --force
-dicom-kb verify --edition 2026b
+make install
+make check
+uv build
 ```
 
-Confirm build output and build metadata include aggregate `metrics` with:
+Build a synthetic fixture into a temporary cache, then verify its manifest and
+database. Inspect metrics, warnings, citations, and representative query output.
+Keep the synthetic cache separate from official-edition release checks.
 
-- `include_rows_resolved`
-- `include_rows_unresolved`
-- `xrefs_total`
-- `xrefs_unresolved`
-- `parse_warnings`
-- `parse_warnings_by_part`
-- `source_refs`
-
-For v2 builds, also confirm parser-warning and unresolved-reference metrics
-can be inspected per parsed standard part:
-
-- PS3.5 encoding tables and transfer syntax details.
-- PS3.7 selected message/service behavior tables.
-- PS3.8 selected networking behavior tables.
-- PS3.10 file meta and media storage tables.
-- PS3.16 SR template, context group, and coded concept tables.
-- PS3.18 DICOMweb transaction and media type tables.
-
-For official editions, set explicit quality-gate thresholds or use
-`--allow-gate-failures` only while establishing a new baseline.
-
-## V2 Official-Edition Goldens
-
-Before declaring v2 release-ready, run official-edition goldens against a
-locally built concrete edition. The representative set must include:
-
-- PS3.5 transfer syntax lookup for implicit, explicit, deflated, and
-  encapsulated transfer syntaxes.
-- PS3.10 media-type or file-format fallback behavior.
-- PS3.16 SR template, context group, and code lookup behavior.
-- PS3.18 DICOMweb route lookup and media negotiation behavior.
-- Contextual enumerated value or defined term lookup with a deterministic
-  IOD, SOP Class, module, or macro context.
-
-The strict release gate is separate from smoke coverage. It requires a local
-official KB with DocBook artifacts for PS3.3, PS3.4, PS3.5, PS3.6, PS3.7,
-PS3.8, PS3.10, PS3.16, and PS3.18; nonzero rows for every v2 semantic table;
-and citation-preserving DocBook structure rows for each required part. It also
-pins positive official examples for PN, application/dicom, RetrieveStudy, TID
-1500, CID 29, and CT/DCM so named v2 acceptance examples cannot be replaced by
-unrelated rows.
-
-## Config Compatibility
-
-Validate both common profile shapes:
-
-```yaml
-dicom_kb:
-  edition: 2026b
-  artifact_dir: /tmp/dicom-standard-kb
-  database_url: sqlite:////tmp/dicom-kb.sqlite
-  require_citations: true
+```bash
+uv run dicom-kb build-fixture --edition 2026b --cache-dir /tmp/dicom-kb-release-fixture
+uv run dicom-kb verify --edition 2026b --cache-dir /tmp/dicom-kb-release-fixture
 ```
 
-```yaml
-dicom_kb:
-  edition: current
-  artifact_dir: /tmp/dicom-standard-kb
-  allow_network_fetch: true
-  require_edition_pin: true
-  use_synthetic_fixtures_only: false
-```
+Exercise changed CLI/Python/MCP contracts and agent regression cases. Check
+configuration precedence and successful/failed quality gates when changing
+build or config behavior. Use explicit thresholds for official builds;
+`--allow-gate-failures` is for establishing a baseline, not bypassing release review.
 
-Commands must still work without a config file, and CLI flags must override
-profile values.
+## Official-edition checks
 
-## Local Official-Edition Gates
-
-After fetching and building a local official edition:
+Fetch and build a concrete official edition in an external cache. Set
+`DICOM_KB_CACHE_DIR` and `DICOM_KB_TEST_EDITION` to that cache and edition:
 
 ```bash
 make test-dicom-integration
@@ -119,22 +36,24 @@ make test-dicom-release
 make test-dicom-current
 ```
 
-`make test-dicom-integration` is smoke coverage for whatever official KB is
-available locally. `make test-dicom-release` is the strict v2 release gate and
-must fail rather than skip when a partial official KB is missing required v2
-parts or semantic rows. If these checks are skipped, record the missing local
-prerequisite in the release notes, such as an absent official-edition cache or
-disabled current network resolution.
+The integration target is smoke coverage. The release target requires all
+baseline parts and positive semantic examples; its required tables, parts, and
+cases live in `tests/integration_requires_dicom_download/release_requirements.py`
+and `test_release_goldens.py`. Update those executable requirements with new
+required entities. The current-edition check requires network access.
+Record the edition, manifest digest, gate results, and any missing prerequisites.
+Do not describe skipped or unavailable release checks as passed.
 
-## Distribution Audit
+## Distribution and documentation
 
-Confirm the release artifacts remain code-only:
-
-- No official DICOM XML, PDF, HTML, target database, generated full database,
-  full-text index, vector index, or bulk parsed JSON is committed or packaged.
-- No standalone PS3.16 terminology dump, context-group export, or coded
-  concept export is committed or packaged.
-- Docker and PyPI artifacts require users to fetch and build official
-  editions locally.
-- `README.md`, `NOTICE`, generated manifests, and `/about` metadata continue
-  to carry the DICOM/NEMA non-affiliation and trademark notice.
+- Inspect wheels, source distributions, and Docker inputs for official artifacts,
+  generated databases/indexes, bulk JSON, and standalone PS3.16 terminology exports.
+  Preserve `LICENSE`, `NOTICE`, `THIRD_PARTY_NOTICES.md`, and runtime notices.
+- The wheel contains the Python package and migrations. `build-fixture` is a
+  source-checkout workflow; do not depend on test fixtures in installed-wheel checks.
+- Verify the package version agrees with `metadata.__version__` and update both
+  when releasing. Record externally visible behavior changes in release notes.
+- Submit corresponding public documentation changes to the
+  [documentation repository](https://github.com/beatrice-b-m/dicom-standard-kb-docs).
+  Follow its instructions to select the stable release, update `docs-source.json`
+  and affected pages together, validate, and review the preview before merge.

@@ -57,7 +57,7 @@ DOCBOOK_XML_FORMAT = "docbook_xml"
 
 @dataclass(frozen=True)
 class BuildMetrics:
-    """Section 16 ingestion metrics emitted and persisted after a build."""
+    """Ingestion metrics emitted and persisted after a build."""
 
     edition: str
     parts_loaded: tuple[str, ...]
@@ -90,7 +90,7 @@ class BuildMetrics:
         parse_warnings_by_part: dict[str, int] | None = None,
         source_refs: int | None = None,
     ) -> BuildMetrics:
-        """Aggregate import summaries into the public Section 16 shape."""
+        """Aggregate import summaries into the public metrics shape."""
         warning_counts = dict(parse_warnings_by_part or {})
         for part in parts_loaded:
             warning_counts.setdefault(part, 0)

@@ -26,7 +26,7 @@ def mcp_serve_command(
     db: DatabaseOption = None,
     cache_dir: CacheDirectoryOption = None,
 ) -> None:
-    """Serve v1 query tools over MCP stdio."""
+    """Serve query tools over MCP stdio."""
     config = MCPServerConfig(
         edition=resolve_edition(ctx, edition),
         db_path=resolve_db_path(ctx, db),

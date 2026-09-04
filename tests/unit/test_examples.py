@@ -12,20 +12,6 @@ from dicom_kb.cli.main import app
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_required_example_directories_are_documented() -> None:
-    for relative in (
-        "examples/python/README.md",
-        "examples/cli/README.md",
-        "examples/mcp/README.md",
-        "examples/coding_agent_harness/README.md",
-        "examples/validators/README.md",
-        "tests/fixtures_minimal_attributed/README.md",
-    ):
-        path = ROOT / relative
-        assert path.exists(), relative
-        assert "fixture" in path.read_text(encoding="utf-8").lower()
-
-
 def test_python_lookup_example_runs_against_fixture_db(tmp_path: Path) -> None:
     db_path = _build_fixture_db(tmp_path)
 

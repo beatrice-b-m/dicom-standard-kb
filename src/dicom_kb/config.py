@@ -62,7 +62,7 @@ class ConfigProfile(BaseModel):
 
 
 def load_config_profile(path: Path) -> DicomKBConfig:
-    """Load and validate a Section 17 YAML config profile."""
+    """Load and validate a YAML configuration profile."""
     try:
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     except yaml.YAMLError as exc:
