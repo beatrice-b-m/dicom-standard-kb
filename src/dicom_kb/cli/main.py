@@ -11,7 +11,11 @@ from dicom_kb.cli import evaluation, graph, ingest, lookup, mcp, text
 from dicom_kb.config import ConfigError, DicomKBConfig, load_config_profile
 from dicom_kb.metadata import LEGAL_NOTICE, __version__
 
-app = typer.Typer(help="Build and query a local DICOM standard knowledge base.")
+app = typer.Typer(
+    help="Build and query a local DICOM standard knowledge base.",
+    invoke_without_command=True,
+    no_args_is_help=True,
+)
 app.add_typer(ingest.app)
 app.add_typer(text.app)
 app.add_typer(lookup.lookup_app, name="lookup")
