@@ -4,6 +4,7 @@ from io import BytesIO
 from pathlib import Path
 
 import pytest
+from click.utils import strip_ansi
 from typer.testing import CliRunner
 
 from dicom_kb.cli.main import app
@@ -47,6 +48,8 @@ from tests.fixtures_synthetic import (
     PS316_CONTENT_MAPPING_DOCBOOK,
     PS318_WEB_SERVICES_DOCBOOK,
 )
+
+_RICH_BOX_CHARS = str.maketrans("", "", "\u256d\u2500\u256e\u2502\u2570\u256f")
 
 
 class _FakeResponse(BytesIO):
@@ -478,7 +481,8 @@ def test_cli_fetch_downloads_official_docbook(
         ],
     )
     assert again.exit_code != 0
-    assert "--force" in again.output
+    output = " ".join(strip_ansi(again.output).translate(_RICH_BOX_CHARS).split())
+    assert "already fetched" in output
 
 
 def test_cli_fetch_defaults_to_v2_docbook_parts(
