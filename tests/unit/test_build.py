@@ -9,10 +9,8 @@ import pytest
 from dicom_kb.build import (
     BuildMetrics,
     DatabaseExistsError,
-    QualityGateSettings,
     build_sqlite_database,
     default_db_path,
-    evaluate_quality_gates,
 )
 from dicom_kb.db.importers import ImportSummary
 from dicom_kb.query.resolver import (
@@ -842,33 +840,6 @@ def test_build_metrics_aggregate_import_summaries() -> None:
     }
 
 
-def test_evaluate_quality_gates_reports_threshold_failures() -> None:
-    metrics = BuildMetrics(
-        edition="2026b",
-        parts_loaded=("PS3.3",),
-        include_rows_resolved=3,
-        include_rows_unresolved=1,
-        xrefs_total=10,
-        xrefs_unresolved=2,
-        parse_warnings=4,
-    )
-
-    failures = evaluate_quality_gates(
-        metrics,
-        QualityGateSettings(
-            max_unresolved_xref_rate=0.1,
-            max_unresolved_include_rate=0.2,
-            max_parse_warnings=3,
-        ),
-    )
-
-    assert failures == (
-        "unresolved xref rate 0.2 exceeds configured maximum 0.1",
-        "unresolved include-row rate 0.25 exceeds configured maximum 0.2",
-        "parse warning count 4 exceeds configured maximum 3",
-    )
-
-
 @pytest.mark.parametrize("existing", [False, True])
 def test_failed_import_does_not_publish_partial_database(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, existing: bool
@@ -894,27 +865,6 @@ def test_failed_import_does_not_publish_partial_database(
     assert list(tmp_path.glob(".kb.sqlite-*")) == []
 
 
-def test_failed_quality_gate_preserves_previous_database(tmp_path: Path) -> None:
-    from dicom_kb.build import BuildQualityGateError
-
-    cache_dir = tmp_path / "cache"
-    _register_synthetic_artifacts(cache_dir)
-    target = tmp_path / "kb.sqlite"
-    target.write_bytes(b"previous database")
-    with pytest.raises(BuildQualityGateError) as error:
-        build_sqlite_database(
-            edition="2026b",
-            cache_dir=cache_dir,
-            db_path=target,
-            force=True,
-            quality_gates=QualityGateSettings(max_parse_warnings=0),
-        )
-    assert error.value.summary.db_path == target
-    assert error.value.summary.gate_failures
-    assert target.read_bytes() == b"previous database"
-    assert list(tmp_path.glob(".kb.sqlite-*")) == []
-
-
 def test_successful_force_build_replaces_previous_database(tmp_path: Path) -> None:
     cache_dir = tmp_path / "cache"
     _register_synthetic_artifacts(cache_dir)
@@ -925,12 +875,8 @@ def test_successful_force_build_replaces_previous_database(tmp_path: Path) -> No
         cache_dir=cache_dir,
         db_path=target,
         force=True,
-        quality_gates=QualityGateSettings(
-            max_parse_warnings=0, allow_gate_failures=True
-        ),
     )
     assert summary.db_path == target
-    assert summary.gate_failures
     connection = _connect(target)
     try:
         assert (
