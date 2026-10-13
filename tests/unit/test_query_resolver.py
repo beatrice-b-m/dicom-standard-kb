@@ -1980,8 +1980,8 @@ def test_lookup_sop_class_returns_linked_iod(tmp_path: Path) -> None:
             "iod_id": "2026b.iod.ct_image",
             "iod_name": "CT Image",
             "iod_keyword": "ct_image",
-            "resolution": "parsed",
-            "resolution_warning": None,
+            "resolution": "inferred_from_name",
+            "resolution_warning": "IOD matched by name 'CT Image'",
         }
     ]
     assert {ref.part for ref in response.refs} == {"PS3.3", "PS3.4"}

@@ -108,10 +108,17 @@ def _parse_sop_class_table(
     for order, row in enumerate(_data_rows(table)):
         sop_name = _cell(row, sop_name_column)
         iod_id = _iod_id_from_ref(row, iod_column, iod_id_by_ref)
-        iod_name = _iod_name(_cell(row, iod_column))
+        resolution = "parsed"
+        resolution_warning: str | None = None
         if iod_id is None:
-            iod_name = iod_name or _iod_name_from_sop_name(sop_name)
+            # No xref resolved to a parsed IOD, so the link is a name guess.
+            # The build drops it if PS3.3 has no IOD with that id.
+            iod_name = _iod_name(_cell(row, iod_column)) or _iod_name_from_sop_name(
+                sop_name
+            )
             iod_id = _id(edition, "iod", iod_name) if iod_name else None
+            resolution = "inferred_from_name"
+            resolution_warning = f"IOD matched by name {iod_name!r}"
         if iod_id is None or not sop_name:
             warnings.append(_warning(table, row, "skipped SOP Class row missing name"))
             continue
@@ -136,7 +143,8 @@ def _parse_sop_class_table(
             edition_id=edition,
             sop_class_id=sop_class.id,
             iod_id=iod_id,
-            resolution="parsed",
+            resolution=resolution,
+            resolution_warning=resolution_warning,
             source_ref=source_ref,
         )
         rows.append((sop_class, edge))

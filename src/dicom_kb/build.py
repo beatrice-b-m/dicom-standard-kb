@@ -5,7 +5,9 @@ from __future__ import annotations
 import os
 import sqlite3
 import subprocess
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
+from functools import partial
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -37,7 +39,7 @@ from dicom_kb.parsers.part05_encoding import (
     parse_part05,
     transfer_syntax_details_from_uid_registry,
 )
-from dicom_kb.parsers.part06_data_dictionary import Part06ParseResult, parse_part06
+from dicom_kb.parsers.part06_data_dictionary import parse_part06
 from dicom_kb.parsers.part07_messages import parse_part07
 from dicom_kb.parsers.part08_network import parse_part08
 from dicom_kb.parsers.part10_media_storage import parse_part10
@@ -216,6 +218,46 @@ def build_sqlite_database(
         return summary
 
 
+# Data-shaped failures from one part's parser or importer. The build logs the
+# gap and keeps going; storage and I/O errors still abort it.
+_RECOVERABLE_ERRORS = (
+    ImportError,
+    sqlite3.IntegrityError,
+    AttributeError,
+    IndexError,
+    KeyError,
+    TypeError,
+    ValueError,
+)
+
+
+class _BuildLog:
+    """Collect parser warnings and skipped-step gaps, counted per part."""
+
+    def __init__(self) -> None:
+        self.messages: list[str] = []
+        self.by_part: dict[str, int] = {}
+
+    def add(self, part: str, message: str) -> None:
+        self.messages.append(f"{part} {message}")
+        self.by_part[part] = self.by_part.get(part, 0) + 1
+
+    def parser_warnings(self, warnings: tuple[ParserWarning, ...]) -> None:
+        for warning in warnings:
+            self.add(
+                warning.part, f"{warning.table_id or 'unknown'}: {warning.message}"
+            )
+
+    def step[T](self, part: str, label: str, run: Callable[[], T]) -> T | None:
+        """Run one parse or import step, logging a gap instead of aborting."""
+        try:
+            return run()
+        except _RECOVERABLE_ERRORS as exc:
+            cause = f" ({exc.__cause__})" if exc.__cause__ is not None else ""
+            self.add(part, f"{label} skipped: {exc}{cause}")
+            return None
+
+
 def _build_staged_database(
     *,
     manifest: SourceManifest,
@@ -223,198 +265,80 @@ def _build_staged_database(
     staging_path: Path,
     target_path: Path,
 ) -> BuildSummary:
-    """Build and check a private database before the caller publishes it."""
+    """Build a private database before the caller publishes it."""
     documents = _load_docbook_documents(cache_dir=cache_dir, manifest=manifest)
+    edition = manifest.edition
     connection = connect_sqlite(staging_path)
-    warnings: list[str] = []
-    parse_warnings_by_part: dict[str, int] = {}
+    log = _BuildLog()
     summaries: list[ImportSummary] = []
-    metrics: BuildMetrics | None = None
+
+    def record(summary: ImportSummary | None) -> None:
+        if summary is not None:
+            summaries.append(summary)
+
     try:
         apply_migrations(connection)
         import_manifest(connection, manifest)
-        for document in documents.values():
-            summaries.append(
-                import_docbook_structure(
-                    connection,
-                    edition=manifest.edition,
-                    document=document,
-                )
-            )
-
-        parsed_part06: Part06ParseResult | None = None
-        if "PS3.6" in documents:
-            parsed_part06 = parse_part06(documents["PS3.6"], edition=manifest.edition)
-            warnings.extend(
-                _record_warning_messages(parsed_part06.warnings, parse_warnings_by_part)
-            )
-            summaries.append(
-                import_part06(
-                    connection,
-                    edition=manifest.edition,
-                    data_elements=parsed_part06.data_elements,
-                    uid_registry_entries=parsed_part06.uid_registry_entries,
-                )
-            )
-            summaries.append(
-                import_transfer_syntax_details(
-                    connection,
-                    edition=manifest.edition,
-                    transfer_syntax_details=(
-                        transfer_syntax_details_from_uid_registry(
-                            edition=manifest.edition,
-                            uid_registry_entries=parsed_part06.uid_registry_entries,
-                        )
+        for part, document in documents.items():
+            record(
+                log.step(
+                    part,
+                    "text import",
+                    partial(
+                        import_docbook_structure,
+                        connection,
+                        edition=edition,
+                        document=document,
                     ),
                 )
             )
+        if "PS3.6" in documents:
+            _build_part06(connection, edition, documents["PS3.6"], log, record)
         iod_id_by_ref: dict[str, str] = {}
         if "PS3.3" in documents:
-            parsed_part03 = parse_part03(documents["PS3.3"], edition=manifest.edition)
-            iod_id_by_ref = {
-                ref: iod.id for iod in parsed_part03.iods for ref in _iod_ref_keys(iod)
-            }
-            warnings.extend(
-                _record_warning_messages(parsed_part03.warnings, parse_warnings_by_part)
-            )
-            summaries.append(
-                import_part03(
-                    connection,
-                    edition=manifest.edition,
-                    iods=parsed_part03.iods,
-                    modules=parsed_part03.modules,
-                    macros=parsed_part03.macros,
-                    iod_module_uses=parsed_part03.iod_module_uses,
-                    iod_functional_group_uses=parsed_part03.iod_functional_group_uses,
-                    attribute_uses=parsed_part03.attribute_uses,
-                    conditions=parsed_part03.conditions,
-                )
-            )
-            summaries.append(
-                import_attribute_value_terms(
-                    connection,
-                    edition=manifest.edition,
-                    document=documents["PS3.3"],
-                )
+            iod_id_by_ref = _build_part03(
+                connection, edition, documents["PS3.3"], log, record
             )
         if "PS3.4" in documents:
-            parsed_part04 = parse_part04(
-                documents["PS3.4"],
-                edition=manifest.edition,
-                iod_id_by_ref=iod_id_by_ref,
-            )
-            warnings.extend(
-                _record_warning_messages(parsed_part04.warnings, parse_warnings_by_part)
-            )
-            summaries.append(
-                import_part04(
-                    connection,
-                    edition=manifest.edition,
-                    service_classes=parsed_part04.service_classes,
-                    sop_classes=parsed_part04.sop_classes,
-                    sop_class_iods=parsed_part04.sop_class_iods,
-                )
+            _build_part04(
+                connection, edition, documents["PS3.4"], iod_id_by_ref, log, record
             )
         if "PS3.5" in documents:
-            parsed_part05 = parse_part05(documents["PS3.5"], edition=manifest.edition)
-            warnings.extend(
-                _record_warning_messages(parsed_part05.warnings, parse_warnings_by_part)
-            )
-            summaries.append(
-                import_vr_definitions(
-                    connection,
-                    edition=manifest.edition,
-                    vr_definitions=parsed_part05.vr_definitions,
-                )
-            )
+            _build_part05(connection, edition, documents["PS3.5"], log, record)
         if "PS3.7" in documents:
-            parsed_part07 = parse_part07(documents["PS3.7"], edition=manifest.edition)
-            warnings.extend(
-                _record_warning_messages(parsed_part07.warnings, parse_warnings_by_part)
+            parsed07 = log.step(
+                "PS3.7",
+                "parse",
+                lambda: parse_part07(documents["PS3.7"], edition=edition),
             )
+            if parsed07 is not None:
+                log.parser_warnings(parsed07.warnings)
         if "PS3.8" in documents:
-            parsed_part08 = parse_part08(documents["PS3.8"], edition=manifest.edition)
-            warnings.extend(
-                _record_warning_messages(parsed_part08.warnings, parse_warnings_by_part)
+            parsed08 = log.step(
+                "PS3.8",
+                "parse",
+                lambda: parse_part08(documents["PS3.8"], edition=edition),
             )
+            if parsed08 is not None:
+                log.parser_warnings(parsed08.warnings)
         if "PS3.10" in documents:
-            parsed_part10 = parse_part10(documents["PS3.10"], edition=manifest.edition)
-            warnings.extend(
-                _record_warning_messages(parsed_part10.warnings, parse_warnings_by_part)
-            )
-            summaries.append(
-                import_file_meta_requirements(
-                    connection,
-                    edition=manifest.edition,
-                    file_meta_requirements=parsed_part10.file_meta_requirements,
-                )
-            )
-            summaries.append(
-                import_dicom_media_types(
-                    connection,
-                    edition=manifest.edition,
-                    media_types=parsed_part10.media_types,
-                )
-            )
+            _build_part10(connection, edition, documents["PS3.10"], log, record)
         if "PS3.16" in documents:
-            parsed_part16 = parse_part16(documents["PS3.16"], edition=manifest.edition)
-            warnings.extend(
-                _record_warning_messages(parsed_part16.warnings, parse_warnings_by_part)
-            )
-            summaries.append(
-                import_sr_templates(
-                    connection,
-                    edition=manifest.edition,
-                    templates=parsed_part16.sr_templates,
-                    rows=parsed_part16.sr_template_rows,
-                )
-            )
-            summaries.append(
-                import_context_groups(
-                    connection,
-                    edition=manifest.edition,
-                    context_groups=parsed_part16.context_groups,
-                    rows=parsed_part16.context_group_rows,
-                )
-            )
-            summaries.append(
-                import_coded_concepts(
-                    connection,
-                    edition=manifest.edition,
-                    coded_concepts=parsed_part16.coded_concepts,
-                )
-            )
+            _build_part16(connection, edition, documents["PS3.16"], log, record)
         if "PS3.18" in documents:
-            parsed_part18 = parse_part18(documents["PS3.18"], edition=manifest.edition)
-            warnings.extend(
-                _record_warning_messages(parsed_part18.warnings, parse_warnings_by_part)
-            )
-            summaries.append(
-                import_dicomweb_transactions(
-                    connection,
-                    edition=manifest.edition,
-                    transactions=parsed_part18.dicomweb_transactions,
-                )
-            )
-            summaries.append(
-                import_dicom_media_types(
-                    connection,
-                    edition=manifest.edition,
-                    media_types=parsed_part18.media_types,
-                )
-            )
+            _build_part18(connection, edition, documents["PS3.18"], log, record)
 
         metrics = BuildMetrics.from_imports(
-            edition=manifest.edition,
+            edition=edition,
             parts_loaded=tuple(sorted(documents)),
             import_summaries=tuple(summaries),
-            parse_warnings=len(warnings),
-            parse_warnings_by_part=parse_warnings_by_part,
+            parse_warnings=len(log.messages),
+            parse_warnings_by_part=log.by_part,
             source_refs=_source_ref_count(connection),
         )
         import_build_metadata(
             connection,
-            edition=manifest.edition,
+            edition=edition,
             built_at=utc_now(),
             parser_version=__version__,
             schema_version=SCHEMA_VERSION,
@@ -431,19 +355,289 @@ def _build_staged_database(
             metrics=metrics.as_jsonable(),
         )
     except (sqlite3.Error, ImportError, OSError) as exc:
-        raise BuildError(f"failed to build SQLite KB for {manifest.edition}") from exc
+        raise BuildError(f"failed to build SQLite KB for {edition}") from exc
     finally:
         connection.close()
 
-    if metrics is None:
-        raise BuildError(f"failed to compute build metrics for {manifest.edition}")
     return BuildSummary(
-        edition=manifest.edition,
+        edition=edition,
         db_path=target_path,
         manifest_sha256=manifest.source_manifest_sha256,
         import_summaries=tuple(summaries),
-        warnings=tuple(warnings),
+        warnings=tuple(log.messages),
         metrics=metrics,
+    )
+
+
+_Record = Callable[[ImportSummary | None], None]
+
+
+def _build_part06(
+    connection: sqlite3.Connection,
+    edition: str,
+    document: ParsedDocument,
+    log: _BuildLog,
+    record: _Record,
+) -> None:
+    parsed = log.step("PS3.6", "parse", lambda: parse_part06(document, edition=edition))
+    if parsed is None:
+        return
+    log.parser_warnings(parsed.warnings)
+    record(
+        log.step(
+            "PS3.6",
+            "dictionary import",
+            lambda: import_part06(
+                connection,
+                edition=edition,
+                data_elements=parsed.data_elements,
+                uid_registry_entries=parsed.uid_registry_entries,
+            ),
+        )
+    )
+    record(
+        log.step(
+            "PS3.6",
+            "transfer syntax import",
+            lambda: import_transfer_syntax_details(
+                connection,
+                edition=edition,
+                transfer_syntax_details=transfer_syntax_details_from_uid_registry(
+                    edition=edition,
+                    uid_registry_entries=parsed.uid_registry_entries,
+                ),
+            ),
+        )
+    )
+
+
+def _build_part03(
+    connection: sqlite3.Connection,
+    edition: str,
+    document: ParsedDocument,
+    log: _BuildLog,
+    record: _Record,
+) -> dict[str, str]:
+    parsed = log.step("PS3.3", "parse", lambda: parse_part03(document, edition=edition))
+    if parsed is None:
+        return {}
+    log.parser_warnings(parsed.warnings)
+    imported = log.step(
+        "PS3.3",
+        "IOD and module import",
+        lambda: import_part03(
+            connection,
+            edition=edition,
+            iods=parsed.iods,
+            modules=parsed.modules,
+            macros=parsed.macros,
+            iod_module_uses=parsed.iod_module_uses,
+            iod_functional_group_uses=parsed.iod_functional_group_uses,
+            attribute_uses=parsed.attribute_uses,
+            conditions=parsed.conditions,
+        ),
+    )
+    record(imported)
+    record(
+        log.step(
+            "PS3.3",
+            "value term import",
+            lambda: import_attribute_value_terms(
+                connection, edition=edition, document=document
+            ),
+        )
+    )
+    if imported is None:
+        return {}
+    return {ref: iod.id for iod in parsed.iods for ref in _iod_ref_keys(iod)}
+
+
+def _build_part04(
+    connection: sqlite3.Connection,
+    edition: str,
+    document: ParsedDocument,
+    iod_id_by_ref: dict[str, str],
+    log: _BuildLog,
+    record: _Record,
+) -> None:
+    parsed = log.step(
+        "PS3.4",
+        "parse",
+        lambda: parse_part04(document, edition=edition, iod_id_by_ref=iod_id_by_ref),
+    )
+    if parsed is None:
+        return
+    log.parser_warnings(parsed.warnings)
+    known_iods = {
+        str(row["id"])
+        for row in connection.execute(
+            "SELECT id FROM iod WHERE edition_id = ?", (edition,)
+        )
+    }
+    sop_names = {sop_class.id: sop_class.name for sop_class in parsed.sop_classes}
+    edges = []
+    for edge in parsed.sop_class_iods:
+        if edge.iod_id in known_iods:
+            edges.append(edge)
+            continue
+        log.add(
+            "PS3.4",
+            f"{edge.source_ref.table_id}: SOP Class "
+            f"{sop_names.get(edge.sop_class_id, edge.sop_class_id)!r} links to "
+            f"IOD {edge.iod_id!r}, which PS3.3 does not define; link dropped",
+        )
+    record(
+        log.step(
+            "PS3.4",
+            "SOP Class import",
+            lambda: import_part04(
+                connection,
+                edition=edition,
+                service_classes=parsed.service_classes,
+                sop_classes=parsed.sop_classes,
+                sop_class_iods=edges,
+            ),
+        )
+    )
+
+
+def _build_part05(
+    connection: sqlite3.Connection,
+    edition: str,
+    document: ParsedDocument,
+    log: _BuildLog,
+    record: _Record,
+) -> None:
+    parsed = log.step("PS3.5", "parse", lambda: parse_part05(document, edition=edition))
+    if parsed is None:
+        return
+    log.parser_warnings(parsed.warnings)
+    record(
+        log.step(
+            "PS3.5",
+            "VR import",
+            lambda: import_vr_definitions(
+                connection, edition=edition, vr_definitions=parsed.vr_definitions
+            ),
+        )
+    )
+
+
+def _build_part10(
+    connection: sqlite3.Connection,
+    edition: str,
+    document: ParsedDocument,
+    log: _BuildLog,
+    record: _Record,
+) -> None:
+    parsed = log.step(
+        "PS3.10", "parse", lambda: parse_part10(document, edition=edition)
+    )
+    if parsed is None:
+        return
+    log.parser_warnings(parsed.warnings)
+    record(
+        log.step(
+            "PS3.10",
+            "file meta import",
+            lambda: import_file_meta_requirements(
+                connection,
+                edition=edition,
+                file_meta_requirements=parsed.file_meta_requirements,
+            ),
+        )
+    )
+    record(
+        log.step(
+            "PS3.10",
+            "media type import",
+            lambda: import_dicom_media_types(
+                connection, edition=edition, media_types=parsed.media_types
+            ),
+        )
+    )
+
+
+def _build_part16(
+    connection: sqlite3.Connection,
+    edition: str,
+    document: ParsedDocument,
+    log: _BuildLog,
+    record: _Record,
+) -> None:
+    parsed = log.step(
+        "PS3.16", "parse", lambda: parse_part16(document, edition=edition)
+    )
+    if parsed is None:
+        return
+    log.parser_warnings(parsed.warnings)
+    record(
+        log.step(
+            "PS3.16",
+            "SR template import",
+            lambda: import_sr_templates(
+                connection,
+                edition=edition,
+                templates=parsed.sr_templates,
+                rows=parsed.sr_template_rows,
+            ),
+        )
+    )
+    record(
+        log.step(
+            "PS3.16",
+            "context group import",
+            lambda: import_context_groups(
+                connection,
+                edition=edition,
+                context_groups=parsed.context_groups,
+                rows=parsed.context_group_rows,
+            ),
+        )
+    )
+    record(
+        log.step(
+            "PS3.16",
+            "coded concept import",
+            lambda: import_coded_concepts(
+                connection, edition=edition, coded_concepts=parsed.coded_concepts
+            ),
+        )
+    )
+
+
+def _build_part18(
+    connection: sqlite3.Connection,
+    edition: str,
+    document: ParsedDocument,
+    log: _BuildLog,
+    record: _Record,
+) -> None:
+    parsed = log.step(
+        "PS3.18", "parse", lambda: parse_part18(document, edition=edition)
+    )
+    if parsed is None:
+        return
+    log.parser_warnings(parsed.warnings)
+    record(
+        log.step(
+            "PS3.18",
+            "DICOMweb transaction import",
+            lambda: import_dicomweb_transactions(
+                connection,
+                edition=edition,
+                transactions=parsed.dicomweb_transactions,
+            ),
+        )
+    )
+    record(
+        log.step(
+            "PS3.18",
+            "media type import",
+            lambda: import_dicom_media_types(
+                connection, edition=edition, media_types=parsed.media_types
+            ),
+        )
     )
 
 
@@ -457,21 +651,6 @@ def _load_docbook_documents(
         path = cache_dir / artifact.local_path
         documents[artifact.part] = parse_docbook_file(path, part=artifact.part)
     return documents
-
-
-def _record_warning_messages(
-    warnings: tuple[ParserWarning, ...], counts_by_part: dict[str, int]
-) -> tuple[str, ...]:
-    for warning in warnings:
-        counts_by_part[warning.part] = counts_by_part.get(warning.part, 0) + 1
-    return _warning_messages(warnings)
-
-
-def _warning_messages(warnings: tuple[ParserWarning, ...]) -> tuple[str, ...]:
-    return tuple(
-        f"{warning.part} {warning.table_id or 'unknown'}: {warning.message}"
-        for warning in warnings
-    )
 
 
 def _source_ref_count(connection: sqlite3.Connection) -> int:
