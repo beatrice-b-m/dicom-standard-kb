@@ -11,9 +11,7 @@ from pathlib import Path
 import typer
 from pydantic import BaseModel
 
-from dicom_kb.build import (
-    default_db_path,
-)
+from dicom_kb.build import default_db_path, latest_edition
 from dicom_kb.config import (
     DicomKBConfig,
     int_env,
@@ -31,19 +29,51 @@ from dicom_kb.sources.downloader import (
 
 
 def resolve_edition(
-    ctx: typer.Context, cli_value: str | None, *, default: str | None = None
+    ctx: typer.Context,
+    cli_value: str | None,
+    *,
+    default: str | None = None,
+    fallback: str | None = None,
 ) -> str:
+    """Pick the edition: flag, env, config, default, then what the cache holds."""
     resolved = value_with_precedence(
         cli_value=cli_value,
         env_value=str_env(os.environ, "DICOM_KB_EDITION"),
         config_value=_active_config(ctx).edition,
         default=default,
     )
+    resolved = resolved or fallback
     if resolved is None:
         raise typer.BadParameter(
-            "--edition is required when not supplied by environment or config"
+            "no local DICOM KB found; run `dicom-kb fetch` and `dicom-kb build`, "
+            "or pass --edition"
         )
     return resolved
+
+
+def resolve_query_edition(
+    ctx: typer.Context,
+    cli_value: str | None,
+    *,
+    db: Path | None,
+    cache_dir: Path | None,
+) -> str:
+    """Resolve the edition to query, defaulting to the newest local build."""
+    db_path = resolve_db_path(ctx, db)
+    if db_path is not None and db_path.is_file():
+        fallback = edition_in_database(db_path)
+    else:
+        fallback = latest_edition(resolve_cache_dir(ctx, cache_dir), built=True)
+    return resolve_edition(ctx, cli_value, fallback=fallback)
+
+
+def edition_in_database(path: Path) -> str | None:
+    """Return the newest edition a built KB holds."""
+    with read_sqlite(path) as connection:
+        row = connection.execute(
+            "SELECT id FROM standard_edition ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+    return str(row["id"]) if row else None
 
 
 def resolve_cache_dir(ctx: typer.Context, cli_value: Path | None) -> Path:

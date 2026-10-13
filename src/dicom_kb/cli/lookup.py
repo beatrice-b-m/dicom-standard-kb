@@ -11,7 +11,7 @@ from dicom_kb.cli.context import (
     echo_response,
     resolve_cache_dir,
     resolve_db_path,
-    resolve_edition,
+    resolve_query_edition,
 )
 from dicom_kb.cli.options import CacheDirectoryOption, DatabaseOption, EditionOption
 from dicom_kb.query.resolver import (
@@ -45,7 +45,7 @@ def lookup_tag(
     cache_dir: CacheDirectoryOption = None,
 ) -> None:
     """Look up a PS3.6 data element by tag or keyword."""
-    resolved_edition = resolve_edition(ctx, edition)
+    resolved_edition = resolve_query_edition(ctx, edition, db=db, cache_dir=cache_dir)
     with connect_query_db(
         resolve_db_path(ctx, db),
         cache_dir=resolve_cache_dir(ctx, cache_dir),
@@ -72,7 +72,7 @@ def lookup_uid_command(
     cache_dir: CacheDirectoryOption = None,
 ) -> None:
     """Look up a PS3.6 UID registry entry by UID value or keyword."""
-    resolved_edition = resolve_edition(ctx, edition)
+    resolved_edition = resolve_query_edition(ctx, edition, db=db, cache_dir=cache_dir)
     with connect_query_db(
         resolve_db_path(ctx, db),
         cache_dir=resolve_cache_dir(ctx, cache_dir),
@@ -99,7 +99,7 @@ def lookup_vr_command(
     cache_dir: CacheDirectoryOption = None,
 ) -> None:
     """Look up a PS3.5 Value Representation definition."""
-    resolved_edition = resolve_edition(ctx, edition)
+    resolved_edition = resolve_query_edition(ctx, edition, db=db, cache_dir=cache_dir)
     with connect_query_db(
         resolve_db_path(ctx, db),
         cache_dir=resolve_cache_dir(ctx, cache_dir),
@@ -126,7 +126,7 @@ def lookup_transfer_syntax_command(
     cache_dir: CacheDirectoryOption = None,
 ) -> None:
     """Look up transfer syntax UID metadata and encoding details."""
-    resolved_edition = resolve_edition(ctx, edition)
+    resolved_edition = resolve_query_edition(ctx, edition, db=db, cache_dir=cache_dir)
     with connect_query_db(
         resolve_db_path(ctx, db),
         cache_dir=resolve_cache_dir(ctx, cache_dir),
@@ -153,7 +153,7 @@ def lookup_media_type_command(
     cache_dir: CacheDirectoryOption = None,
 ) -> None:
     """Look up DICOM media type constraints by media type or context."""
-    resolved_edition = resolve_edition(ctx, edition)
+    resolved_edition = resolve_query_edition(ctx, edition, db=db, cache_dir=cache_dir)
     with connect_query_db(
         resolve_db_path(ctx, db),
         cache_dir=resolve_cache_dir(ctx, cache_dir),
@@ -180,7 +180,7 @@ def lookup_dicomweb_command(
     cache_dir: CacheDirectoryOption = None,
 ) -> None:
     """Look up a PS3.18 DICOMweb transaction by name or route."""
-    resolved_edition = resolve_edition(ctx, edition)
+    resolved_edition = resolve_query_edition(ctx, edition, db=db, cache_dir=cache_dir)
     with connect_query_db(
         resolve_db_path(ctx, db),
         cache_dir=resolve_cache_dir(ctx, cache_dir),
@@ -207,7 +207,7 @@ def lookup_sr_template_command(
     cache_dir: CacheDirectoryOption = None,
 ) -> None:
     """Look up a PS3.16 SR template by TID or exact name."""
-    resolved_edition = resolve_edition(ctx, edition)
+    resolved_edition = resolve_query_edition(ctx, edition, db=db, cache_dir=cache_dir)
     with connect_query_db(
         resolve_db_path(ctx, db),
         cache_dir=resolve_cache_dir(ctx, cache_dir),
@@ -234,7 +234,7 @@ def lookup_context_group_command(
     cache_dir: CacheDirectoryOption = None,
 ) -> None:
     """Look up a PS3.16 context group by CID or exact name."""
-    resolved_edition = resolve_edition(ctx, edition)
+    resolved_edition = resolve_query_edition(ctx, edition, db=db, cache_dir=cache_dir)
     with connect_query_db(
         resolve_db_path(ctx, db),
         cache_dir=resolve_cache_dir(ctx, cache_dir),
@@ -265,7 +265,7 @@ def lookup_code_command(
     cache_dir: CacheDirectoryOption = None,
 ) -> None:
     """Look up a PS3.16 coded concept by code value and optional scheme."""
-    resolved_edition = resolve_edition(ctx, edition)
+    resolved_edition = resolve_query_edition(ctx, edition, db=db, cache_dir=cache_dir)
     with connect_query_db(
         resolve_db_path(ctx, db),
         cache_dir=resolve_cache_dir(ctx, cache_dir),
@@ -293,7 +293,7 @@ def lookup_iod_command(
     cache_dir: CacheDirectoryOption = None,
 ) -> None:
     """Look up a PS3.3 IOD by name or keyword."""
-    resolved_edition = resolve_edition(ctx, edition)
+    resolved_edition = resolve_query_edition(ctx, edition, db=db, cache_dir=cache_dir)
     with connect_query_db(
         resolve_db_path(ctx, db),
         cache_dir=resolve_cache_dir(ctx, cache_dir),
@@ -320,7 +320,7 @@ def lookup_sop_class_command(
     cache_dir: CacheDirectoryOption = None,
 ) -> None:
     """Look up a PS3.4 SOP Class and linked IODs."""
-    resolved_edition = resolve_edition(ctx, edition)
+    resolved_edition = resolve_query_edition(ctx, edition, db=db, cache_dir=cache_dir)
     with connect_query_db(
         resolve_db_path(ctx, db),
         cache_dir=resolve_cache_dir(ctx, cache_dir),
@@ -351,7 +351,7 @@ def lookup_enumerated_values_command(
     ] = None,
 ) -> None:
     """Look up parsed enumerated values for a DICOM attribute."""
-    resolved_edition = resolve_edition(ctx, edition)
+    resolved_edition = resolve_query_edition(ctx, edition, db=db, cache_dir=cache_dir)
     with connect_query_db(
         resolve_db_path(ctx, db),
         cache_dir=resolve_cache_dir(ctx, cache_dir),
@@ -383,7 +383,7 @@ def lookup_defined_terms_command(
     ] = None,
 ) -> None:
     """Look up parsed defined terms for a DICOM attribute."""
-    resolved_edition = resolve_edition(ctx, edition)
+    resolved_edition = resolve_query_edition(ctx, edition, db=db, cache_dir=cache_dir)
     with connect_query_db(
         resolve_db_path(ctx, db),
         cache_dir=resolve_cache_dir(ctx, cache_dir),

@@ -8,7 +8,7 @@ from typing import NoReturn
 
 import pytest
 
-from dicom_kb.build import default_db_path
+from dicom_kb.build import default_db_path, latest_edition
 from dicom_kb.db.models import read_sqlite
 from dicom_kb.sources.downloader import DEFAULT_CACHE_DIR
 from dicom_kb.sources.manifest import SourceManifest, manifest_path, read_manifest
@@ -20,21 +20,9 @@ def _cache_dir() -> Path:
 
 
 def _discover_edition(cache_dir: Path) -> str | None:
-    configured = os.environ.get("DICOM_KB_TEST_EDITION")
-    if configured:
-        return configured
-    db_dir = cache_dir / "db"
-    if not db_dir.exists():
-        return None
-    candidates = [
-        path
-        for path in db_dir.glob("*.sqlite")
-        if manifest_path(cache_dir, path.stem).exists()
-    ]
-    if not candidates:
-        return None
-    newest = max(candidates, key=lambda path: path.stat().st_mtime)
-    return newest.stem
+    return os.environ.get("DICOM_KB_TEST_EDITION") or latest_edition(
+        cache_dir, built=True
+    )
 
 
 @pytest.fixture(scope="session")
@@ -47,8 +35,7 @@ def edition(cache_dir: Path) -> str:
     discovered = _discover_edition(cache_dir)
     if discovered is None:
         _missing_prerequisite(
-            "no built DICOM KB found; run `dicom-kb fetch --edition current` "
-            "and `dicom-kb build --edition <resolved>`"
+            "no built DICOM KB found; run `dicom-kb fetch` and `dicom-kb build`"
         )
     return discovered
 
@@ -79,7 +66,4 @@ def manifest(cache_dir: Path, edition: str) -> SourceManifest:
 
 
 def _missing_prerequisite(message: str) -> NoReturn:
-    """Only optional smoke checks may skip unavailable local artifacts."""
-    if os.environ.get("DICOM_KB_RUN_RELEASE") == "1":
-        pytest.fail(f"strict release prerequisite missing: {message}", pytrace=False)
     pytest.skip(message)

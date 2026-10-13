@@ -2,33 +2,36 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Annotated
+from urllib.error import URLError
 
 import typer
 
-from dicom_kb.build import BuildSummary, build_sqlite_database
+from dicom_kb.build import (
+    BuildSummary,
+    build_sqlite_database,
+    gap_log_path,
+    latest_edition,
+)
 from dicom_kb.cli.context import (
-    json_model,
     resolve_cache_dir,
     resolve_db_path,
     resolve_edition,
 )
 from dicom_kb.cli.options import CacheDirectoryOption, EditionOption
 from dicom_kb.sources.downloader import (
-    DEFAULT_DICOM_ARCHIVE_BASE_URL,
     DEFAULT_DICOM_CURRENT_BASE_URL,
     DEFAULT_DOCBOOK_PARTS,
     DOCBOOK_XML_FORMAT,
-    OFFICIAL_ARTIFACT_FORMATS,
+    ArtifactExistsError,
     ArtifactRequest,
     OfficialFetchError,
-    fetch_official_artifacts,
+    fetch_current_docbook,
     official_artifact_destination,
     register_local_artifacts,
 )
-from dicom_kb.sources.edition_resolver import EditionResolver
+from dicom_kb.sources.manifest import ManifestExistsError
 
 app = typer.Typer()
 
@@ -73,126 +76,84 @@ def build_fixture(
         db_path=resolved_db,
         force=force,
     )
-    typer.echo(json.dumps(summary.as_jsonable(), indent=2, sort_keys=True))
+    _echo_summary(summary)
 
 
 @app.command("fetch")
 def fetch_command(
     ctx: typer.Context,
-    edition: Annotated[
-        str | None,
-        typer.Option("--edition", help="DICOM edition label to register."),
+    part: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--part",
+            help="DICOM part to download, e.g. PS3.3; repeatable. Defaults to the "
+            "parts the build reads.",
+        ),
     ] = None,
     docbook_xml: Annotated[
         list[str] | None,
         typer.Option(
             "--docbook-xml",
-            help="Register a local DocBook XML artifact as PART=PATH; repeatable.",
+            help="Register a local DocBook XML file as PART=PATH instead of "
+            "downloading; repeatable. Requires --edition.",
         ),
     ] = None,
-    part: Annotated[
-        list[str] | None,
-        typer.Option(
-            "--part",
-            help=(
-                "Official DICOM part to download when --docbook-xml is omitted; "
-                "repeatable. Defaults to the v2 baseline DocBook parts."
-            ),
-        ),
-    ] = None,
-    artifact_format: Annotated[
-        list[str] | None,
-        typer.Option(
-            "--format",
-            help=(
-                "Official artifact format to download; repeatable. Supported: "
-                f"{', '.join(OFFICIAL_ARTIFACT_FORMATS)}. Defaults to docbook_xml."
-            ),
-        ),
-    ] = None,
-    mirror_chtml_tree: Annotated[
-        bool,
-        typer.Option(
-            "--mirror-chtml-tree",
-            help=(
-                "When --format chtml is requested, recursively mirror the full "
-                "per-part CHTML directory instead of only the part entry page."
-            ),
-        ),
-    ] = False,
-    current_edition: Annotated[
+    edition: Annotated[
         str | None,
         typer.Option(
-            "--current-edition",
-            help="Concrete edition used when --edition current is requested.",
+            "--edition",
+            help="Edition label for --docbook-xml files, e.g. 2026d.",
         ),
     ] = None,
     source_base_url: Annotated[
         str,
         typer.Option(
             "--source-base-url",
-            help="Official DICOM current release base URL.",
+            help="Base URL of the current DICOM release.",
         ),
     ] = DEFAULT_DICOM_CURRENT_BASE_URL,
-    archive_base_url: Annotated[
-        str,
-        typer.Option(
-            "--archive-base-url",
-            help="Official DICOM archive root URL for concrete editions.",
-        ),
-    ] = DEFAULT_DICOM_ARCHIVE_BASE_URL,
     cache_dir: CacheDirectoryOption = None,
     force: Annotated[
         bool,
-        typer.Option("--force", help="Overwrite existing cached artifacts/manifest."),
+        typer.Option("--force", help="Overwrite files already in the cache."),
     ] = False,
 ) -> None:
-    """Fetch or register source artifacts into the dicom-kb cache."""
-    resolved_edition_input = resolve_edition(ctx, edition)
+    """Download the current DICOM edition's DocBook from NEMA into the cache."""
     resolved_cache_dir = resolve_cache_dir(ctx, cache_dir)
-    if docbook_xml:
-        if mirror_chtml_tree:
-            raise typer.BadParameter(
-                "--mirror-chtml-tree is only valid for official --format chtml fetches"
-            )
-        resolved = EditionResolver(current_edition=current_edition).resolve(
-            resolved_edition_input
-        )
-        artifacts = _docbook_xml_artifacts(docbook_xml, edition=resolved.edition)
-        manifest = register_local_artifacts(
-            edition=resolved_edition_input,
-            current_edition=current_edition,
-            artifacts=artifacts,
-            cache_dir=resolved_cache_dir,
-            force=force,
-        )
-    else:
-        parts = (
-            tuple(_normalize_part(value) for value in part)
-            if part
-            else DEFAULT_DOCBOOK_PARTS
-        )
-        try:
-            formats = (
-                tuple(artifact_format) if artifact_format else (DOCBOOK_XML_FORMAT,)
-            )
-            if mirror_chtml_tree and not any(
-                value.strip().lower().replace("-", "_") == "chtml" for value in formats
-            ):
-                raise typer.BadParameter("--mirror-chtml-tree requires --format chtml")
-            manifest = fetch_official_artifacts(
-                edition=resolved_edition_input,
-                parts=parts,
-                formats=formats,
+    try:
+        if docbook_xml:
+            if edition is None:
+                raise typer.BadParameter("--docbook-xml requires --edition")
+            manifest = register_local_artifacts(
+                edition=edition,
+                artifacts=_docbook_xml_artifacts(docbook_xml, edition=edition),
                 cache_dir=resolved_cache_dir,
-                base_url=source_base_url,
-                archive_base_url=archive_base_url,
-                mirror_chtml_tree=mirror_chtml_tree,
                 force=force,
             )
-        except OfficialFetchError as exc:
-            raise typer.BadParameter(str(exc)) from exc
-    typer.echo(json_model(manifest))
+        else:
+            parts = (
+                tuple(_normalize_part(value) for value in part)
+                if part
+                else DEFAULT_DOCBOOK_PARTS
+            )
+            manifest = fetch_current_docbook(
+                parts=parts,
+                cache_dir=resolved_cache_dir,
+                base_url=source_base_url,
+                force=force,
+            )
+    except (ArtifactExistsError, ManifestExistsError) as exc:
+        raise typer.BadParameter(
+            f"{exc}. That edition is already fetched; pass --force to replace it."
+        ) from exc
+    except (OfficialFetchError, URLError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    total = sum(artifact.byte_size for artifact in manifest.artifacts)
+    typer.echo(
+        f"Fetched DICOM {manifest.edition}: {len(manifest.artifacts)} parts, "
+        f"{total / 1_000_000:.1f} MB in {resolved_cache_dir}"
+    )
+    typer.echo(f"Next: dicom-kb build --edition {manifest.edition}")
 
 
 @app.command("build")
@@ -216,8 +177,10 @@ def build_command(
     """Build a SQLite KB from cached DocBook artifacts."""
     if backend != "sqlite":
         raise typer.BadParameter("only the sqlite backend is supported in v1")
-    resolved_edition = resolve_edition(ctx, edition)
     resolved_cache_dir = resolve_cache_dir(ctx, cache_dir)
+    resolved_edition = resolve_edition(
+        ctx, edition, fallback=latest_edition(resolved_cache_dir, built=False)
+    )
     resolved_db = resolve_db_path(ctx, db)
     summary = _run_sqlite_build(
         edition=resolved_edition,
@@ -225,7 +188,26 @@ def build_command(
         db_path=resolved_db,
         force=force,
     )
-    typer.echo(json.dumps(summary.as_jsonable(), indent=2, sort_keys=True))
+    _echo_summary(summary)
+
+
+def _echo_summary(summary: BuildSummary) -> None:
+    metrics = summary.metrics
+    typer.echo(f"Built DICOM {summary.edition} KB: {summary.db_path}")
+    typer.echo(
+        f"{metrics.data_elements} data elements, {metrics.uids} UIDs, "
+        f"{metrics.iods} IODs, {metrics.modules} modules, {metrics.macros} macros, "
+        f"{metrics.sop_classes} SOP Classes"
+    )
+    by_part = metrics.parse_warnings_by_part or {}
+    counts = ", ".join(
+        f"{part} {count}" for part, count in sorted(by_part.items()) if count
+    )
+    typer.echo(
+        f"{metrics.parse_warnings} gaps logged"
+        + (f" ({counts})" if counts else "")
+        + f": {gap_log_path(summary.db_path)}"
+    )
 
 
 def _run_sqlite_build(

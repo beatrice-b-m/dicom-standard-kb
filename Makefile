@@ -2,8 +2,6 @@
 	ingest-fixture run-mcp
 
 UV_RUN = uv run --locked --all-extras --dev
-EDITION ?= 2026b
-
 install:
 	uv sync --locked --all-extras --dev
 
@@ -29,4 +27,4 @@ ingest-fixture:
 	$(UV_RUN) dicom-kb build-fixture
 
 run-mcp:
-	$(UV_RUN) dicom-kb mcp serve --edition $(EDITION)
+	$(UV_RUN) dicom-kb mcp serve

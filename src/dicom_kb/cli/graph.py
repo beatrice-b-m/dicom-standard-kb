@@ -12,7 +12,7 @@ from dicom_kb.cli.context import (
     echo_response,
     resolve_cache_dir,
     resolve_db_path,
-    resolve_edition,
+    resolve_query_edition,
 )
 from dicom_kb.cli.options import CacheDirectoryOption, DatabaseOption, EditionOption
 from dicom_kb.query.resolver import (
@@ -39,7 +39,7 @@ def iod_modules(
     cache_dir: CacheDirectoryOption = None,
 ) -> None:
     """List PS3.3 modules used by an IOD."""
-    resolved_edition = resolve_edition(ctx, edition)
+    resolved_edition = resolve_query_edition(ctx, edition, db=db, cache_dir=cache_dir)
     with connect_query_db(
         resolve_db_path(ctx, db),
         cache_dir=resolve_cache_dir(ctx, cache_dir),
@@ -73,7 +73,7 @@ def module_attributes(
     ] = False,
 ) -> None:
     """List PS3.3 attributes used by a module."""
-    resolved_edition = resolve_edition(ctx, edition)
+    resolved_edition = resolve_query_edition(ctx, edition, db=db, cache_dir=cache_dir)
     with connect_query_db(
         resolve_db_path(ctx, db),
         cache_dir=resolve_cache_dir(ctx, cache_dir),
@@ -109,7 +109,7 @@ def resolve_attribute_context_command(
     ] = None,
 ) -> None:
     """Resolve an attribute's PS3.3 use and effective type in context."""
-    resolved_edition = resolve_edition(ctx, edition)
+    resolved_edition = resolve_query_edition(ctx, edition, db=db, cache_dir=cache_dir)
     _echo_attribute_context_response(
         attribute=attribute,
         edition=resolved_edition,
@@ -140,7 +140,7 @@ def context_attribute_command(
     ] = None,
 ) -> None:
     """Alias for the documented context attribute resolver example."""
-    resolved_edition = resolve_edition(ctx, edition)
+    resolved_edition = resolve_query_edition(ctx, edition, db=db, cache_dir=cache_dir)
     _echo_attribute_context_response(
         attribute=attribute,
         edition=resolved_edition,

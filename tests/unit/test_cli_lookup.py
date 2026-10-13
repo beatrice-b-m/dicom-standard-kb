@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from io import BytesIO
 from pathlib import Path
 
@@ -36,9 +35,6 @@ from dicom_kb.parsers.part16_content_mapping import parse_part16
 from dicom_kb.parsers.part18_web_services import parse_part18
 from dicom_kb.sources.downloader import (
     DEFAULT_DOCBOOK_PARTS,
-    official_archive_release_url,
-    official_artifact_url,
-    official_chtml_directory_url,
     official_docbook_xml_url,
 )
 from tests.fixtures_synthetic import (
@@ -359,8 +355,10 @@ def test_cli_build_fixture_creates_default_db_for_lookups(tmp_path: Path) -> Non
     )
 
     assert build_result.exit_code == 0, build_result.output
-    build_payload = json.loads(build_result.output)
-    assert build_payload["db_path"] == str(cache_dir / "db" / "2026b.sqlite")
+    db_path = cache_dir / "db" / "2026b.sqlite"
+    assert build_result.output.startswith(f"Built DICOM 2026b KB: {db_path}")
+    assert "gaps logged" in build_result.output
+    assert (cache_dir / "db" / "2026b.gaps.txt").exists()
 
     lookup_result = runner.invoke(
         app,
@@ -397,18 +395,13 @@ def test_cli_fetch_registers_local_docbook_for_build(tmp_path: Path) -> None:
     )
 
     assert fetch_result.exit_code == 0, fetch_result.output
-    fetch_payload = json.loads(fetch_result.output)
-    assert fetch_payload["edition"] == "2026b"
-    assert fetch_payload["artifacts"][0]["local_path"] == (
-        "artifacts/2026b/raw/source/docbook/part06/part06.xml"
-    )
+    assert fetch_result.output.startswith("Fetched DICOM 2026b: 1 parts")
+    assert (cache_dir / "artifacts/2026b/raw/source/docbook/part06/part06.xml").exists()
 
     build_result = runner.invoke(
         app,
         [
             "build",
-            "--edition",
-            "2026b",
             "--cache-dir",
             str(cache_dir),
         ],
@@ -422,8 +415,6 @@ def test_cli_fetch_registers_local_docbook_for_build(tmp_path: Path) -> None:
             "lookup",
             "tag",
             "Modality",
-            "--edition",
-            "2026b",
             "--cache-dir",
             str(cache_dir),
         ],
@@ -458,8 +449,6 @@ def test_cli_fetch_downloads_official_docbook(
         app,
         [
             "fetch",
-            "--edition",
-            "current",
             "--cache-dir",
             str(cache_dir),
             "--source-base-url",
@@ -470,13 +459,26 @@ def test_cli_fetch_downloads_official_docbook(
     )
 
     assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
-    assert payload["edition"] == "2026b"
-    assert payload["resolved_from"] == "current"
-    assert payload["artifacts"][0]["source_url"] == part_url
-    assert payload["artifacts"][0]["local_path"] == (
-        "artifacts/2026b/raw/source/docbook/part06/part06.xml"
+    assert result.output.startswith("Fetched DICOM 2026b: 1 parts")
+    assert "Next: dicom-kb build --edition 2026b" in result.output
+    assert (
+        cache_dir / "artifacts/2026b/raw/source/docbook/part06/part06.xml"
+    ).read_bytes() == responses[part_url]
+
+    again = runner.invoke(
+        app,
+        [
+            "fetch",
+            "--cache-dir",
+            str(cache_dir),
+            "--source-base-url",
+            base_url,
+            "--part",
+            "PS3.6",
+        ],
     )
+    assert again.exit_code != 0
+    assert "--force" in again.output
 
 
 def test_cli_fetch_defaults_to_v2_docbook_parts(
@@ -507,8 +509,6 @@ def test_cli_fetch_defaults_to_v2_docbook_parts(
         app,
         [
             "fetch",
-            "--edition",
-            "current",
             "--cache-dir",
             str(tmp_path / "cache"),
             "--source-base-url",
@@ -517,167 +517,4 @@ def test_cli_fetch_defaults_to_v2_docbook_parts(
     )
 
     assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
-    assert tuple(artifact["part"] for artifact in payload["artifacts"]) == (
-        DEFAULT_DOCBOOK_PARTS
-    )
-
-
-def test_cli_fetch_downloads_requested_official_formats(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    base_url = "https://dicom.example/current/"
-    docbook_url = official_artifact_url(
-        base_url, part="PS3.6", artifact_format="docbook_xml"
-    )
-    pdf_url = official_artifact_url(base_url, part="PS3.6", artifact_format="pdf")
-    responses = {
-        base_url: (
-            b'<a href="DocBookDICOM2026b_release_docbook_20260327091344.zip">'
-            b"docbook</a>"
-        ),
-        docbook_url: b"<book><title>Part 6</title></book>",
-        pdf_url: b"%PDF-1.7\n",
-    }
-
-    def fake_urlopen(url: str, timeout: int) -> _FakeResponse:
-        assert timeout == 60
-        return _FakeResponse(responses[url])
-
-    monkeypatch.setattr("dicom_kb.sources.downloader.urlopen", fake_urlopen)
-    cache_dir = tmp_path / "cache"
-
-    result = CliRunner().invoke(
-        app,
-        [
-            "fetch",
-            "--edition",
-            "current",
-            "--cache-dir",
-            str(cache_dir),
-            "--source-base-url",
-            base_url,
-            "--part",
-            "PS3.6",
-            "--format",
-            "docbook_xml",
-            "--format",
-            "pdf",
-        ],
-    )
-
-    assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
-    assert [artifact["format"] for artifact in payload["artifacts"]] == [
-        "docbook_xml",
-        "pdf",
-    ]
-    assert [artifact["source_url"] for artifact in payload["artifacts"]] == [
-        docbook_url,
-        pdf_url,
-    ]
-    assert payload["artifacts"][1]["local_path"] == (
-        "artifacts/2026b/raw/pdf/part06.pdf"
-    )
-
-
-def test_cli_fetch_mirrors_chtml_tree(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    base_url = "https://dicom.example/current/"
-    chtml_root = official_chtml_directory_url(base_url, part="PS3.6")
-    entry_url = f"{chtml_root}PS3.6.html"
-    section_url = f"{chtml_root}chapter/sect_A.html"
-    responses = {
-        base_url: (
-            b'<a href="DocBookDICOM2026b_release_docbook_20260327091344.zip">'
-            b"docbook</a>"
-        ),
-        chtml_root: b'<a href="PS3.6.html">entry</a><a href="chapter/">chapter</a>',
-        entry_url: b"<html>Part 6 entry</html>",
-        f"{chtml_root}chapter/": b'<a href="sect_A.html">section</a>',
-        section_url: b"<html>Section A</html>",
-    }
-
-    def fake_urlopen(url: str, timeout: int) -> _FakeResponse:
-        assert timeout == 60
-        return _FakeResponse(responses[url])
-
-    monkeypatch.setattr("dicom_kb.sources.downloader.urlopen", fake_urlopen)
-    cache_dir = tmp_path / "cache"
-
-    result = CliRunner().invoke(
-        app,
-        [
-            "fetch",
-            "--edition",
-            "current",
-            "--cache-dir",
-            str(cache_dir),
-            "--source-base-url",
-            base_url,
-            "--part",
-            "PS3.6",
-            "--format",
-            "chtml",
-            "--mirror-chtml-tree",
-        ],
-    )
-
-    assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
-    assert [artifact["source_url"] for artifact in payload["artifacts"]] == [
-        entry_url,
-        section_url,
-    ]
-    assert [artifact["local_path"] for artifact in payload["artifacts"]] == [
-        "artifacts/2026b/raw/chtml/part06/PS3.6.html",
-        "artifacts/2026b/raw/chtml/part06/chapter/sect_A.html",
-    ]
-
-
-def test_cli_fetch_downloads_concrete_edition_from_archive(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    current_url = "https://dicom.example/current/"
-    archive_url = "https://dicom.example/dicom/"
-    release_url = official_archive_release_url(archive_url, edition="2025e")
-    part_url = official_docbook_xml_url(release_url, "PS3.6")
-    responses = {
-        archive_url: b'<a href="2025e/">2025e</a>',
-        part_url: b"<book><title>Archived Part 6</title></book>",
-    }
-
-    def fake_urlopen(url: str, timeout: int) -> _FakeResponse:
-        assert timeout == 60
-        assert url != current_url
-        return _FakeResponse(responses[url])
-
-    monkeypatch.setattr("dicom_kb.sources.downloader.urlopen", fake_urlopen)
-    cache_dir = tmp_path / "cache"
-
-    result = CliRunner().invoke(
-        app,
-        [
-            "fetch",
-            "--edition",
-            "2025e",
-            "--cache-dir",
-            str(cache_dir),
-            "--source-base-url",
-            current_url,
-            "--archive-base-url",
-            archive_url,
-            "--part",
-            "PS3.6",
-        ],
-    )
-
-    assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
-    assert payload["edition"] == "2025e"
-    assert payload["resolved_from"] == "2025e"
-    assert payload["artifacts"][0]["source_url"] == part_url
-    assert payload["artifacts"][0]["local_path"] == (
-        "artifacts/2025e/raw/source/docbook/part06/part06.xml"
-    )
+    assert f"{len(DEFAULT_DOCBOOK_PARTS)} parts" in result.output
