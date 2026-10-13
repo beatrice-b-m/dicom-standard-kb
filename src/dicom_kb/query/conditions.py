@@ -12,7 +12,6 @@ from dicom_kb.db.repositories import (
     IODModuleUseRecord,
 )
 from dicom_kb.ir.models import IOD, AttributeUse, Condition, Module
-from dicom_kb.query.answer_contracts import standard_ref
 
 
 @dataclass(frozen=True)
@@ -81,13 +80,8 @@ def condition_payload(condition: Condition | None) -> dict[str, Any] | None:
     if condition is None:
         return None
     return {
-        "condition_id": condition.id,
         "source_text": condition.raw_text,
         "condition_kind": condition.condition_kind,
-        "machine_status": condition.machine_status,
-        "dependencies": [],
-        "evaluator": {"available": False},
-        "refs": [standard_ref(condition.source_ref).model_dump(mode="json")],
     }
 
 

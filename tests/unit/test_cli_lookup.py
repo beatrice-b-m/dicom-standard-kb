@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import json
 from io import BytesIO
 from pathlib import Path
-from typing import Any
 
 import pytest
+from click.utils import strip_ansi
 from typer.testing import CliRunner
 
 from dicom_kb.cli.main import app
@@ -37,9 +36,6 @@ from dicom_kb.parsers.part16_content_mapping import parse_part16
 from dicom_kb.parsers.part18_web_services import parse_part18
 from dicom_kb.sources.downloader import (
     DEFAULT_DOCBOOK_PARTS,
-    official_archive_release_url,
-    official_artifact_url,
-    official_chtml_directory_url,
     official_docbook_xml_url,
 )
 from tests.fixtures_synthetic import (
@@ -52,6 +48,8 @@ from tests.fixtures_synthetic import (
     PS316_CONTENT_MAPPING_DOCBOOK,
     PS318_WEB_SERVICES_DOCBOOK,
 )
+
+_RICH_BOX_CHARS = str.maketrans("", "", "\u256d\u2500\u256e\u2502\u2570\u256f")
 
 
 class _FakeResponse(BytesIO):
@@ -181,450 +179,149 @@ def _fixture_db(tmp_path: Path) -> Path:
     return db_path
 
 
-def _invoke_json(tmp_path: Path, *args: str) -> dict[str, Any]:
-    result = CliRunner().invoke(app, [*args, "--db", str(_fixture_db(tmp_path))])
+def _invoke(tmp_path: Path, *args: str) -> str:
+    result = CliRunner().invoke(
+        app, [*args, "--edition", "2026b", "--db", str(_fixture_db(tmp_path))]
+    )
     assert result.exit_code == 0, result.output
-    return json.loads(result.output)
+    return result.output
 
 
-def test_cli_lookup_tag_outputs_success_envelope(tmp_path: Path) -> None:
-    payload = _invoke_json(
-        tmp_path,
-        "lookup",
-        "tag",
-        "(0008,0060)",
-        "--edition",
-        "2026b",
-    )
-
-    assert payload["tool"] == "lookup_data_element"
-    assert payload["status"] == "ok"
-    assert payload["result"] == {
-        "keyword": "Modality",
-        "name": "Modality",
-        "retired": False,
-        "tag": "(0008,0060)",
-        "vm": "1",
-        "vr": "CS",
-    }
-    assert payload["refs"][0]["part"] == "PS3.6"
-    assert payload["classification"] == {
-        "evidence_level": "parsed_registry",
-        "machine_decidability": "decidable",
-        "normativity": "normative",
-    }
-    assert payload["parse_confidence"] == {
-        "level": "high",
-        "source": "parsed_registry",
-    }
-    assert payload["warnings"] == []
-    assert "notice" not in payload
-    assert payload["trace"]["query_id"]
-    assert payload["trace"]["resolved_at"]
-
-
-def test_cli_lookup_tag_reports_validation_error(tmp_path: Path) -> None:
-    payload = _invoke_json(
-        tmp_path,
-        "lookup",
-        "tag",
-        "0008,0060",
-        "--edition",
-        "2026b",
-    )
-
-    assert payload["status"] == "validation_error"
-    assert "malformed DICOM tag" in payload["result"]["message"]
-    assert payload["refs"] == []
-
-
-def test_cli_lookup_tag_reports_range_match_warning(tmp_path: Path) -> None:
-    payload = _invoke_json(
-        tmp_path,
-        "lookup",
-        "tag",
-        "(6002,3000)",
-        "--edition",
-        "2026b",
-    )
-
-    assert payload["status"] == "ok"
-    assert payload["result"]["tag"] == "(60xx,3000)"
-    assert payload["warnings"] == [
-        "concrete tag (6002,3000) matched range row (60xx,3000)"
-    ]
-
-
-def test_cli_lookup_uid_outputs_retired_entry(tmp_path: Path) -> None:
-    payload = _invoke_json(
-        tmp_path,
-        "lookup",
-        "uid",
-        "ExplicitVRBigEndian",
-        "--edition",
-        "2026b",
-    )
-
-    assert payload["tool"] == "lookup_uid"
-    assert payload["status"] == "ok"
-    assert payload["result"]["uid_value"] == "1.2.840.10008.1.2.2"
-    assert payload["result"]["retired"] is True
-    assert payload["refs"][0]["part"] == "PS3.6"
-
-
-def test_cli_lookup_vr_outputs_ps35_definition(tmp_path: Path) -> None:
-    payload = _invoke_json(
-        tmp_path,
-        "lookup",
-        "vr",
-        "pn",
-        "--edition",
-        "2026b",
-    )
-
-    assert payload["tool"] == "lookup_vr"
-    assert payload["status"] == "ok"
-    assert payload["result"] == {
-        "binary_or_text": "text",
-        "character_repertoire_notes": [
-            "uses the default character repertoire",
-        ],
-        "length_notes": ["variable length"],
-        "name": "Person Name",
-        "padding_behavior": "space padded",
-        "value_representation_class": "character string",
-        "vr": "PN",
-    }
-    assert payload["refs"][0]["part"] == "PS3.5"
-
-
-def test_cli_lookup_transfer_syntax_outputs_encoding_details(
-    tmp_path: Path,
+@pytest.mark.parametrize(
+    ("args", "expected"),
+    [
+        pytest.param(
+            ["lookup", "tag", "(0008,0060)"],
+            [
+                "**(0008,0060) Modality**\nKeyword `Modality` · VR CS · VM 1\n\n"
+                "Source: PS3.6 Table 6-1 (2026b)\n"
+            ],
+            id="lookup tag",
+        ),
+        pytest.param(
+            ["lookup", "tag", "0008,0060"],
+            ["malformed DICOM tag"],
+            id="validation error",
+        ),
+        pytest.param(
+            ["lookup", "tag", "(6002,3000)"],
+            [
+                "**(60xx,3000) Overlay Data**",
+                "Warning: concrete tag (6002,3000) matched range row (60xx,3000)",
+            ],
+            id="range match",
+        ),
+        pytest.param(
+            ["lookup", "uid", "ExplicitVRBigEndian"],
+            ["**1.2.840.10008.1.2.2** Explicit VR Big Endian (retired)"],
+            id="uid",
+        ),
+        pytest.param(
+            ["lookup", "vr", "pn"], ["**Name:** Person Name", "Source: PS3.5"], id="vr"
+        ),
+        pytest.param(
+            ["lookup", "transfer-syntax", "ExplicitVRLittleEndian"],
+            ["**Explicit vr:** yes", "**Endian:** little"],
+            id="transfer syntax",
+        ),
+        pytest.param(
+            ["lookup", "media-type", "file"],
+            ["**Media type:** application/dicom", "Source: PS3.10"],
+            id="media type",
+        ),
+        pytest.param(
+            ["lookup", "media-type", "STOW-RS request"],
+            ["**Media type:** multipart/related", "Source: PS3.18"],
+            id="media type ps3.18",
+        ),
+        pytest.param(
+            ["lookup", "dicomweb", "RetrieveStudy"],
+            ["**Route template:** /studies/{studyInstanceUID}"],
+            id="dicomweb",
+        ),
+        pytest.param(
+            ["lookup", "sr-template", "TID 1500"],
+            [
+                "**TID 1500 Measurement Report**",
+                "| CONTAINS | INCLUDE | Include TID 1501 | 1-n |",
+            ],
+            id="sr template",
+        ),
+        pytest.param(
+            ["lookup", "context-group", "CID 29"],
+            ["**CID 29 Acquisition Modality**", "| DCM | CT | Computed Tomography |"],
+            id="context group",
+        ),
+        pytest.param(
+            ["lookup", "code", "CT", "--scheme", "DCM"],
+            ["**Code meaning:** Computed Tomography", "- CID 29"],
+            id="code",
+        ),
+        pytest.param(
+            ["explain", "encoding", "OB"],
+            ["OB is the Other Byte VR.", "- binary or text: binary"],
+            id="explain encoding",
+        ),
+        pytest.param(
+            ["lookup", "defined-terms", "PatientName", "--context", "CT Image Storage"],
+            ["| ALPHA | Alphabetic representation. | Defined |", "| IDEOGRAPHIC |"],
+            id="defined terms",
+        ),
+        pytest.param(
+            ["retrieve-text", "PS3.3", "sect_A.3", "--max-chars", "60"],
+            [
+                "**PS3.3 A.3 CT Image IOD**",
+                "Warning: text excerpt truncated to 60 characters",
+            ],
+            id="retrieve text",
+        ),
+        pytest.param(
+            ["search-text", "Patient name", "--part", "PS3.3", "--limit", "3"],
+            ["| PS3.3 Table C.7-1 | Patient Module Attributes |"],
+            id="search text",
+        ),
+        pytest.param(
+            ["lookup", "iod", "CT Image"], ["**CT Image IOD** (Table A.3-1)"], id="iod"
+        ),
+        pytest.param(
+            ["lookup", "sop-class", "CT Image Storage"],
+            ["**CT Image Storage** 1.2.840.10008.5.1.4.1.1.2", "IOD: CT Image"],
+            id="sop class",
+        ),
+        pytest.param(
+            ["iod", "modules", "CT Image"],
+            ["| Image | Contrast/Bolus | C: Required if contrast media was used |"],
+            id="iod modules",
+        ),
+        pytest.param(
+            ["module", "attributes", "Patient", "--expand-macros"],
+            [
+                "| >Referenced SOP Class UID | (0008,1150) | 1 |",
+                "| Include General Anatomy Optional Macro |",
+                "| Anatomic Region Sequence | (0008,2218) | 3 | Region. |",
+            ],
+            id="module attributes",
+        ),
+        pytest.param(
+            ["resolve", "attribute-context", "PatientName", "--iod", "CT Image"],
+            ["Effective Type: 2", "| CT Image | Patient | M | 2 |"],
+            id="attribute context",
+        ),
+        pytest.param(
+            ["context", "attribute", "PatientName", "--iod", "CT Image"],
+            ["Effective Type: 2"],
+            id="context alias",
+        ),
+    ],
+)
+def test_cli_query_commands_print_markdown(
+    tmp_path: Path, args: list[str], expected: list[str]
 ) -> None:
-    payload = _invoke_json(
-        tmp_path,
-        "lookup",
-        "transfer-syntax",
-        "ExplicitVRLittleEndian",
-        "--edition",
-        "2026b",
-    )
+    output = _invoke(tmp_path, *args)
 
-    assert payload["tool"] == "lookup_transfer_syntax"
-    assert payload["status"] == "ok"
-    assert payload["result"] == {
-        "compression_family": None,
-        "encapsulated": False,
-        "encoding_notes": [],
-        "endian": "little",
-        "explicit_vr": True,
-        "retired": False,
-        "uid_keyword": "ExplicitVRLittleEndian",
-        "uid_name": "Explicit VR Little Endian",
-        "uid_value": "1.2.840.10008.1.2.1",
-    }
-    assert {ref["part"] for ref in payload["refs"]} == {"PS3.6"}
-
-
-def test_cli_lookup_media_type_outputs_ps310_constraints(tmp_path: Path) -> None:
-    payload = _invoke_json(
-        tmp_path,
-        "lookup",
-        "media-type",
-        "file",
-        "--edition",
-        "2026b",
-    )
-
-    assert payload["tool"] == "lookup_media_type"
-    assert payload["status"] == "ok"
-    assert payload["result"] == {
-        "media_type": "application/dicom",
-        "service_context": "PS3.10 file",
-        "transfer_syntax_constraints": [
-            "Encoded using the Transfer Syntax UID in the File Meta Information",
-        ],
-        "directions": ["file"],
-    }
-    assert payload["refs"][0]["part"] == "PS3.10"
-
-
-def test_cli_lookup_media_type_outputs_ps318_dicomweb_context(
-    tmp_path: Path,
-) -> None:
-    payload = _invoke_json(
-        tmp_path,
-        "lookup",
-        "media-type",
-        "STOW-RS request",
-        "--edition",
-        "2026b",
-    )
-
-    assert payload["tool"] == "lookup_media_type"
-    assert payload["status"] == "ok"
-    assert payload["result"] == {
-        "media_type": "multipart/related",
-        "service_context": "STOW-RS request",
-        "transfer_syntax_constraints": [
-            "Each part supplies a DICOM instance payload",
-        ],
-        "directions": ["request"],
-    }
-    assert payload["refs"][0]["part"] == "PS3.18"
-
-
-def test_cli_lookup_dicomweb_outputs_ps318_transaction(tmp_path: Path) -> None:
-    payload = _invoke_json(
-        tmp_path,
-        "lookup",
-        "dicomweb",
-        "RetrieveStudy",
-        "--edition",
-        "2026b",
-    )
-
-    assert payload["tool"] == "lookup_dicomweb_transaction"
-    assert payload["status"] == "ok"
-    assert payload["result"] == {
-        "transaction_name": "RetrieveStudy",
-        "resource_category": "study",
-        "http_method": "GET",
-        "route_template": "/studies/{studyInstanceUID}",
-        "request_constraints": ["Study Instance UID required"],
-        "response_constraints": ["DICOM instances returned"],
-        "status_codes": ["200", "400", "404"],
-        "media_type_refs": ["application/dicom"],
-    }
-    assert payload["refs"][0]["part"] == "PS3.18"
-
-
-def test_cli_lookup_sr_template_outputs_ps316_template(tmp_path: Path) -> None:
-    payload = _invoke_json(
-        tmp_path,
-        "lookup",
-        "sr-template",
-        "TID 1500",
-        "--edition",
-        "2026b",
-    )
-
-    assert payload["tool"] == "lookup_sr_template"
-    assert payload["status"] == "ok"
-    assert payload["result"] == {
-        "tid": "TID 1500",
-        "name": "Measurement Report",
-        "extensibility": "EXTENSIBLE",
-        "rows": [
-            {
-                "order": 1,
-                "relationship_type": "CONTAINS",
-                "value_type": "CONTAINER",
-                "concept_name": "Measurement Report",
-                "cardinality": "1",
-                "condition": "Root container is required.",
-                "include_tid": None,
-            },
-            {
-                "order": 2,
-                "relationship_type": "CONTAINS",
-                "value_type": "INCLUDE",
-                "concept_name": None,
-                "cardinality": "1-n",
-                "condition": "Include measurements when present.",
-                "include_tid": "TID 1501",
-            },
-        ],
-    }
-    assert payload["refs"][0]["part"] == "PS3.16"
-
-
-def test_cli_lookup_context_group_outputs_ps316_group(tmp_path: Path) -> None:
-    payload = _invoke_json(
-        tmp_path,
-        "lookup",
-        "context-group",
-        "CID 29",
-        "--edition",
-        "2026b",
-    )
-
-    assert payload["tool"] == "lookup_context_group"
-    assert payload["status"] == "ok"
-    assert payload["result"] == {
-        "cid": "CID 29",
-        "name": "Acquisition Modality",
-        "extensibility": "EXTENSIBLE",
-        "version": "20260101",
-        "rows": [
-            {
-                "order": 1,
-                "coding_scheme_designator": "DCM",
-                "coding_scheme_version": None,
-                "code_value": "CT",
-                "code_meaning": "Computed Tomography",
-                "include_cid": None,
-            },
-            {
-                "order": 2,
-                "coding_scheme_designator": None,
-                "coding_scheme_version": None,
-                "code_value": None,
-                "code_meaning": None,
-                "include_cid": "CID 30",
-            },
-        ],
-    }
-    assert payload["refs"][0]["part"] == "PS3.16"
-
-
-def test_cli_lookup_code_outputs_ps316_coded_concept(tmp_path: Path) -> None:
-    payload = _invoke_json(
-        tmp_path,
-        "lookup",
-        "code",
-        "CT",
-        "--scheme",
-        "DCM",
-        "--edition",
-        "2026b",
-    )
-
-    assert payload["tool"] == "lookup_code_meaning"
-    assert payload["status"] == "ok"
-    assert payload["result"] == {
-        "code_value": "CT",
-        "coding_scheme_designator": "DCM",
-        "coding_scheme_version": None,
-        "code_meaning": "Computed Tomography",
-        "context_groups": ["CID 29"],
-    }
-    assert payload["refs"][0]["part"] == "PS3.16"
-
-
-def test_cli_explain_encoding_outputs_structured_rule(tmp_path: Path) -> None:
-    payload = _invoke_json(
-        tmp_path,
-        "explain",
-        "encoding",
-        "OB",
-        "--edition",
-        "2026b",
-    )
-
-    assert payload["tool"] == "explain_encoding_rule"
-    assert payload["status"] == "ok"
-    assert payload["result"]["summary"] == "OB is the Other Byte VR."
-    assert payload["result"]["structured_facts"] == [
-        "name: Other Byte",
-        "value representation class: byte string",
-        "binary or text: binary",
-        "padding behavior: null padded",
-        "length note: variable length",
-    ]
-    assert payload["refs"][0]["part"] == "PS3.5"
-
-
-def test_cli_lookup_defined_terms_outputs_value_terms(tmp_path: Path) -> None:
-    payload = _invoke_json(
-        tmp_path,
-        "lookup",
-        "defined-terms",
-        "PatientName",
-        "--edition",
-        "2026b",
-        "--context",
-        "CT Image Storage",
-    )
-
-    assert payload["tool"] == "lookup_defined_terms"
-    assert payload["status"] == "ok"
-    assert payload["result"]["attribute"]["tag"] == "(0010,0010)"
-    assert [term["value"] for term in payload["result"]["terms"]] == [
-        "ALPHA",
-        "IDEOGRAPHIC",
-    ]
-    assert {ref["part"] for ref in payload["refs"]} == {"PS3.3", "PS3.4", "PS3.6"}
-
-
-def test_cli_retrieve_text_outputs_capped_excerpt(tmp_path: Path) -> None:
-    payload = _invoke_json(
-        tmp_path,
-        "retrieve-text",
-        "PS3.3",
-        "sect_A.3",
-        "--edition",
-        "2026b",
-        "--max-chars",
-        "60",
-    )
-
-    assert payload["tool"] == "retrieve_standard_text"
-    assert payload["status"] == "ok"
-    assert payload["result"]["title"] == "CT Image IOD"
-    assert len(payload["result"]["text_excerpt"]) == 60
-    assert payload["result"]["tables"] == [
-        {"table_id": "table_A.3-1", "title": "CT Image IOD Modules"}
-    ]
-    assert payload["warnings"] == ["text excerpt truncated to 60 characters"]
-
-
-def test_cli_search_text_outputs_matches(tmp_path: Path) -> None:
-    payload = _invoke_json(
-        tmp_path,
-        "search-text",
-        "Patient name",
-        "--edition",
-        "2026b",
-        "--part",
-        "PS3.3",
-        "--limit",
-        "3",
-    )
-
-    assert payload["tool"] == "search_standard_text"
-    assert payload["status"] == "ok"
-    assert payload["input"] == {
-        "limit": "3",
-        "part_filter": "PS3.3",
-        "query": "Patient name",
-    }
-    assert payload["result"]["matches"][0]["part"] == "PS3.3"
-    assert "Patient" in payload["result"]["matches"][0]["snippet"]
-    assert {ref["part"] for ref in payload["refs"]} == {"PS3.3"}
-
-
-def test_cli_lookup_iod_outputs_ps33_iod(tmp_path: Path) -> None:
-    payload = _invoke_json(
-        tmp_path,
-        "lookup",
-        "iod",
-        "CT Image",
-        "--edition",
-        "2026b",
-    )
-
-    assert payload["tool"] == "lookup_iod"
-    assert payload["status"] == "ok"
-    assert payload["result"]["name"] == "CT Image"
-    assert payload["refs"][0]["part"] == "PS3.3"
-
-
-def test_cli_lookup_sop_class_outputs_linked_iod(tmp_path: Path) -> None:
-    payload = _invoke_json(
-        tmp_path,
-        "lookup",
-        "sop-class",
-        "CT Image Storage",
-        "--edition",
-        "2026b",
-    )
-
-    assert payload["tool"] == "lookup_sop_class"
-    assert payload["status"] == "ok"
-    assert payload["result"]["sop_class"]["uid_value"] == ("1.2.840.10008.5.1.4.1.1.2")
-    assert payload["result"]["iods"][0]["iod_name"] == "CT Image"
-    assert {ref["part"] for ref in payload["refs"]} == {"PS3.3", "PS3.4"}
+    for fragment in expected:
+        assert fragment in output
+    assert not output.lstrip().startswith("{")
 
 
 def test_cli_lookup_tag_requires_existing_db(tmp_path: Path) -> None:
@@ -661,8 +358,10 @@ def test_cli_build_fixture_creates_default_db_for_lookups(tmp_path: Path) -> Non
     )
 
     assert build_result.exit_code == 0, build_result.output
-    build_payload = json.loads(build_result.output)
-    assert build_payload["db_path"] == str(cache_dir / "db" / "2026b.sqlite")
+    db_path = cache_dir / "db" / "2026b.sqlite"
+    assert build_result.output.startswith(f"Built DICOM 2026b KB: {db_path}")
+    assert "gaps logged" in build_result.output
+    assert (cache_dir / "db" / "2026b.gaps.txt").exists()
 
     lookup_result = runner.invoke(
         app,
@@ -678,9 +377,7 @@ def test_cli_build_fixture_creates_default_db_for_lookups(tmp_path: Path) -> Non
     )
 
     assert lookup_result.exit_code == 0, lookup_result.output
-    payload = json.loads(lookup_result.output)
-    assert payload["status"] == "ok"
-    assert payload["result"]["tag"] == "(0008,0060)"
+    assert lookup_result.output.startswith("**(0008,0060) Modality**")
 
 
 def test_cli_fetch_registers_local_docbook_for_build(tmp_path: Path) -> None:
@@ -701,18 +398,13 @@ def test_cli_fetch_registers_local_docbook_for_build(tmp_path: Path) -> None:
     )
 
     assert fetch_result.exit_code == 0, fetch_result.output
-    fetch_payload = json.loads(fetch_result.output)
-    assert fetch_payload["edition"] == "2026b"
-    assert fetch_payload["artifacts"][0]["local_path"] == (
-        "artifacts/2026b/raw/source/docbook/part06/part06.xml"
-    )
+    assert fetch_result.output.startswith("Fetched DICOM 2026b: 1 parts")
+    assert (cache_dir / "artifacts/2026b/raw/source/docbook/part06/part06.xml").exists()
 
     build_result = runner.invoke(
         app,
         [
             "build",
-            "--edition",
-            "2026b",
             "--cache-dir",
             str(cache_dir),
         ],
@@ -726,17 +418,13 @@ def test_cli_fetch_registers_local_docbook_for_build(tmp_path: Path) -> None:
             "lookup",
             "tag",
             "Modality",
-            "--edition",
-            "2026b",
             "--cache-dir",
             str(cache_dir),
         ],
     )
 
     assert lookup_result.exit_code == 0, lookup_result.output
-    payload = json.loads(lookup_result.output)
-    assert payload["status"] == "ok"
-    assert payload["result"]["keyword"] == "Modality"
+    assert "Keyword `Modality`" in lookup_result.output
 
 
 def test_cli_fetch_downloads_official_docbook(
@@ -764,8 +452,6 @@ def test_cli_fetch_downloads_official_docbook(
         app,
         [
             "fetch",
-            "--edition",
-            "current",
             "--cache-dir",
             str(cache_dir),
             "--source-base-url",
@@ -776,13 +462,27 @@ def test_cli_fetch_downloads_official_docbook(
     )
 
     assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
-    assert payload["edition"] == "2026b"
-    assert payload["resolved_from"] == "current"
-    assert payload["artifacts"][0]["source_url"] == part_url
-    assert payload["artifacts"][0]["local_path"] == (
-        "artifacts/2026b/raw/source/docbook/part06/part06.xml"
+    assert result.output.startswith("Fetched DICOM 2026b: 1 parts")
+    assert "Next: dicom-kb build --edition 2026b" in result.output
+    assert (
+        cache_dir / "artifacts/2026b/raw/source/docbook/part06/part06.xml"
+    ).read_bytes() == responses[part_url]
+
+    again = runner.invoke(
+        app,
+        [
+            "fetch",
+            "--cache-dir",
+            str(cache_dir),
+            "--source-base-url",
+            base_url,
+            "--part",
+            "PS3.6",
+        ],
     )
+    assert again.exit_code != 0
+    output = " ".join(strip_ansi(again.output).translate(_RICH_BOX_CHARS).split())
+    assert "already fetched" in output
 
 
 def test_cli_fetch_defaults_to_v2_docbook_parts(
@@ -813,8 +513,6 @@ def test_cli_fetch_defaults_to_v2_docbook_parts(
         app,
         [
             "fetch",
-            "--edition",
-            "current",
             "--cache-dir",
             str(tmp_path / "cache"),
             "--source-base-url",
@@ -823,338 +521,4 @@ def test_cli_fetch_defaults_to_v2_docbook_parts(
     )
 
     assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
-    assert tuple(artifact["part"] for artifact in payload["artifacts"]) == (
-        DEFAULT_DOCBOOK_PARTS
-    )
-
-
-def test_cli_fetch_downloads_requested_official_formats(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    base_url = "https://dicom.example/current/"
-    docbook_url = official_artifact_url(
-        base_url, part="PS3.6", artifact_format="docbook_xml"
-    )
-    pdf_url = official_artifact_url(base_url, part="PS3.6", artifact_format="pdf")
-    responses = {
-        base_url: (
-            b'<a href="DocBookDICOM2026b_release_docbook_20260327091344.zip">'
-            b"docbook</a>"
-        ),
-        docbook_url: b"<book><title>Part 6</title></book>",
-        pdf_url: b"%PDF-1.7\n",
-    }
-
-    def fake_urlopen(url: str, timeout: int) -> _FakeResponse:
-        assert timeout == 60
-        return _FakeResponse(responses[url])
-
-    monkeypatch.setattr("dicom_kb.sources.downloader.urlopen", fake_urlopen)
-    cache_dir = tmp_path / "cache"
-
-    result = CliRunner().invoke(
-        app,
-        [
-            "fetch",
-            "--edition",
-            "current",
-            "--cache-dir",
-            str(cache_dir),
-            "--source-base-url",
-            base_url,
-            "--part",
-            "PS3.6",
-            "--format",
-            "docbook_xml",
-            "--format",
-            "pdf",
-        ],
-    )
-
-    assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
-    assert [artifact["format"] for artifact in payload["artifacts"]] == [
-        "docbook_xml",
-        "pdf",
-    ]
-    assert [artifact["source_url"] for artifact in payload["artifacts"]] == [
-        docbook_url,
-        pdf_url,
-    ]
-    assert payload["artifacts"][1]["local_path"] == (
-        "artifacts/2026b/raw/pdf/part06.pdf"
-    )
-
-
-def test_cli_fetch_mirrors_chtml_tree(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    base_url = "https://dicom.example/current/"
-    chtml_root = official_chtml_directory_url(base_url, part="PS3.6")
-    entry_url = f"{chtml_root}PS3.6.html"
-    section_url = f"{chtml_root}chapter/sect_A.html"
-    responses = {
-        base_url: (
-            b'<a href="DocBookDICOM2026b_release_docbook_20260327091344.zip">'
-            b"docbook</a>"
-        ),
-        chtml_root: b'<a href="PS3.6.html">entry</a><a href="chapter/">chapter</a>',
-        entry_url: b"<html>Part 6 entry</html>",
-        f"{chtml_root}chapter/": b'<a href="sect_A.html">section</a>',
-        section_url: b"<html>Section A</html>",
-    }
-
-    def fake_urlopen(url: str, timeout: int) -> _FakeResponse:
-        assert timeout == 60
-        return _FakeResponse(responses[url])
-
-    monkeypatch.setattr("dicom_kb.sources.downloader.urlopen", fake_urlopen)
-    cache_dir = tmp_path / "cache"
-
-    result = CliRunner().invoke(
-        app,
-        [
-            "fetch",
-            "--edition",
-            "current",
-            "--cache-dir",
-            str(cache_dir),
-            "--source-base-url",
-            base_url,
-            "--part",
-            "PS3.6",
-            "--format",
-            "chtml",
-            "--mirror-chtml-tree",
-        ],
-    )
-
-    assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
-    assert [artifact["source_url"] for artifact in payload["artifacts"]] == [
-        entry_url,
-        section_url,
-    ]
-    assert [artifact["local_path"] for artifact in payload["artifacts"]] == [
-        "artifacts/2026b/raw/chtml/part06/PS3.6.html",
-        "artifacts/2026b/raw/chtml/part06/chapter/sect_A.html",
-    ]
-
-
-def test_cli_fetch_downloads_concrete_edition_from_archive(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    current_url = "https://dicom.example/current/"
-    archive_url = "https://dicom.example/dicom/"
-    release_url = official_archive_release_url(archive_url, edition="2025e")
-    part_url = official_docbook_xml_url(release_url, "PS3.6")
-    responses = {
-        archive_url: b'<a href="2025e/">2025e</a>',
-        part_url: b"<book><title>Archived Part 6</title></book>",
-    }
-
-    def fake_urlopen(url: str, timeout: int) -> _FakeResponse:
-        assert timeout == 60
-        assert url != current_url
-        return _FakeResponse(responses[url])
-
-    monkeypatch.setattr("dicom_kb.sources.downloader.urlopen", fake_urlopen)
-    cache_dir = tmp_path / "cache"
-
-    result = CliRunner().invoke(
-        app,
-        [
-            "fetch",
-            "--edition",
-            "2025e",
-            "--cache-dir",
-            str(cache_dir),
-            "--source-base-url",
-            current_url,
-            "--archive-base-url",
-            archive_url,
-            "--part",
-            "PS3.6",
-        ],
-    )
-
-    assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
-    assert payload["edition"] == "2025e"
-    assert payload["resolved_from"] == "2025e"
-    assert payload["artifacts"][0]["source_url"] == part_url
-    assert payload["artifacts"][0]["local_path"] == (
-        "artifacts/2025e/raw/source/docbook/part06/part06.xml"
-    )
-
-
-def test_cli_iod_modules_outputs_ps33_module_envelope(tmp_path: Path) -> None:
-    payload = _invoke_json(
-        tmp_path,
-        "iod",
-        "modules",
-        "CT Image",
-        "--edition",
-        "2026b",
-    )
-
-    assert payload["tool"] == "list_modules_for_iod"
-    assert payload["status"] == "ok"
-    assert payload["result"]["iod"]["name"] == "CT Image"
-    assert [row["module_name"] for row in payload["result"]["modules"]] == [
-        "Patient",
-        "Contrast/Bolus",
-        "CT Image",
-    ]
-    assert payload["refs"][0]["part"] == "PS3.3"
-
-
-def test_cli_module_attributes_expands_macros(tmp_path: Path) -> None:
-    payload = _invoke_json(
-        tmp_path,
-        "module",
-        "attributes",
-        "Patient",
-        "--edition",
-        "2026b",
-        "--expand-macros",
-    )
-
-    assert payload["tool"] == "list_attributes_for_module"
-    assert payload["status"] == "ok"
-    assert payload["result"]["module"]["name"] == "Patient"
-    assert payload["result"]["attributes"][-1]["attribute_name"] == (
-        "Anatomic Region Sequence"
-    )
-    assert payload["result"]["attributes"][-1]["expanded_from_include_id"] == (
-        "2026b.module.patient.attribute_use.3"
-    )
-
-
-def test_cli_resolve_attribute_context_outputs_effective_type(
-    tmp_path: Path,
-) -> None:
-    payload = _invoke_json(
-        tmp_path,
-        "resolve",
-        "attribute-context",
-        "PatientName",
-        "--edition",
-        "2026b",
-        "--iod",
-        "CT Image",
-    )
-
-    assert payload["tool"] == "resolve_attribute_context"
-    assert payload["status"] == "ok"
-    assert payload["classification"] == {
-        "evidence_level": "parsed_cross_reference",
-        "machine_decidability": "partially_decidable",
-        "normativity": "normative",
-    }
-    assert payload["parse_confidence"] == {
-        "level": "medium",
-        "source": "parsed_cross_reference",
-    }
-    assert payload["result"]["attribute"]["tag"] == "(0010,0010)"
-    assert payload["result"]["uses"][0]["module"] == "Patient"
-    assert payload["result"]["effective_type"] == "2"
-
-
-def test_cli_context_attribute_alias_matches_resolve_command(
-    tmp_path: Path,
-) -> None:
-    db_path = _fixture_db(tmp_path)
-    runner = CliRunner()
-    resolve_result = runner.invoke(
-        app,
-        [
-            "resolve",
-            "attribute-context",
-            "PatientName",
-            "--edition",
-            "2026b",
-            "--iod",
-            "CT Image",
-            "--db",
-            str(db_path),
-        ],
-    )
-    context_result = runner.invoke(
-        app,
-        [
-            "context",
-            "attribute",
-            "PatientName",
-            "--edition",
-            "2026b",
-            "--iod",
-            "CT Image",
-            "--db",
-            str(db_path),
-        ],
-    )
-    assert resolve_result.exit_code == 0, resolve_result.output
-    assert context_result.exit_code == 0, context_result.output
-    resolve_payload = json.loads(resolve_result.output)
-    context_payload = json.loads(context_result.output)
-
-    assert _without_trace(resolve_payload) == _without_trace(context_payload)
-
-
-def _without_trace(payload: dict[str, Any]) -> dict[str, Any]:
-    stable_payload = dict(payload)
-    stable_payload.pop("trace", None)
-    return stable_payload
-
-
-def test_cli_eval_score_outputs_agent_report(tmp_path: Path) -> None:
-    transcript = tmp_path / "agent-runs.json"
-    transcript.write_text(
-        json.dumps(
-            [
-                {
-                    "case_id": "agent.ps36.transfer_syntax",
-                    "edition": "2026b",
-                    "answer": (
-                        "For edition 2026b, Explicit VR Big Endian is retired; "
-                        "PS3.6 source references are present."
-                    ),
-                    "tool_calls": [
-                        {
-                            "tool": "dicom_lookup_uid",
-                            "arguments": {"uid_or_keyword": "ExplicitVRBigEndian"},
-                            "response_status": "ok",
-                            "response_edition": "2026b",
-                            "response_ref_count": 1,
-                        }
-                    ],
-                },
-                {
-                    "case_id": "agent.unknown",
-                    "edition": "2026b",
-                    "answer": "No committed prompt case exists.",
-                    "tool_calls": [],
-                },
-            ]
-        ),
-        encoding="utf-8",
-    )
-
-    result = CliRunner().invoke(
-        app,
-        [
-            "eval",
-            "score",
-            str(transcript),
-            "--no-fail-on-issues",
-        ],
-    )
-
-    assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
-    assert payload["total_runs"] == 2
-    assert payload["passed_runs"] == 1
-    assert payload["failed_runs"] == 1
-    assert payload["scorecards"][1]["issues"][0]["code"] == "unknown_case"
+    assert f"{len(DEFAULT_DOCBOOK_PARTS)} parts" in result.output

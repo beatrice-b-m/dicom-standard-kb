@@ -11,8 +11,8 @@ from dicom_kb.cli.context import (
     echo_response,
     resolve_cache_dir,
     resolve_db_path,
-    resolve_edition,
     resolve_max_text_chars,
+    resolve_query_edition,
 )
 from dicom_kb.cli.options import CacheDirectoryOption, DatabaseOption, EditionOption
 from dicom_kb.query.resolver import (
@@ -45,7 +45,7 @@ def retrieve_text_command(
     ] = None,
 ) -> None:
     """Retrieve a capped excerpt from persisted standard text."""
-    resolved_edition = resolve_edition(ctx, edition)
+    resolved_edition = resolve_query_edition(ctx, edition, db=db, cache_dir=cache_dir)
     resolved_max_chars = resolve_max_text_chars(ctx, max_chars, default=800)
     with connect_query_db(
         resolve_db_path(ctx, db),
@@ -83,7 +83,7 @@ def search_text_command(
     ] = 10,
 ) -> None:
     """Search persisted standard text with SQLite FTS5."""
-    resolved_edition = resolve_edition(ctx, edition)
+    resolved_edition = resolve_query_edition(ctx, edition, db=db, cache_dir=cache_dir)
     with connect_query_db(
         resolve_db_path(ctx, db),
         cache_dir=resolve_cache_dir(ctx, cache_dir),
@@ -112,7 +112,7 @@ def explain_encoding_command(
     cache_dir: CacheDirectoryOption = None,
 ) -> None:
     """Explain a PS3.5 encoding rule with citations."""
-    resolved_edition = resolve_edition(ctx, edition)
+    resolved_edition = resolve_query_edition(ctx, edition, db=db, cache_dir=cache_dir)
     with connect_query_db(
         resolve_db_path(ctx, db),
         cache_dir=resolve_cache_dir(ctx, cache_dir),

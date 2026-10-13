@@ -7,7 +7,7 @@ import typer
 from dicom_kb.cli.context import (
     resolve_cache_dir,
     resolve_db_path,
-    resolve_edition,
+    resolve_query_edition,
 )
 from dicom_kb.cli.options import CacheDirectoryOption, DatabaseOption, EditionOption
 from dicom_kb.mcp.server import (
@@ -28,7 +28,7 @@ def mcp_serve_command(
 ) -> None:
     """Serve query tools over MCP stdio."""
     config = MCPServerConfig(
-        edition=resolve_edition(ctx, edition),
+        edition=resolve_query_edition(ctx, edition, db=db, cache_dir=cache_dir),
         db_path=resolve_db_path(ctx, db),
         cache_dir=resolve_cache_dir(ctx, cache_dir),
     )

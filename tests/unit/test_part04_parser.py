@@ -23,7 +23,7 @@ def test_parse_part04_sop_classes_and_iod_edges() -> None:
         "2026b.iod.ct_image",
         "2026b.iod.enhanced_ct_image",
     ]
-    assert result.sop_class_iods[0].resolution == "parsed"
+    assert result.sop_class_iods[0].resolution == "inferred_from_name"
     assert result.sop_class_iods[0].source_ref.part == "PS3.4"
     assert result.warnings[0].message.startswith("skipped malformed SOP Class UID")
 

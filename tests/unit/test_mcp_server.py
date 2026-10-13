@@ -27,7 +27,7 @@ _RICH_BOX_CHARS = str.maketrans("", "", "\u256d\u2500\u256e\u2502\u2570\u256f")
 @dataclass(frozen=True)
 class _RegisteredTool:
     description: str
-    function: Callable[..., dict[str, Any]]
+    function: Callable[..., str]
 
 
 class _FakeFastMCP:
@@ -44,10 +44,13 @@ class _FakeFastMCP:
         *,
         name: str,
         description: str,
-    ) -> Callable[[Callable[..., dict[str, Any]]], Callable[..., dict[str, Any]]]:
+        structured_output: bool | None = None,
+    ) -> Callable[[Callable[..., str]], Callable[..., str]]:
+        assert structured_output is False
+
         def decorator(
-            function: Callable[..., dict[str, Any]],
-        ) -> Callable[..., dict[str, Any]]:
+            function: Callable[..., str],
+        ) -> Callable[..., str]:
             self.tools[name] = _RegisteredTool(
                 description=description,
                 function=function,
@@ -106,10 +109,8 @@ def test_create_mcp_server_registers_all_supported_tools(
         limit=2,
     )
 
-    assert payload["tool"] == "search_standard_text"
-    assert payload["status"] == "ok"
-    assert payload["input"]["part_filter"] == "PS3.3"
-    assert len(payload["result"]["matches"]) <= 2
+    assert payload.startswith("| Where | Title | Context |")
+    assert len([line for line in payload.splitlines() if "| PS3.3 " in line]) <= 2
 
 
 def test_serve_mcp_stdio_runs_fastmcp_stdio_transport(
@@ -127,263 +128,109 @@ def test_serve_mcp_stdio_runs_fastmcp_stdio_transport(
     assert _FakeFastMCP.last_instance.run_transport == "stdio"
 
 
-def test_execute_mcp_tool_returns_public_lookup_envelope(tmp_path: Path) -> None:
+def test_execute_mcp_tool_returns_compact_markdown(tmp_path: Path) -> None:
     payload = execute_mcp_tool(
         "dicom_lookup_data_element",
         {"tag_or_keyword": "Modality"},
         config=MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)),
     )
 
-    assert payload["tool"] == "lookup_data_element"
-    assert payload["status"] == "ok"
-    assert payload["result"]["tag"] == "(0008,0060)"
-    assert payload["refs"][0]["part"] == "PS3.6"
-    assert payload["warnings"] == []
-
-
-def test_execute_mcp_tool_expands_module_macros(tmp_path: Path) -> None:
-    payload = execute_mcp_tool(
-        "dicom_list_attributes_for_module",
-        {"module_name": "Patient", "expand_macros": True},
-        config=MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)),
-    )
-
-    assert payload["tool"] == "list_attributes_for_module"
-    assert payload["status"] == "ok"
-    assert payload["result"]["attributes"][-1]["attribute_name"] == (
-        "Anatomic Region Sequence"
-    )
-    assert payload["result"]["attributes"][-1]["expanded_from_include_id"] == (
-        "2026b.module.patient.attribute_use.3"
+    assert payload == (
+        "**(0008,0060) Modality**\n"
+        "Keyword `Modality` · VR CS · VM 1\n"
+        "\n"
+        "Source: PS3.6 Table 6-1 (2026b)\n"
     )
 
 
-def test_execute_mcp_tool_resolves_attribute_context(tmp_path: Path) -> None:
-    payload = execute_mcp_tool(
-        "dicom_resolve_attribute_context",
-        {"attribute": "PatientName", "iod_name": "CT Image"},
-        config=MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)),
-    )
-
-    assert payload["tool"] == "resolve_attribute_context"
-    assert payload["status"] == "ok"
-    assert payload["result"]["effective_type"] == "2"
-
-
-def test_execute_mcp_tool_returns_vr_definition(tmp_path: Path) -> None:
-    payload = execute_mcp_tool(
-        "dicom_lookup_vr",
-        {"vr": "ob"},
-        config=MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)),
-    )
-
-    assert payload["tool"] == "lookup_vr"
-    assert payload["status"] == "ok"
-    assert payload["result"]["vr"] == "OB"
-    assert payload["result"]["binary_or_text"] == "binary"
-    assert payload["refs"][0]["part"] == "PS3.5"
-
-
-def test_execute_mcp_tool_returns_transfer_syntax_detail(tmp_path: Path) -> None:
-    payload = execute_mcp_tool(
-        "dicom_lookup_transfer_syntax",
-        {"uid_or_keyword": "ImplicitVRLittleEndian"},
-        config=MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)),
-    )
-
-    assert payload["tool"] == "lookup_transfer_syntax"
-    assert payload["status"] == "ok"
-    assert payload["result"]["uid_value"] == "1.2.840.10008.1.2"
-    assert payload["result"]["explicit_vr"] is False
-    assert payload["result"]["endian"] == "little"
-
-
-def test_execute_mcp_tool_explains_encoding_rule(tmp_path: Path) -> None:
-    payload = execute_mcp_tool(
-        "dicom_explain_encoding_rule",
-        {"topic": "PN"},
-        config=MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)),
-    )
-
-    assert payload["tool"] == "explain_encoding_rule"
-    assert payload["status"] == "ok"
-    assert payload["result"]["summary"] == "PN is the Person Name VR."
-    assert (
-        "value representation class: character string"
-        in (payload["result"]["structured_facts"])
-    )
-
-
-def test_execute_mcp_tool_returns_media_type_constraints(tmp_path: Path) -> None:
-    payload = execute_mcp_tool(
-        "dicom_lookup_media_type",
-        {"media_type_or_context": "file"},
-        config=MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)),
-    )
-
-    assert payload["tool"] == "lookup_media_type"
-    assert payload["status"] == "ok"
-    assert payload["result"] == {
-        "media_type": "application/dicom",
-        "service_context": "PS3.10 file",
-        "transfer_syntax_constraints": [
-            "Encoded using the Transfer Syntax UID in the File Meta Information",
-        ],
-        "directions": ["file"],
-    }
-    assert payload["refs"][0]["part"] == "PS3.10"
-
-
-def test_execute_mcp_tool_returns_ps318_media_type_context(
-    tmp_path: Path,
+@pytest.mark.parametrize(
+    ("tool", "arguments", "expected"),
+    [
+        (
+            "dicom_list_attributes_for_module",
+            {"module_name": "Patient", "expand_macros": True},
+            ["| Attribute | Tag | Type |", "Include", "Anatomic Region Sequence"],
+        ),
+        (
+            "dicom_resolve_attribute_context",
+            {"attribute": "PatientName", "iod_name": "CT Image"},
+            ["Effective Type: 2", "| CT Image | Patient |"],
+        ),
+        (
+            "dicom_lookup_vr",
+            {"vr": "ob"},
+            ["**Vr:** OB", "**Binary or text:** binary", "Source: PS3.5"],
+        ),
+        (
+            "dicom_lookup_transfer_syntax",
+            {"uid_or_keyword": "ImplicitVRLittleEndian"},
+            ["1.2.840.10008.1.2", "**Explicit vr:** no", "**Endian:** little"],
+        ),
+        (
+            "dicom_explain_encoding_rule",
+            {"topic": "PN"},
+            ["PN is the Person Name VR.", "value representation class"],
+        ),
+        (
+            "dicom_lookup_media_type",
+            {"media_type_or_context": "file"},
+            ["**Media type:** application/dicom", "Source: PS3.10"],
+        ),
+        (
+            "dicom_lookup_media_type",
+            {"media_type_or_context": "STOW-RS request"},
+            ["**Media type:** multipart/related", "Source: PS3.18"],
+        ),
+        (
+            "dicom_lookup_dicomweb_transaction",
+            {"name_or_route": "RetrieveStudy"},
+            ["**Route template:** /studies/{studyInstanceUID}", "- 404"],
+        ),
+        (
+            "dicom_lookup_sr_template",
+            {"tid_or_name": "TID 1500"},
+            ["**TID 1500 Measurement Report**", "Include TID 1501"],
+        ),
+        (
+            "dicom_lookup_context_group",
+            {"cid_or_name": "CID 29"},
+            ["**CID 29 Acquisition Modality**", "| DCM | CT |", "Include CID 30"],
+        ),
+        (
+            "dicom_lookup_code_meaning",
+            {"code_value": "CT", "scheme": "DCM"},
+            ["**Code meaning:** Computed Tomography", "- CID 29"],
+        ),
+        (
+            "dicom_lookup_defined_terms",
+            {"attribute": "PatientName", "context": "CT Image"},
+            ["| ALPHA |", "| IDEOGRAPHIC |"],
+        ),
+    ],
+)
+def test_execute_mcp_tool_renders_each_answer_shape(
+    tmp_path: Path, tool: str, arguments: dict[str, Any], expected: list[str]
 ) -> None:
     payload = execute_mcp_tool(
-        "dicom_lookup_media_type",
-        {"media_type_or_context": "STOW-RS request"},
+        tool,  # type: ignore[arg-type]
+        arguments,
         config=MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)),
     )
 
-    assert payload["tool"] == "lookup_media_type"
-    assert payload["status"] == "ok"
-    assert payload["result"] == {
-        "media_type": "multipart/related",
-        "service_context": "STOW-RS request",
-        "transfer_syntax_constraints": [
-            "Each part supplies a DICOM instance payload",
-        ],
-        "directions": ["request"],
-    }
-    assert payload["refs"][0]["part"] == "PS3.18"
+    for fragment in expected:
+        assert fragment in payload
+    assert payload.rstrip().splitlines()[-1].startswith("Source: ")
+    assert '"status"' not in payload
 
 
-def test_execute_mcp_tool_returns_dicomweb_transaction(tmp_path: Path) -> None:
+def test_execute_mcp_tool_not_found_is_one_line(tmp_path: Path) -> None:
     payload = execute_mcp_tool(
-        "dicom_lookup_dicomweb_transaction",
-        {"name_or_route": "RetrieveStudy"},
+        "dicom_lookup_data_element",
+        {"tag_or_keyword": "(0008,9999)"},
         config=MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)),
     )
 
-    assert payload["tool"] == "lookup_dicomweb_transaction"
-    assert payload["status"] == "ok"
-    assert payload["result"] == {
-        "transaction_name": "RetrieveStudy",
-        "resource_category": "study",
-        "http_method": "GET",
-        "route_template": "/studies/{studyInstanceUID}",
-        "request_constraints": ["Study Instance UID required"],
-        "response_constraints": ["DICOM instances returned"],
-        "status_codes": ["200", "400", "404"],
-        "media_type_refs": ["application/dicom"],
-    }
-    assert payload["refs"][0]["part"] == "PS3.18"
-
-
-def test_execute_mcp_tool_returns_sr_template(tmp_path: Path) -> None:
-    payload = execute_mcp_tool(
-        "dicom_lookup_sr_template",
-        {"tid_or_name": "TID 1500"},
-        config=MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)),
-    )
-
-    assert payload["tool"] == "lookup_sr_template"
-    assert payload["status"] == "ok"
-    assert payload["result"] == {
-        "tid": "TID 1500",
-        "name": "Measurement Report",
-        "extensibility": "EXTENSIBLE",
-        "rows": [
-            {
-                "order": 1,
-                "relationship_type": "CONTAINS",
-                "value_type": "CONTAINER",
-                "concept_name": "Measurement Report",
-                "cardinality": "1",
-                "condition": "Root container is required.",
-                "include_tid": None,
-            },
-            {
-                "order": 2,
-                "relationship_type": "CONTAINS",
-                "value_type": "INCLUDE",
-                "concept_name": None,
-                "cardinality": "1-n",
-                "condition": "Include measurements when present.",
-                "include_tid": "TID 1501",
-            },
-        ],
-    }
-    assert payload["refs"][0]["part"] == "PS3.16"
-
-
-def test_execute_mcp_tool_returns_context_group(tmp_path: Path) -> None:
-    payload = execute_mcp_tool(
-        "dicom_lookup_context_group",
-        {"cid_or_name": "CID 29"},
-        config=MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)),
-    )
-
-    assert payload["tool"] == "lookup_context_group"
-    assert payload["status"] == "ok"
-    assert payload["result"] == {
-        "cid": "CID 29",
-        "name": "Acquisition Modality",
-        "extensibility": "EXTENSIBLE",
-        "version": "20260101",
-        "rows": [
-            {
-                "order": 1,
-                "coding_scheme_designator": "DCM",
-                "coding_scheme_version": None,
-                "code_value": "CT",
-                "code_meaning": "Computed Tomography",
-                "include_cid": None,
-            },
-            {
-                "order": 2,
-                "coding_scheme_designator": None,
-                "coding_scheme_version": None,
-                "code_value": None,
-                "code_meaning": None,
-                "include_cid": "CID 30",
-            },
-        ],
-    }
-    assert payload["refs"][0]["part"] == "PS3.16"
-
-
-def test_execute_mcp_tool_returns_code_meaning(tmp_path: Path) -> None:
-    payload = execute_mcp_tool(
-        "dicom_lookup_code_meaning",
-        {"code_value": "CT", "scheme": "DCM"},
-        config=MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)),
-    )
-
-    assert payload["tool"] == "lookup_code_meaning"
-    assert payload["status"] == "ok"
-    assert payload["result"] == {
-        "code_value": "CT",
-        "coding_scheme_designator": "DCM",
-        "coding_scheme_version": None,
-        "code_meaning": "Computed Tomography",
-        "context_groups": ["CID 29"],
-    }
-    assert payload["refs"][0]["part"] == "PS3.16"
-
-
-def test_execute_mcp_tool_returns_defined_terms(tmp_path: Path) -> None:
-    payload = execute_mcp_tool(
-        "dicom_lookup_defined_terms",
-        {"attribute": "PatientName", "context": "CT Image"},
-        config=MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)),
-    )
-
-    assert payload["tool"] == "lookup_defined_terms"
-    assert payload["status"] == "ok"
-    assert [term["value"] for term in payload["result"]["terms"]] == [
-        "ALPHA",
-        "IDEOGRAPHIC",
-    ]
-    assert {ref["part"] for ref in payload["refs"]} == {"PS3.3", "PS3.6"}
+    assert payload == "No DICOM data element matched the input.\n"
 
 
 def test_execute_mcp_tool_reports_missing_db(tmp_path: Path) -> None:
@@ -415,9 +262,7 @@ def test_mcp_cli_missing_db_names_fetch_and_build_commands(tmp_path: Path) -> No
 
     assert result.exit_code != 0
     assert "SQLite KB does not exist" in output
-    assert "dicom-kb fetch --edition current" in output
-    assert "dicom-kb build --edition <resolved-edition>" in output
-    assert "dicom-kb build-fixture --edition 2026b" in output
+    assert "`dicom-kb fetch` followed by `dicom-kb build`" in output
 
 
 def _normalized_cli_output(output: str) -> str:

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -24,9 +23,7 @@ def test_cli_config_supplies_build_fixture_defaults(tmp_path: Path) -> None:
     )
 
     assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
-    assert payload["edition"] == "2026c"
-    assert payload["db_path"] == str(db_path)
+    assert result.output.startswith(f"Built DICOM 2026c KB: {db_path}")
     assert (cache_dir / "artifacts/2026c/manifest.json").exists()
 
 
@@ -51,10 +48,8 @@ def test_cli_config_supplies_query_defaults(tmp_path: Path) -> None:
     )
 
     assert lookup_result.exit_code == 0, lookup_result.output
-    payload = json.loads(lookup_result.output)
-    assert payload["edition"] == "2026c"
-    assert payload["status"] == "ok"
-    assert payload["result"]["keyword"] == "Modality"
+    assert lookup_result.output.rstrip().endswith("(2026c)")
+    assert "Keyword `Modality`" in lookup_result.output
 
 
 def test_cli_flags_override_config_defaults(tmp_path: Path) -> None:
@@ -86,9 +81,7 @@ def test_cli_flags_override_config_defaults(tmp_path: Path) -> None:
     )
 
     assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
-    assert payload["edition"] == "2026b"
-    assert payload["db_path"] == str(cli_db)
+    assert result.output.startswith(f"Built DICOM 2026b KB: {cli_db}")
     assert (cli_cache / "artifacts/2026b/manifest.json").exists()
     assert not (profile_cache / "artifacts/2026c/manifest.json").exists()
 
@@ -103,7 +96,6 @@ def _config_file(
           edition: "{edition}"
           artifact_dir: "{cache_dir}"
           database_url: "sqlite:///{db_path}"
-          require_citations: true
         """,
         encoding="utf-8",
     )
