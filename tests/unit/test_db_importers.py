@@ -495,7 +495,7 @@ def test_import_part04_sop_class_records(tmp_path: Path) -> None:
 
     iods = repository.list_iods_for_sop_class(sop_class.id, edition="2026b")
     assert [record.iod.name for record in iods] == ["CT Image"]
-    assert iods[0].edge.resolution == "parsed"
+    assert iods[0].edge.resolution == "inferred_from_name"
 
 
 def test_import_part04_rolls_back_without_referenced_iods(tmp_path: Path) -> None:

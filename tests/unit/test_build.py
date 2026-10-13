@@ -841,7 +841,7 @@ def test_build_metrics_aggregate_import_summaries() -> None:
 
 
 @pytest.mark.parametrize("existing", [False, True])
-def test_failed_import_does_not_publish_partial_database(
+def test_storage_error_does_not_publish_partial_database(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, existing: bool
 ) -> None:
     from dicom_kb import build
@@ -854,7 +854,7 @@ def test_failed_import_does_not_publish_partial_database(
         target.write_bytes(original)
 
     def fail_import(*args: object, **kwargs: object) -> None:
-        raise sqlite3.OperationalError("injected import failure")
+        raise sqlite3.OperationalError("injected storage failure")
 
     monkeypatch.setattr(build, "import_part06", fail_import)
     with pytest.raises(build.BuildError):
@@ -863,6 +863,51 @@ def test_failed_import_does_not_publish_partial_database(
         )
     assert target.read_bytes() == original if existing else not target.exists()
     assert list(tmp_path.glob(".kb.sqlite-*")) == []
+
+
+def test_failed_import_step_is_logged_and_build_continues(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from dicom_kb import build
+
+    cache_dir = tmp_path / "cache"
+    _register_synthetic_artifacts(cache_dir)
+
+    def fail_import(*args: object, **kwargs: object) -> None:
+        raise ImportError("injected import failure")
+
+    monkeypatch.setattr(build, "import_vr_definitions", fail_import)
+    summary = build_sqlite_database(edition="2026b", cache_dir=cache_dir)
+
+    assert "PS3.5 VR import skipped: injected import failure" in summary.warnings
+    assert summary.metrics.parse_warnings_by_part is not None
+    assert summary.metrics.parse_warnings_by_part["PS3.5"] >= 1
+    connection = _connect(summary.db_path)
+    try:
+        element = lookup_data_element(
+            connection, tag_or_keyword="Modality", edition="2026b"
+        )
+        assert element.result is not None
+    finally:
+        connection.close()
+
+
+def test_sop_class_link_to_missing_iod_is_dropped_not_fatal(tmp_path: Path) -> None:
+    cache_dir = tmp_path / "cache"
+    _register_synthetic_parts(
+        cache_dir,
+        {
+            "PS3.4": "synthetic_ps3_4_sop_classes_docbook.xml",
+            "PS3.6": "synthetic_ps3_6_registry_docbook.xml",
+        },
+    )
+
+    summary = build_sqlite_database(edition="2026b", cache_dir=cache_dir)
+
+    dropped = [message for message in summary.warnings if "link dropped" in message]
+    assert dropped
+    assert "'CT Image Storage' links to IOD '2026b.iod.ct_image'" in dropped[0]
+    assert summary.metrics.sop_classes == 2
 
 
 def test_successful_force_build_replaces_previous_database(tmp_path: Path) -> None:
