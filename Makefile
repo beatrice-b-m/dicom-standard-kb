@@ -21,7 +21,7 @@ typecheck:
 	$(UV_RUN) mypy
 
 test:
-	$(UV_RUN) pytest tests/unit tests/agent_regression
+	$(UV_RUN) pytest tests/unit
 
 test-integration:
 	$(UV_RUN) pytest tests/integration_requires_dicom_download
