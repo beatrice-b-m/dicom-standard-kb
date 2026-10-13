@@ -39,11 +39,9 @@ def validate_mcp_database(config: MCPServerConfig) -> None:
     if path.exists():
         return
     raise FileNotFoundError(
-        f"SQLite KB does not exist: {path}. Build a local KB with "
-        "`dicom-kb fetch --edition current` followed by "
-        "`dicom-kb build --edition <resolved-edition>`, or build the offline "
-        f"fixture with `dicom-kb build-fixture --edition {config.edition}`. "
-        "Pass --db to use a non-default SQLite path."
+        f"SQLite KB does not exist: {path}. Build one locally with "
+        "`dicom-kb fetch` followed by `dicom-kb build`, or pass --db to use "
+        "a KB at another path."
     )
 
 

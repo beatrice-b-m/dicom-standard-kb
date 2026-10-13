@@ -45,7 +45,7 @@ from dicom_kb.parsers.part08_network import parse_part08
 from dicom_kb.parsers.part10_media_storage import parse_part10
 from dicom_kb.parsers.part16_content_mapping import parse_part16
 from dicom_kb.parsers.part18_web_services import parse_part18
-from dicom_kb.sources.downloader import DEFAULT_CACHE_DIR
+from dicom_kb.sources.downloader import DEFAULT_CACHE_DIR, EDITION_RE
 from dicom_kb.sources.manifest import (
     SourceManifest,
     manifest_path,
@@ -178,6 +178,24 @@ def default_db_path(cache_dir: Path, edition: str) -> Path:
     return cache_dir / "db" / f"{edition}.sqlite"
 
 
+def gap_log_path(db_path: Path) -> Path:
+    """Return where a build writes the gaps it logged, next to its database."""
+    return db_path.with_name(f"{db_path.stem}.gaps.txt")
+
+
+def latest_edition(cache_dir: Path, *, built: bool) -> str | None:
+    """Return the newest edition in the cache: built KBs, or fetched sources."""
+    if built:
+        candidates = [path.stem for path in (cache_dir / "db").glob("*.sqlite")]
+    else:
+        candidates = [
+            path.parent.name
+            for path in (cache_dir / "artifacts").glob("*/manifest.json")
+        ]
+    editions = [label for label in candidates if EDITION_RE.match(label)]
+    return max(editions) if editions else None
+
+
 def build_sqlite_database(
     *,
     edition: str,
@@ -205,6 +223,10 @@ def build_sqlite_database(
             cache_dir=cache_dir,
             staging_path=staging_path,
             target_path=target_path,
+        )
+        gap_log_path(target_path).write_text(
+            "".join(f"{message}\n" for message in summary.warnings),
+            encoding="utf-8",
         )
         if force:
             staging_path.replace(target_path)

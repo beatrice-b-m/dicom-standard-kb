@@ -262,9 +262,7 @@ def test_mcp_cli_missing_db_names_fetch_and_build_commands(tmp_path: Path) -> No
 
     assert result.exit_code != 0
     assert "SQLite KB does not exist" in output
-    assert "dicom-kb fetch --edition current" in output
-    assert "dicom-kb build --edition <resolved-edition>" in output
-    assert "dicom-kb build-fixture --edition 2026b" in output
+    assert "`dicom-kb fetch` followed by `dicom-kb build`" in output
 
 
 def _normalized_cli_output(output: str) -> str:

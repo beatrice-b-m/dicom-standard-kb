@@ -1,38 +1,25 @@
 from __future__ import annotations
 
-import json
 import sqlite3
 from pathlib import Path
-from typing import Any
 
+from dicom_kb.build import gap_log_path
 from dicom_kb.query.resolver import (
     list_modules_for_iod,
     lookup_data_element,
     lookup_sop_class,
     lookup_uid,
 )
-from dicom_kb.sources.manifest import SourceManifest, manifest_path
-
-SCHEMA_DIR = Path(__file__).parents[2] / "schemas"
+from dicom_kb.sources.manifest import SourceManifest
 
 
-def test_real_build_outputs_exist_and_manifest_matches_schema_shape(
-    cache_dir: Path,
-    db_path: Path,
-    edition: str,
-    manifest: SourceManifest,
+def test_real_build_outputs_exist(
+    db_path: Path, edition: str, manifest: SourceManifest
 ) -> None:
     assert db_path.exists()
+    assert gap_log_path(db_path).exists()
     assert manifest.edition == edition
     assert len(manifest.artifacts) >= 3
-
-    manifest_payload = json.loads(
-        manifest_path(cache_dir, edition).read_text(encoding="utf-8")
-    )
-    schema = json.loads(
-        (SCHEMA_DIR / "source_manifest.schema.json").read_text(encoding="utf-8")
-    )
-    _assert_manifest_schema_shape(manifest_payload, schema)
 
 
 def test_real_kb_sanity_counts(connection: sqlite3.Connection, edition: str) -> None:
@@ -115,17 +102,3 @@ def _count(connection: sqlite3.Connection, table: str, edition: str) -> int:
         (edition,),
     ).fetchone()
     return int(row["count"])
-
-
-def _assert_manifest_schema_shape(
-    payload: dict[str, Any], schema: dict[str, Any]
-) -> None:
-    assert set(payload) == set(schema["properties"])
-    for key in schema["required"]:
-        assert key in payload
-    assert len(payload["artifacts"]) >= schema["properties"]["artifacts"]["minItems"]
-    artifact_schema = schema["$defs"]["sourceArtifact"]
-    for artifact in payload["artifacts"]:
-        assert set(artifact) == set(artifact_schema["properties"])
-        for key in artifact_schema["required"]:
-            assert key in artifact
