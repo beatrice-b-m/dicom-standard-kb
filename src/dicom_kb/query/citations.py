@@ -1,47 +1,12 @@
-"""Helpers for public citation and trace assembly."""
+"""Helpers for assembling source refs."""
 
 from __future__ import annotations
 
-import sqlite3
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import datetime
 
 from dicom_kb.ir.models import SourceRef
-from dicom_kb.query.answer_contracts import ResponseTrace, StandardRef, standard_ref
-from dicom_kb.sources.official_urls import official_standard_ref_url
-
-
-def build_trace(
-    connection: sqlite3.Connection,
-    *,
-    edition: str,
-    query_id: str | None,
-    resolved_at: datetime | None,
-) -> ResponseTrace:
-    """Build the standard response trace for a resolved edition."""
-    row = connection.execute(
-        "SELECT manifest_sha256 FROM standard_edition WHERE id = ?",
-        (edition,),
-    ).fetchone()
-    manifest_sha256 = str(row["manifest_sha256"]) if row else None
-    if query_id is not None and resolved_at is not None:
-        return ResponseTrace(
-            query_id=query_id,
-            resolved_at=resolved_at,
-            source_manifest_sha256=manifest_sha256,
-        )
-    if query_id is not None:
-        return ResponseTrace(
-            query_id=query_id,
-            source_manifest_sha256=manifest_sha256,
-        )
-    if resolved_at is not None:
-        return ResponseTrace(
-            resolved_at=resolved_at,
-            source_manifest_sha256=manifest_sha256,
-        )
-    return ResponseTrace(source_manifest_sha256=manifest_sha256)
+from dicom_kb.query.answer_contracts import StandardRef, standard_ref
 
 
 def unique_refs(refs: list[StandardRef]) -> list[StandardRef]:
@@ -54,15 +19,6 @@ def unique_refs(refs: list[StandardRef]) -> list[StandardRef]:
 
 
 CitationInput = SourceRef | StandardRef | None
-
-
-def official_source_url(source_ref: SourceRef) -> str | None:
-    """Derive the official CHTML URL for a source ref when possible."""
-    return official_standard_ref_url(
-        edition=source_ref.edition_id,
-        part=source_ref.part,
-        anchor=source_ref.xml_id or source_ref.table_id,
-    )
 
 
 @dataclass(frozen=True)

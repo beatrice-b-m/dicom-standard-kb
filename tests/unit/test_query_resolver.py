@@ -32,6 +32,7 @@ from dicom_kb.parsers.part06_data_dictionary import parse_part06
 from dicom_kb.parsers.part10_media_storage import parse_part10
 from dicom_kb.parsers.part16_content_mapping import parse_part16
 from dicom_kb.parsers.part18_web_services import parse_part18
+from dicom_kb.query.markdown import render_markdown
 from dicom_kb.query.resolver import (
     explain_encoding_rule,
     list_attributes_for_module,
@@ -550,15 +551,11 @@ def test_lookup_data_element_tag_and_keyword_return_same_entity(
         connection,
         tag_or_keyword="(0008,0060)",
         edition="2026b",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
     by_keyword = lookup_data_element(
         connection,
         tag_or_keyword="modality",
         edition="2026b",
-        query_id="query-2",
-        resolved_at=RESOLVED_AT,
     )
 
     assert by_tag.status == "ok"
@@ -573,13 +570,6 @@ def test_lookup_data_element_tag_and_keyword_return_same_entity(
         "retired": False,
     }
     assert by_tag.refs[0].part == "PS3.6"
-    assert by_tag.classification.normativity == "normative"
-    assert by_tag.classification.evidence_level == "parsed_registry"
-    assert by_tag.classification.machine_decidability == "decidable"
-    assert by_tag.parse_confidence.level == "high"
-    assert by_tag.parse_confidence.source == "parsed_registry"
-    assert by_tag.trace.query_id == "query-1"
-    assert by_tag.trace.resolved_at == RESOLVED_AT
 
 
 def test_lookup_data_element_returns_validation_error_for_malformed_tag(
@@ -589,19 +579,15 @@ def test_lookup_data_element_returns_validation_error_for_malformed_tag(
         _connection(tmp_path),
         tag_or_keyword="0008,0060",
         edition="2026b",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
 
     assert response.status == "validation_error"
-    assert response.classification.normativity == "unsupported"
-    assert response.parse_confidence.level == "unknown"
     assert response.result is not None
     assert "malformed DICOM tag" in str(response.result["message"])
     assert response.refs == []
 
 
-def test_v1_tool_responses_include_classification_metadata(tmp_path: Path) -> None:
+def test_v1_tool_responses_render_markdown_with_source(tmp_path: Path) -> None:
     registry_connection = _connection(tmp_path / "registry")
     context_connection = _context_connection(tmp_path / "context")
     document_connection = _doc_connection(tmp_path / "document")
@@ -652,32 +638,12 @@ def test_v1_tool_responses_include_classification_metadata(tmp_path: Path) -> No
         ),
     ]
 
-    expected = {
-        "lookup_data_element": ("normative", "parsed_registry", "decidable"),
-        "lookup_uid": ("normative", "parsed_registry", "decidable"),
-        "lookup_sop_class": ("normative", "parsed_cross_reference", "decidable"),
-        "lookup_iod": ("normative", "parsed_table", "decidable"),
-        "list_modules_for_iod": ("normative", "parsed_table", "decidable"),
-        "list_attributes_for_module": ("normative", "parsed_table", "decidable"),
-        "resolve_attribute_context": (
-            "normative",
-            "parsed_cross_reference",
-            "partially_decidable",
-        ),
-        "retrieve_standard_text": ("explanatory", "retrieved_text", "not_applicable"),
-        "search_standard_text": ("explanatory", "retrieved_text", "not_applicable"),
-    }
     for response in responses:
         assert response.status == "ok"
-        assert (
-            response.classification.normativity,
-            response.classification.evidence_level,
-            response.classification.machine_decidability,
-        ) == expected[response.tool]
-        assert response.parse_confidence.level in {"high", "medium", "low"}
-        assert (
-            response.parse_confidence.source == response.classification.evidence_level
-        )
+        markdown = render_markdown(response)
+        assert markdown.rstrip().splitlines()[-1].startswith("Source: PS3.")
+        assert markdown.rstrip().endswith("(2026b)")
+        assert "{" not in markdown
 
 
 def test_lookup_data_element_returns_not_found_for_unknown_tag(tmp_path: Path) -> None:
@@ -685,8 +651,6 @@ def test_lookup_data_element_returns_not_found_for_unknown_tag(tmp_path: Path) -
         _connection(tmp_path),
         tag_or_keyword="(0008,9999)",
         edition="2026b",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
 
     assert response.status == "not_found"
@@ -703,15 +667,11 @@ def test_lookup_data_element_reports_retired_and_range_matches(
         connection,
         tag_or_keyword="CurveData",
         edition="2026b",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
     range_match = lookup_data_element(
         connection,
         tag_or_keyword="(6002,3000)",
         edition="2026b",
-        query_id="query-2",
-        resolved_at=RESOLVED_AT,
     )
 
     assert retired.status == "ok"
@@ -730,8 +690,6 @@ def test_lookup_uid_reports_retired_entry(tmp_path: Path) -> None:
         _connection(tmp_path),
         uid_or_keyword="ExplicitVRBigEndian",
         edition="2026b",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
 
     assert response.status == "ok"
@@ -751,8 +709,6 @@ def test_lookup_vr_returns_ps35_definition(tmp_path: Path) -> None:
         _part05_connection(tmp_path),
         vr="pn",
         edition="2026b",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
 
     assert response.status == "ok"
@@ -769,8 +725,6 @@ def test_lookup_vr_returns_ps35_definition(tmp_path: Path) -> None:
     }
     assert response.refs[0].part == "PS3.5"
     assert response.refs[0].table == "Synthetic VR Behaviors"
-    assert response.classification.evidence_level == "parsed_table"
-    assert response.trace.query_id == "query-1"
 
 
 def test_lookup_vr_validates_code_and_reports_not_found(tmp_path: Path) -> None:
@@ -793,8 +747,6 @@ def test_lookup_transfer_syntax_returns_uid_metadata_and_encoding_details(
         _part05_connection(tmp_path),
         uid_or_keyword="ExplicitVRLittleEndian",
         edition="2026b",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
 
     assert response.status == "ok"
@@ -810,8 +762,6 @@ def test_lookup_transfer_syntax_returns_uid_metadata_and_encoding_details(
         "encoding_notes": [],
     }
     assert {ref.part for ref in response.refs} == {"PS3.6"}
-    assert response.classification.evidence_level == "parsed_cross_reference"
-    assert response.trace.query_id == "query-1"
 
 
 def test_lookup_transfer_syntax_validates_uid_and_reports_not_found(
@@ -842,8 +792,6 @@ def test_explain_encoding_rule_uses_structured_vr_rows(tmp_path: Path) -> None:
         _part05_connection(tmp_path),
         topic="OB",
         edition="2026b",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
 
     assert response.status == "ok"
@@ -857,7 +805,6 @@ def test_explain_encoding_rule_uses_structured_vr_rows(tmp_path: Path) -> None:
         "length note: variable length",
     ]
     assert response.refs[0].part == "PS3.5"
-    assert response.classification.evidence_level == "retrieved_text"
 
 
 def test_explain_encoding_rule_uses_transfer_syntax_details(
@@ -911,8 +858,6 @@ def test_lookup_media_type_returns_ps310_media_type_row(tmp_path: Path) -> None:
         _part10_connection(tmp_path),
         media_type_or_context="application/dicom",
         edition="2026b",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
 
     assert response.status == "ok"
@@ -926,8 +871,6 @@ def test_lookup_media_type_returns_ps310_media_type_row(tmp_path: Path) -> None:
     }
     assert response.refs[0].part == "PS3.10"
     assert response.refs[0].table == "Synthetic Media Types"
-    assert response.classification.evidence_level == "parsed_table"
-    assert response.trace.query_id == "query-1"
 
 
 def test_lookup_media_type_matches_ps310_context(tmp_path: Path) -> None:
@@ -1091,9 +1034,6 @@ def test_lookup_media_type_falls_back_to_cited_ps310_text_for_prose_rule(
     assert response.result["title"] == "Synthetic Media Storage Notes"
     assert "Prose-only rule" in str(response.result["text_excerpt"])
     assert response.refs[0].part == "PS3.10"
-    assert response.classification.evidence_level == "retrieved_text"
-    assert response.classification.machine_decidability == "not_applicable"
-    assert response.parse_confidence.level == "low"
     assert response.warnings == [
         "No parsed media-type row matched; returning bounded PS3.10 text fallback."
     ]
@@ -1184,7 +1124,6 @@ def test_lookup_dicomweb_transaction_returns_ps318_transaction_by_name(
     assert response.refs[0].part == "PS3.18"
     assert response.refs[0].table == "Synthetic Transactions"
     assert response.refs[0].anchor == "table_18-1"
-    assert response.classification.evidence_level == "parsed_table"
 
 
 def test_lookup_dicomweb_transaction_returns_official_shape_retrieve_study(
@@ -1213,7 +1152,6 @@ def test_lookup_dicomweb_transaction_returns_official_shape_retrieve_study(
     }
     assert response.refs[0].part == "PS3.18"
     assert response.refs[0].anchor == "table_10.4.1-1"
-    assert response.classification.evidence_level == "parsed_table"
 
 
 def test_lookup_dicomweb_transaction_returns_official_shape_store_instances(
@@ -1244,7 +1182,6 @@ def test_lookup_dicomweb_transaction_returns_official_shape_store_instances(
     }
     assert response.refs[0].part == "PS3.18"
     assert response.refs[0].anchor == "table_10.5.1-1"
-    assert response.classification.evidence_level == "parsed_table"
 
 
 def test_lookup_dicomweb_transaction_returns_unique_route_template(
@@ -1338,8 +1275,6 @@ def test_lookup_context_group_returns_ps316_rows_and_include_rows(
         _part16_connection(tmp_path),
         cid_or_name="29",
         edition="2026b",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
 
     assert response.status == "ok"
@@ -1369,8 +1304,6 @@ def test_lookup_context_group_returns_ps316_rows_and_include_rows(
     }
     assert response.refs[0].part == "PS3.16"
     assert response.refs[0].table == "Synthetic Context Group Rows"
-    assert response.classification.evidence_level == "parsed_table"
-    assert response.trace.query_id == "query-1"
 
 
 def test_lookup_context_group_returns_candidates_for_ambiguous_name(
@@ -1437,8 +1370,6 @@ def test_lookup_sr_template_returns_ps316_rows_and_include_rows(
         _part16_connection(tmp_path),
         tid_or_name="1500",
         edition="2026b",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
 
     assert response.status == "ok"
@@ -1469,8 +1400,6 @@ def test_lookup_sr_template_returns_ps316_rows_and_include_rows(
     }
     assert response.refs[0].part == "PS3.16"
     assert response.refs[0].table == "Synthetic Template Rows"
-    assert response.classification.evidence_level == "parsed_table"
-    assert response.trace.query_id == "query-1"
 
 
 def test_lookup_sr_template_returns_candidates_for_ambiguous_name(
@@ -1535,8 +1464,6 @@ def test_lookup_code_meaning_returns_ps316_coded_concept(tmp_path: Path) -> None
         code_value="CT",
         scheme="DCM",
         edition="2026b",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
 
     assert response.status == "ok"
@@ -1549,8 +1476,6 @@ def test_lookup_code_meaning_returns_ps316_coded_concept(tmp_path: Path) -> None
     }
     assert response.refs[0].part == "PS3.16"
     assert response.refs[0].table == "Synthetic Context Group Rows"
-    assert response.classification.evidence_level == "parsed_table"
-    assert response.trace.query_id == "query-1"
 
 
 def test_part16_resolvers_return_official_shape_fixture_rows(
@@ -1750,8 +1675,6 @@ def test_retrieve_standard_text_returns_capped_excerpt_and_tables(
         section_or_anchor="sect_A.3",
         edition="2026b",
         max_chars=80,
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
 
     assert response.status == "ok"
@@ -1766,7 +1689,6 @@ def test_retrieve_standard_text_returns_capped_excerpt_and_tables(
     assert response.warnings == ["text excerpt truncated to 80 characters"]
     assert [ref.part for ref in response.refs] == ["PS3.3", "PS3.3"]
     assert response.refs[1].table == "CT Image IOD Modules"
-    assert response.trace.query_id == "query-1"
 
 
 def test_retrieve_standard_text_returns_cited_ps37_service_behavior_fallback(
@@ -1873,8 +1795,6 @@ def test_search_standard_text_returns_cited_matches(tmp_path: Path) -> None:
         edition="2026b",
         part_filter="PS3.3",
         limit=5,
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
 
     assert response.status == "ok"
@@ -1884,12 +1804,6 @@ def test_search_standard_text_returns_cited_matches(tmp_path: Path) -> None:
     assert matches[0]["title"] in {"Patient Module", "Patient Module Attributes"}
     assert "Patient" in matches[0]["snippet"]
     assert {ref.part for ref in response.refs} == {"PS3.3"}
-    assert response.input == {
-        "query": "Patient name",
-        "limit": "5",
-        "part_filter": "PS3.3",
-    }
-    assert response.trace.query_id == "query-1"
 
 
 def test_search_standard_text_validates_inputs(tmp_path: Path) -> None:
@@ -1942,8 +1856,6 @@ def test_lookup_iod_returns_ps33_iod(tmp_path: Path) -> None:
         _part03_connection(tmp_path),
         iod_name="ct_image",
         edition="2026b",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
 
     assert response.status == "ok"
@@ -1963,8 +1875,6 @@ def test_lookup_sop_class_returns_linked_iod(tmp_path: Path) -> None:
         _part034_connection(tmp_path),
         uid_or_name_or_keyword="1.2.840.10008.5.1.4.1.1.2",
         edition="2026b",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
 
     assert response.status == "ok"
@@ -1980,8 +1890,8 @@ def test_lookup_sop_class_returns_linked_iod(tmp_path: Path) -> None:
             "iod_id": "2026b.iod.ct_image",
             "iod_name": "CT Image",
             "iod_keyword": "ct_image",
-            "resolution": "parsed",
-            "resolution_warning": None,
+            "resolution": "inferred_from_name",
+            "resolution_warning": "IOD matched by name 'CT Image'",
         }
     ]
     assert {ref.part for ref in response.refs} == {"PS3.3", "PS3.4"}
@@ -1993,15 +1903,11 @@ def test_lookup_sop_class_by_name_and_malformed_uid_paths(tmp_path: Path) -> Non
         connection,
         uid_or_name_or_keyword="enhanced ct image storage",
         edition="2026b",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
     malformed = lookup_sop_class(
         connection,
         uid_or_name_or_keyword="1.2.bad",
         edition="2026b",
-        query_id="query-2",
-        resolved_at=RESOLVED_AT,
     )
 
     assert by_name.status == "ok"
@@ -2020,8 +1926,6 @@ def test_resolve_attribute_context_for_iod_returns_effective_type(
         attribute="PatientName",
         iod_name="CT Image",
         edition="2026b",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
 
     assert response.status == "ok"
@@ -2063,8 +1967,6 @@ def test_resolve_attribute_context_for_sop_class_preserves_sequence_path(
         attribute="ReferencedSOPClassUID",
         sop_class="CT Image Storage",
         edition="2026b",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
 
     assert response.status == "ok"
@@ -2084,8 +1986,6 @@ def test_resolve_attribute_context_reports_macro_path(tmp_path: Path) -> None:
         attribute="AnatomicRegionSequence",
         iod_name="CT Image",
         edition="2026b",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
 
     assert response.status == "ok"
@@ -2102,8 +2002,6 @@ def test_resolve_attribute_context_traverses_functional_group_macros(
         attribute="AnatomicRegionSequence",
         iod_name="Enhanced CT Image",
         edition="2026b",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
 
     assert response.status == "ok"
@@ -2131,8 +2029,6 @@ def test_lookup_defined_terms_returns_attribute_value_terms(tmp_path: Path) -> N
         _context_connection(tmp_path),
         attribute="PatientName",
         edition="2026b",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
 
     assert response.status == "ok"
@@ -2166,23 +2062,17 @@ def test_lookup_value_terms_supports_context_and_missing_term_kind(
         attribute="PatientName",
         edition="2026b",
         context="Patient",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
     missing_context = lookup_defined_terms(
         connection,
         attribute="PatientName",
         edition="2026b",
         context="Missing Context",
-        query_id="query-2",
-        resolved_at=RESOLVED_AT,
     )
     missing_kind = lookup_enumerated_values(
         connection,
         attribute="PatientName",
         edition="2026b",
-        query_id="query-3",
-        resolved_at=RESOLVED_AT,
     )
 
     assert matched_context.status == "ok"
@@ -2201,24 +2091,18 @@ def test_lookup_value_terms_resolves_iod_and_sop_contexts(
         attribute="PatientName",
         edition="2026b",
         context="CT Image",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
     sop_context = lookup_defined_terms(
         connection,
         attribute="PatientName",
         edition="2026b",
         context="CT Image Storage",
-        query_id="query-2",
-        resolved_at=RESOLVED_AT,
     )
     mismatched_sop_context = lookup_defined_terms(
         connection,
         attribute="PatientName",
         edition="2026b",
         context="Enhanced CT Image Storage",
-        query_id="query-3",
-        resolved_at=RESOLVED_AT,
     )
 
     assert iod_context.status == "ok"
@@ -2254,8 +2138,6 @@ def test_lookup_value_terms_returns_candidates_for_ambiguous_context(
         attribute="PatientName",
         edition="2026b",
         context="CT Image",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
 
     assert response.status == "validation_error"
@@ -2309,8 +2191,6 @@ def test_resolve_attribute_context_computes_lowest_type_for_multiple_uses(
         attribute="Patient's Name",
         iod_name="CT Image",
         edition="2026b",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
 
     assert response.status == "ok"
@@ -2336,8 +2216,6 @@ def test_resolve_attribute_context_uses_explicit_type_override(
         attribute="Patient's Name",
         iod_name="CT Image",
         edition="2026b",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
 
     assert response.status == "ok"
@@ -2365,14 +2243,11 @@ def test_resolve_attribute_context_withholds_conflicting_overrides(
         attribute="Patient's Name",
         iod_name="CT Image",
         edition="2026b",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
 
     assert response.status == "ok"
     assert response.result is not None
     assert response.result["effective_type"] is None
-    assert response.classification.machine_decidability == "partially_decidable"
     assert response.warnings is not None
     assert response.warnings[0].startswith("conflicting explicit type overrides found")
 
@@ -2390,14 +2265,11 @@ def test_resolve_attribute_context_withholds_ambiguous_override_text(
         attribute="Patient's Name",
         iod_name="CT Image",
         edition="2026b",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
 
     assert response.status == "ok"
     assert response.result is not None
     assert response.result["effective_type"] is None
-    assert response.classification.machine_decidability == "partially_decidable"
     assert response.warnings == [
         "ambiguous type override language found in source refs: 2026b.PS3.3.table_A.3-1"
     ]
@@ -2412,23 +2284,17 @@ def test_resolve_attribute_context_reports_missing_and_invalid_inputs(
         attribute="MissingAttribute",
         iod_name="CT Image",
         edition="2026b",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
     missing_context = resolve_attribute_context(
         connection,
         attribute="PatientName",
         iod_name="Missing IOD",
         edition="2026b",
-        query_id="query-2",
-        resolved_at=RESOLVED_AT,
     )
     invalid_context_choice = resolve_attribute_context(
         connection,
         attribute="PatientName",
         edition="2026b",
-        query_id="query-3",
-        resolved_at=RESOLVED_AT,
     )
 
     assert missing_attribute.status == "not_found"
@@ -2450,8 +2316,6 @@ def test_list_modules_for_iod_returns_ordered_ps33_modules(tmp_path: Path) -> No
         _part03_connection(tmp_path),
         iod_name="CT Image",
         edition="2026b",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
 
     assert response.status == "ok"
@@ -2475,25 +2339,8 @@ def test_list_modules_for_iod_returns_ordered_ps33_modules(tmp_path: Path) -> No
             "usage": "C",
             "usage_condition_text": "Required if contrast media was used",
             "condition": {
-                "condition_id": "2026b.iod.ct_image.module_use.1.condition",
                 "source_text": "Required if contrast media was used",
                 "condition_kind": "required_if",
-                "machine_status": "raw_text",
-                "dependencies": [],
-                "evaluator": {"available": False},
-                "refs": [
-                    {
-                        "part": "PS3.3",
-                        "section": "sect_A.3",
-                        "table": "CT Image IOD Modules",
-                        "anchor": "table_A.3-1",
-                        "official_url": (
-                            "https://dicom.nema.org/medical/dicom/2026b/"
-                            "output/chtml/part03/table_A.3-1.html"
-                        ),
-                        "edition": "2026b",
-                    }
-                ],
             },
         },
         {
@@ -2514,8 +2361,6 @@ def test_list_modules_for_iod_returns_not_found(tmp_path: Path) -> None:
         _part03_connection(tmp_path),
         iod_name="Missing IOD",
         edition="2026b",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
 
     assert response.status == "not_found"
@@ -2528,8 +2373,6 @@ def test_list_attributes_for_module_preserves_include_rows(tmp_path: Path) -> No
         _part03_connection(tmp_path),
         module_name="Patient",
         edition="2026b",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
 
     assert response.status == "ok"
@@ -2578,8 +2421,6 @@ def test_list_attributes_for_module_exposes_attribute_conditions(
         connection,
         module_name="Patient",
         edition="2026b",
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
 
     assert response.status == "ok"
@@ -2587,25 +2428,8 @@ def test_list_attributes_for_module_exposes_attribute_conditions(
     patient_name = response.result["attributes"][0]
     assert patient_name["type_designation"] == "1C"
     assert patient_name["condition"] == {
-        "condition_id": "2026b.module.patient.attribute_use.0.condition",
         "source_text": "Required if patient identity is known.",
         "condition_kind": "required_if",
-        "machine_status": "raw_text",
-        "dependencies": [],
-        "evaluator": {"available": False},
-        "refs": [
-            {
-                "part": "PS3.3",
-                "section": "sect_C.7.1.1",
-                "table": "Patient Module Attributes",
-                "anchor": "table_C.7-1",
-                "official_url": (
-                    "https://dicom.nema.org/medical/dicom/2026b/output/chtml/"
-                    "part03/table_C.7-1.html"
-                ),
-                "edition": "2026b",
-            }
-        ],
     }
 
 
@@ -2617,8 +2441,6 @@ def test_list_attributes_for_module_expands_macros_after_include(
         module_name="Patient",
         edition="2026b",
         expand_macros=True,
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
 
     assert response.status == "ok"
@@ -2652,8 +2474,6 @@ def test_list_attributes_for_module_expands_nested_macros_with_effective_depth(
         module_name="Patient",
         edition="2026b",
         expand_macros=True,
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
 
     assert response.status == "ok"
@@ -2702,8 +2522,6 @@ def test_list_attributes_for_module_reports_macro_include_cycles(
         module_name="Patient",
         edition="2026b",
         expand_macros=True,
-        query_id="query-1",
-        resolved_at=RESOLVED_AT,
     )
 
     assert response.status == "ok"

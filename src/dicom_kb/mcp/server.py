@@ -11,6 +11,7 @@ from dicom_kb.build import default_db_path
 from dicom_kb.db.models import read_sqlite
 from dicom_kb.mcp.schemas import MCP_TOOL_NAMES
 from dicom_kb.mcp.tools import dispatch_mcp_tool, register_mcp_tools
+from dicom_kb.query.markdown import render_markdown
 from dicom_kb.sources.downloader import DEFAULT_CACHE_DIR
 
 
@@ -38,11 +39,9 @@ def validate_mcp_database(config: MCPServerConfig) -> None:
     if path.exists():
         return
     raise FileNotFoundError(
-        f"SQLite KB does not exist: {path}. Build a local KB with "
-        "`dicom-kb fetch --edition current` followed by "
-        "`dicom-kb build --edition <resolved-edition>`, or build the offline "
-        f"fixture with `dicom-kb build-fixture --edition {config.edition}`. "
-        "Pass --db to use a non-default SQLite path."
+        f"SQLite KB does not exist: {path}. Build one locally with "
+        "`dicom-kb fetch` followed by `dicom-kb build`, or pass --db to use "
+        "a KB at another path."
     )
 
 
@@ -51,8 +50,8 @@ def execute_mcp_tool(
     arguments: dict[str, Any],
     *,
     config: MCPServerConfig,
-) -> dict[str, Any]:
-    """Execute one MCP tool and return the public JSON response envelope."""
+) -> str:
+    """Execute one MCP tool and return its answer as markdown."""
     if tool_name not in MCP_TOOL_NAMES:
         raise ValueError(f"unknown MCP tool: {tool_name}")
 
@@ -63,7 +62,7 @@ def execute_mcp_tool(
             arguments=arguments,
             edition=config.edition,
         )
-    return response.model_dump(mode="json", exclude_none=True)
+    return render_markdown(response)
 
 
 def create_mcp_server(config: MCPServerConfig) -> Any:

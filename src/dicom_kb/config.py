@@ -22,14 +22,7 @@ class DicomKBConfig(BaseModel):
     edition: str | None = None
     artifact_dir: Path | None = None
     database_url: str | None = None
-    allow_text_retrieval: bool | None = None
     max_text_excerpt_chars: int | None = Field(default=None, ge=1)
-    require_citations: bool | None = None
-    require_edition_pin: bool | None = None
-    allow_network_fetch: bool | None = None
-    use_synthetic_fixtures_only: bool | None = None
-    require_dicom_download_for_integration: bool | None = None
-    publish_generated_db: bool | None = None
 
     @field_validator("database_url")
     @classmethod
@@ -41,13 +34,6 @@ class DicomKBConfig(BaseModel):
             raise ValueError("database_url must use sqlite:/// in v1")
         if not value.startswith("sqlite:///"):
             raise ValueError("database_url must use sqlite:/// in v1")
-        return value
-
-    @field_validator("require_citations")
-    @classmethod
-    def _require_citations_cannot_be_disabled(cls, value: bool | None) -> bool | None:
-        if value is False:
-            raise ValueError("config files cannot disable citation requirements")
         return value
 
 
@@ -116,19 +102,6 @@ def path_env(environ: Mapping[str, str], name: str) -> Path | None:
 def str_env(environ: Mapping[str, str], name: str) -> str | None:
     """Read an optional string environment variable."""
     return environ.get(name) or None
-
-
-def bool_env(environ: Mapping[str, str], name: str) -> bool | None:
-    """Read an optional boolean environment variable."""
-    value = environ.get(name)
-    if value is None or value == "":
-        return None
-    normalized = value.strip().lower()
-    if normalized in {"1", "true", "yes", "on"}:
-        return True
-    if normalized in {"0", "false", "no", "off"}:
-        return False
-    raise ConfigError(f"{name} must be a boolean value")
 
 
 def int_env(environ: Mapping[str, str], name: str) -> int | None:

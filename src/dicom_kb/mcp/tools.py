@@ -31,9 +31,9 @@ from dicom_kb.query.resolver import (
 
 from .schemas import MCP_TOOL_SPECS, MCPToolName
 
-MCPToolFunction = Callable[..., dict[str, Any]]
+MCPToolFunction = Callable[..., str]
 MCPToolDecorator = Callable[[MCPToolFunction], MCPToolFunction]
-MCPToolExecutor = Callable[[MCPToolName, dict[str, Any]], dict[str, Any]]
+MCPToolExecutor = Callable[[MCPToolName, dict[str, Any]], str]
 
 
 def dispatch_mcp_tool(
@@ -160,7 +160,7 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
         if spec["name"] == "dicom_lookup_data_element":
 
             @_tool(server, name=spec["name"], description=spec["description"])
-            def dicom_lookup_data_element(tag_or_keyword: str) -> dict[str, Any]:
+            def dicom_lookup_data_element(tag_or_keyword: str) -> str:
                 return executor(
                     "dicom_lookup_data_element",
                     {"tag_or_keyword": tag_or_keyword},
@@ -169,7 +169,7 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
         elif spec["name"] == "dicom_lookup_uid":
 
             @_tool(server, name=spec["name"], description=spec["description"])
-            def dicom_lookup_uid(uid_or_keyword: str) -> dict[str, Any]:
+            def dicom_lookup_uid(uid_or_keyword: str) -> str:
                 return executor("dicom_lookup_uid", {"uid_or_keyword": uid_or_keyword})
 
         elif spec["name"] == "dicom_lookup_sop_class":
@@ -177,7 +177,7 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
             @_tool(server, name=spec["name"], description=spec["description"])
             def dicom_lookup_sop_class(
                 uid_or_name_or_keyword: str,
-            ) -> dict[str, Any]:
+            ) -> str:
                 return executor(
                     "dicom_lookup_sop_class",
                     {"uid_or_name_or_keyword": uid_or_name_or_keyword},
@@ -186,7 +186,7 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
         elif spec["name"] == "dicom_lookup_iod":
 
             @_tool(server, name=spec["name"], description=spec["description"])
-            def dicom_lookup_iod(iod_name: str) -> dict[str, Any]:
+            def dicom_lookup_iod(iod_name: str) -> str:
                 return executor("dicom_lookup_iod", {"iod_name": iod_name})
 
         elif spec["name"] == "dicom_lookup_enumerated_values":
@@ -195,7 +195,7 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
             def dicom_lookup_enumerated_values(
                 attribute: str,
                 context: str | None = None,
-            ) -> dict[str, Any]:
+            ) -> str:
                 return executor(
                     "dicom_lookup_enumerated_values",
                     {"attribute": attribute, "context": context},
@@ -207,7 +207,7 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
             def dicom_lookup_defined_terms(
                 attribute: str,
                 context: str | None = None,
-            ) -> dict[str, Any]:
+            ) -> str:
                 return executor(
                     "dicom_lookup_defined_terms",
                     {"attribute": attribute, "context": context},
@@ -216,13 +216,13 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
         elif spec["name"] == "dicom_lookup_vr":
 
             @_tool(server, name=spec["name"], description=spec["description"])
-            def dicom_lookup_vr(vr: str) -> dict[str, Any]:
+            def dicom_lookup_vr(vr: str) -> str:
                 return executor("dicom_lookup_vr", {"vr": vr})
 
         elif spec["name"] == "dicom_lookup_transfer_syntax":
 
             @_tool(server, name=spec["name"], description=spec["description"])
-            def dicom_lookup_transfer_syntax(uid_or_keyword: str) -> dict[str, Any]:
+            def dicom_lookup_transfer_syntax(uid_or_keyword: str) -> str:
                 return executor(
                     "dicom_lookup_transfer_syntax",
                     {"uid_or_keyword": uid_or_keyword},
@@ -231,7 +231,7 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
         elif spec["name"] == "dicom_explain_encoding_rule":
 
             @_tool(server, name=spec["name"], description=spec["description"])
-            def dicom_explain_encoding_rule(topic: str) -> dict[str, Any]:
+            def dicom_explain_encoding_rule(topic: str) -> str:
                 return executor("dicom_explain_encoding_rule", {"topic": topic})
 
         elif spec["name"] == "dicom_lookup_media_type":
@@ -239,7 +239,7 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
             @_tool(server, name=spec["name"], description=spec["description"])
             def dicom_lookup_media_type(
                 media_type_or_context: str,
-            ) -> dict[str, Any]:
+            ) -> str:
                 return executor(
                     "dicom_lookup_media_type",
                     {"media_type_or_context": media_type_or_context},
@@ -250,7 +250,7 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
             @_tool(server, name=spec["name"], description=spec["description"])
             def dicom_lookup_dicomweb_transaction(
                 name_or_route: str,
-            ) -> dict[str, Any]:
+            ) -> str:
                 return executor(
                     "dicom_lookup_dicomweb_transaction",
                     {"name_or_route": name_or_route},
@@ -259,7 +259,7 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
         elif spec["name"] == "dicom_lookup_sr_template":
 
             @_tool(server, name=spec["name"], description=spec["description"])
-            def dicom_lookup_sr_template(tid_or_name: str) -> dict[str, Any]:
+            def dicom_lookup_sr_template(tid_or_name: str) -> str:
                 return executor(
                     "dicom_lookup_sr_template",
                     {"tid_or_name": tid_or_name},
@@ -268,7 +268,7 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
         elif spec["name"] == "dicom_lookup_context_group":
 
             @_tool(server, name=spec["name"], description=spec["description"])
-            def dicom_lookup_context_group(cid_or_name: str) -> dict[str, Any]:
+            def dicom_lookup_context_group(cid_or_name: str) -> str:
                 return executor(
                     "dicom_lookup_context_group",
                     {"cid_or_name": cid_or_name},
@@ -280,7 +280,7 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
             def dicom_lookup_code_meaning(
                 code_value: str,
                 scheme: str | None = None,
-            ) -> dict[str, Any]:
+            ) -> str:
                 return executor(
                     "dicom_lookup_code_meaning",
                     {"code_value": code_value, "scheme": scheme},
@@ -289,7 +289,7 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
         elif spec["name"] == "dicom_list_modules_for_iod":
 
             @_tool(server, name=spec["name"], description=spec["description"])
-            def dicom_list_modules_for_iod(iod_name: str) -> dict[str, Any]:
+            def dicom_list_modules_for_iod(iod_name: str) -> str:
                 return executor("dicom_list_modules_for_iod", {"iod_name": iod_name})
 
         elif spec["name"] == "dicom_list_attributes_for_module":
@@ -298,7 +298,7 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
             def dicom_list_attributes_for_module(
                 module_name: str,
                 expand_macros: bool = False,
-            ) -> dict[str, Any]:
+            ) -> str:
                 return executor(
                     "dicom_list_attributes_for_module",
                     {
@@ -314,7 +314,7 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
                 attribute: str,
                 iod_name: str | None = None,
                 sop_class: str | None = None,
-            ) -> dict[str, Any]:
+            ) -> str:
                 return executor(
                     "dicom_resolve_attribute_context",
                     {
@@ -331,7 +331,7 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
                 part: str,
                 section_or_anchor: str,
                 max_chars: int = 800,
-            ) -> dict[str, Any]:
+            ) -> str:
                 return executor(
                     "dicom_retrieve_standard_text",
                     {
@@ -348,7 +348,7 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
                 query: str,
                 part_filter: str | None = None,
                 limit: int = 10,
-            ) -> dict[str, Any]:
+            ) -> str:
                 return executor(
                     "dicom_search_standard_text",
                     {
@@ -367,7 +367,9 @@ def _optional_string(value: Any) -> str | None:
 
 
 def _tool(server: Any, *, name: str, description: str) -> MCPToolDecorator:
+    # Markdown goes out as plain text content only; structured output would
+    # send the same answer a second time as a JSON-wrapped copy.
     return cast(
         MCPToolDecorator,
-        server.tool(name=name, description=description),
+        server.tool(name=name, description=description, structured_output=False),
     )

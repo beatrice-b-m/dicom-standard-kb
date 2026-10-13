@@ -64,9 +64,6 @@ def resolve_context_iods(
         iod = part03.find_iod_by_name_or_keyword(iod_name, edition=edition)
         if iod is None:
             return tool_response(
-                edition=edition,
-                tool="resolve_attribute_context",
-                input={"attribute": "", "iod_name": iod_name},
                 status="not_found",
                 result={"message": "No DICOM IOD matched the context input."},
             )
@@ -77,9 +74,6 @@ def resolve_context_iods(
     found = part04.find_sop_class_by_uid_or_name(sop_class, edition=edition)
     if found is None:
         return tool_response(
-            edition=edition,
-            tool="resolve_attribute_context",
-            input={"attribute": "", "sop_class": sop_class},
             status="not_found",
             result={"message": "No DICOM SOP Class matched the context input."},
         )
@@ -87,9 +81,6 @@ def resolve_context_iods(
     iod_records = part04.list_iods_for_sop_class(resolved_sop_class.id, edition=edition)
     if not iod_records:
         return tool_response(
-            edition=edition,
-            tool="resolve_attribute_context",
-            input={"attribute": "", "sop_class": sop_class},
             status="not_found",
             result={"message": "No IODs are linked to the SOP Class context."},
         )

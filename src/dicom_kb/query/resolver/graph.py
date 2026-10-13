@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime
 
 from dicom_kb.db.repositories import (
     Part03Repository,
@@ -24,7 +23,7 @@ from dicom_kb.query.answer_contracts import (
     standard_ref,
     tool_response,
 )
-from dicom_kb.query.citations import CitationBuilder, build_trace, citation_refs
+from dicom_kb.query.citations import CitationBuilder, citation_refs
 from dicom_kb.query.conditions import effective_type_summary
 from dicom_kb.query.graph import (
     attribute_context_uses,
@@ -40,38 +39,21 @@ def lookup_iod(
     *,
     iod_name: str,
     edition: str,
-    query_id: str | None = None,
-    resolved_at: datetime | None = None,
 ) -> ToolResponse:
     """Resolve a PS3.3 IOD by name or keyword."""
-    trace = build_trace(
-        connection,
-        edition=edition,
-        query_id=query_id,
-        resolved_at=resolved_at,
-    )
-    response_input = {"iod_name": iod_name}
     iod = Part03Repository(connection).find_iod_by_name_or_keyword(
         iod_name, edition=edition
     )
     if iod is None:
         return tool_response(
-            edition=edition,
-            tool="lookup_iod",
-            input=response_input,
             status="not_found",
             result={"message": "No DICOM IOD matched the input."},
-            trace=trace,
         )
 
     return tool_response(
-        edition=edition,
-        tool="lookup_iod",
-        input=response_input,
         status="ok",
         result=iod_result(iod),
         refs=[standard_ref(iod.source_ref)],
-        trace=trace,
     )
 
 
@@ -80,28 +62,15 @@ def lookup_sop_class(
     *,
     uid_or_name_or_keyword: str,
     edition: str,
-    query_id: str | None = None,
-    resolved_at: datetime | None = None,
 ) -> ToolResponse:
     """Resolve a PS3.4 SOP Class and linked IODs."""
-    trace = build_trace(
-        connection,
-        edition=edition,
-        query_id=query_id,
-        resolved_at=resolved_at,
-    )
-    response_input = {"uid_or_name_or_keyword": uid_or_name_or_keyword}
     if _looks_like_uid(uid_or_name_or_keyword):
         try:
             normalize_uid(uid_or_name_or_keyword)
         except IdentifierValidationError as exc:
             return tool_response(
-                edition=edition,
-                tool="lookup_sop_class",
-                input=response_input,
                 status="validation_error",
                 result={"message": str(exc)},
-                trace=trace,
             )
 
     repository = Part04Repository(connection)
@@ -111,12 +80,8 @@ def lookup_sop_class(
     )
     if found is None:
         return tool_response(
-            edition=edition,
-            tool="lookup_sop_class",
-            input=response_input,
             status="not_found",
             result={"message": "No DICOM SOP Class matched the input."},
-            trace=trace,
         )
 
     sop_class, service_class = found
@@ -143,14 +108,10 @@ def lookup_sop_class(
         if record.edge.resolution_warning is not None
     ]
     return tool_response(
-        edition=edition,
-        tool="lookup_sop_class",
-        input=response_input,
         status="ok",
         result=sop_class_result(sop_class, service_class, iod_records),
         refs=refs,
         warnings=warnings,
-        trace=trace,
     )
 
 
@@ -159,27 +120,14 @@ def list_modules_for_iod(
     *,
     iod_name: str,
     edition: str,
-    query_id: str | None = None,
-    resolved_at: datetime | None = None,
 ) -> ToolResponse:
     """List PS3.3 modules attached to an IOD."""
-    trace = build_trace(
-        connection,
-        edition=edition,
-        query_id=query_id,
-        resolved_at=resolved_at,
-    )
-    response_input = {"iod_name": iod_name}
     repository = Part03Repository(connection)
     iod = repository.find_iod_by_name_or_keyword(iod_name, edition=edition)
     if iod is None:
         return tool_response(
-            edition=edition,
-            tool="list_modules_for_iod",
-            input=response_input,
             status="not_found",
             result={"message": "No DICOM IOD matched the input."},
-            trace=trace,
         )
 
     records = repository.list_module_uses_for_iod(iod.id, edition=edition)
@@ -205,13 +153,9 @@ def list_modules_for_iod(
         .refs()
     )
     return tool_response(
-        edition=edition,
-        tool="list_modules_for_iod",
-        input=response_input,
         status="ok",
         result=iod_modules_result(iod, records),
         refs=refs,
-        trace=trace,
     )
 
 
@@ -221,30 +165,14 @@ def list_attributes_for_module(
     module_name: str,
     edition: str,
     expand_macros: bool = False,
-    query_id: str | None = None,
-    resolved_at: datetime | None = None,
 ) -> ToolResponse:
     """List PS3.3 attributes attached to a module."""
-    trace = build_trace(
-        connection,
-        edition=edition,
-        query_id=query_id,
-        resolved_at=resolved_at,
-    )
-    response_input = {
-        "module_name": module_name,
-        "expand_macros": str(expand_macros).lower(),
-    }
     repository = Part03Repository(connection)
     module = repository.find_module_by_name(module_name, edition=edition)
     if module is None:
         return tool_response(
-            edition=edition,
-            tool="list_attributes_for_module",
-            input=response_input,
             status="not_found",
             result={"message": "No DICOM module matched the input."},
-            trace=trace,
         )
 
     records = repository.list_attribute_uses(
@@ -286,14 +214,10 @@ def list_attributes_for_module(
         .refs()
     )
     return tool_response(
-        edition=edition,
-        tool="list_attributes_for_module",
-        input=response_input,
         status="ok",
         result=module_attributes_result(module, records),
         refs=refs,
         warnings=warnings,
-        trace=trace,
     )
 
 
@@ -304,49 +228,28 @@ def resolve_attribute_context(
     edition: str,
     iod_name: str | None = None,
     sop_class: str | None = None,
-    query_id: str | None = None,
-    resolved_at: datetime | None = None,
 ) -> ToolResponse:
     """Resolve an attribute's effective PS3.3 type in an IOD/SOP context."""
-    trace = build_trace(
-        connection,
-        edition=edition,
-        query_id=query_id,
-        resolved_at=resolved_at,
-    )
-    response_input = _context_input(attribute, iod_name=iod_name, sop_class=sop_class)
     if (iod_name is None) == (sop_class is None):
         return tool_response(
-            edition=edition,
-            tool="resolve_attribute_context",
-            input=response_input,
             status="validation_error",
             result={"message": "Provide exactly one context: iod_name or sop_class."},
-            trace=trace,
         )
     if _looks_like_tag(attribute):
         try:
             normalize_tag(attribute)
         except IdentifierValidationError as exc:
             return tool_response(
-                edition=edition,
-                tool="resolve_attribute_context",
-                input=response_input,
                 status="validation_error",
                 result={"message": str(exc)},
-                trace=trace,
             )
     if sop_class is not None and _looks_like_uid(sop_class):
         try:
             normalize_uid(sop_class)
         except IdentifierValidationError as exc:
             return tool_response(
-                edition=edition,
-                tool="resolve_attribute_context",
-                input=response_input,
                 status="validation_error",
                 result={"message": str(exc)},
-                trace=trace,
             )
 
     element, element_warning = find_attribute_element(
@@ -354,12 +257,8 @@ def resolve_attribute_context(
     )
     if element is None:
         return tool_response(
-            edition=edition,
-            tool="resolve_attribute_context",
-            input=response_input,
             status="not_found",
             result={"message": "No DICOM data element matched the attribute input."},
-            trace=trace,
         )
 
     part03 = Part03Repository(connection)
@@ -371,7 +270,7 @@ def resolve_attribute_context(
         edition=edition,
     )
     if isinstance(context, ToolResponse):
-        return context.model_copy(update={"input": response_input, "trace": trace})
+        return context
 
     context_iods, context_refs, context_warnings = context
     uses, use_refs, expansion_warnings = attribute_context_uses(
@@ -393,9 +292,6 @@ def resolve_attribute_context(
         use_refs,
     )
     return tool_response(
-        edition=edition,
-        tool="resolve_attribute_context",
-        input=response_input,
         status="ok",
         result=attribute_context_result(
             element,
@@ -405,16 +301,4 @@ def resolve_attribute_context(
         ),
         refs=refs,
         warnings=warnings,
-        trace=trace,
     )
-
-
-def _context_input(
-    attribute: str, *, iod_name: str | None, sop_class: str | None
-) -> dict[str, str]:
-    response_input = {"attribute": attribute}
-    if iod_name is not None:
-        response_input["iod_name"] = iod_name
-    if sop_class is not None:
-        response_input["sop_class"] = sop_class
-    return response_input

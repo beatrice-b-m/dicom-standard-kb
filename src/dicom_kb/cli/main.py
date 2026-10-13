@@ -7,7 +7,7 @@ from typing import Annotated
 
 import typer
 
-from dicom_kb.cli import evaluation, graph, ingest, lookup, mcp, text
+from dicom_kb.cli import graph, ingest, lookup, mcp, text
 from dicom_kb.config import ConfigError, DicomKBConfig, load_config_profile
 from dicom_kb.metadata import LEGAL_NOTICE, __version__
 
@@ -25,7 +25,6 @@ app.add_typer(graph.resolve_app, name="resolve")
 app.add_typer(graph.context_app, name="context")
 app.add_typer(text.explain_app, name="explain")
 app.add_typer(mcp.mcp_app, name="mcp")
-app.add_typer(evaluation.eval_app, name="eval")
 
 
 @app.callback()

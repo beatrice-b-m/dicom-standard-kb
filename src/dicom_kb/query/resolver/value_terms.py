@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime
 
 from dicom_kb.db.repositories import (
     AttributeValueTermRecord,
@@ -26,7 +25,7 @@ from dicom_kb.query.answer_contracts import (
     standard_ref,
     tool_response,
 )
-from dicom_kb.query.citations import build_trace, citation_refs
+from dicom_kb.query.citations import citation_refs
 from dicom_kb.query.graph import (
     attribute_context_uses,
     resolve_context_iods,
@@ -40,8 +39,6 @@ def lookup_enumerated_values(
     attribute: str,
     edition: str,
     context: str | None = None,
-    query_id: str | None = None,
-    resolved_at: datetime | None = None,
 ) -> ToolResponse:
     """Return parsed enumerated values for a DICOM attribute."""
     return _lookup_attribute_value_terms(
@@ -49,10 +46,7 @@ def lookup_enumerated_values(
         attribute=attribute,
         edition=edition,
         term_kind="enumerated_value",
-        tool="lookup_enumerated_values",
         context=context,
-        query_id=query_id,
-        resolved_at=resolved_at,
     )
 
 
@@ -62,8 +56,6 @@ def lookup_defined_terms(
     attribute: str,
     edition: str,
     context: str | None = None,
-    query_id: str | None = None,
-    resolved_at: datetime | None = None,
 ) -> ToolResponse:
     """Return parsed defined terms for a DICOM attribute."""
     return _lookup_attribute_value_terms(
@@ -71,10 +63,7 @@ def lookup_defined_terms(
         attribute=attribute,
         edition=edition,
         term_kind="defined_term",
-        tool="lookup_defined_terms",
         context=context,
-        query_id=query_id,
-        resolved_at=resolved_at,
     )
 
 
@@ -84,31 +73,15 @@ def _lookup_attribute_value_terms(
     attribute: str,
     edition: str,
     term_kind: str,
-    tool: str,
     context: str | None,
-    query_id: str | None,
-    resolved_at: datetime | None,
 ) -> ToolResponse:
-    trace = build_trace(
-        connection,
-        edition=edition,
-        query_id=query_id,
-        resolved_at=resolved_at,
-    )
-    response_input = {"attribute": attribute}
-    if context is not None:
-        response_input["context"] = context
     if _looks_like_tag(attribute):
         try:
             normalize_tag(attribute)
         except IdentifierValidationError as exc:
             return tool_response(
-                edition=edition,
-                tool=tool,
-                input=response_input,
                 status="validation_error",
                 result={"message": str(exc)},
-                trace=trace,
             )
 
     element, element_warning = DataElementRepository(connection).find_by_tag_or_keyword(
@@ -117,12 +90,8 @@ def _lookup_attribute_value_terms(
     )
     if element is None:
         return tool_response(
-            edition=edition,
-            tool=tool,
-            input=response_input,
             status="not_found",
             result={"message": "No DICOM data element matched the attribute input."},
-            trace=trace,
         )
 
     context_attribute_use_ids: tuple[str, ...] | None = None
@@ -154,14 +123,10 @@ def _lookup_attribute_value_terms(
     ]
     if not records:
         return tool_response(
-            edition=edition,
-            tool=tool,
-            input=response_input,
             status="not_found",
             result={"message": "No parsed value terms matched the input."},
             refs=citation_refs((element.source_ref,), context_refs),
             warnings=warnings,
-            trace=trace,
         )
 
     refs = citation_refs(
@@ -173,9 +138,6 @@ def _lookup_attribute_value_terms(
         candidates = _attribute_value_term_context_candidates(records)
         if len(candidates) > 1:
             return tool_response(
-                edition=edition,
-                tool=tool,
-                input=response_input,
                 status="validation_error",
                 result={
                     "message": "Context input matched multiple value-term contexts.",
@@ -184,18 +146,13 @@ def _lookup_attribute_value_terms(
                 },
                 refs=refs,
                 warnings=warnings,
-                trace=trace,
             )
 
     return tool_response(
-        edition=edition,
-        tool=tool,
-        input=response_input,
         status="ok",
         result=attribute_value_terms_result(element, records),
         refs=refs,
         warnings=warnings,
-        trace=trace,
     )
 
 
