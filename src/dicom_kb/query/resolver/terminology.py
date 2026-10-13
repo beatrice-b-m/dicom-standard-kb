@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime
 
 from dicom_kb.db.repositories import (
     CodeMeaningRecord,
@@ -22,7 +21,6 @@ from dicom_kb.query.answer_contracts import (
     standard_ref,
     tool_response,
 )
-from dicom_kb.query.citations import build_trace
 
 
 def lookup_code_meaning(
@@ -31,38 +29,19 @@ def lookup_code_meaning(
     code_value: str,
     edition: str,
     scheme: str | None = None,
-    query_id: str | None = None,
-    resolved_at: datetime | None = None,
 ) -> ToolResponse:
     """Resolve an imported PS3.16 coded concept by value and optional scheme."""
-    trace = build_trace(
-        connection,
-        edition=edition,
-        query_id=query_id,
-        resolved_at=resolved_at,
-    )
-    response_input = {"code_value": code_value}
-    if scheme is not None:
-        response_input["scheme"] = scheme
     normalized_code_value = code_value.strip()
     normalized_scheme = scheme.strip() if scheme is not None else None
     if not normalized_code_value:
         return tool_response(
-            edition=edition,
-            tool="lookup_code_meaning",
-            input=response_input,
             status="validation_error",
             result={"message": "code_value must not be empty."},
-            trace=trace,
         )
     if normalized_scheme == "":
         return tool_response(
-            edition=edition,
-            tool="lookup_code_meaning",
-            input=response_input,
             status="validation_error",
             result={"message": "scheme must not be empty when provided."},
-            trace=trace,
         )
 
     records = Part16Repository(connection).list_code_meanings(
@@ -72,36 +51,24 @@ def lookup_code_meaning(
     )
     if not records:
         return tool_response(
-            edition=edition,
-            tool="lookup_code_meaning",
-            input=response_input,
             status="not_found",
             result={"message": "No PS3.16 coded concept matched the input."},
-            trace=trace,
         )
     if len(records) > 1:
         return tool_response(
-            edition=edition,
-            tool="lookup_code_meaning",
-            input=response_input,
             status="validation_error",
             result={
                 "message": "Code value input matched multiple coded concepts.",
                 "candidates": [_code_meaning_result(record) for record in records],
             },
             refs=[standard_ref(record.concept.source_ref) for record in records],
-            trace=trace,
         )
 
     record = records[0]
     return tool_response(
-        edition=edition,
-        tool="lookup_code_meaning",
-        input=response_input,
         status="ok",
         result=_code_meaning_result(record),
         refs=[standard_ref(record.concept.source_ref)],
-        trace=trace,
     )
 
 
@@ -110,26 +77,13 @@ def lookup_context_group(
     *,
     cid_or_name: str,
     edition: str,
-    query_id: str | None = None,
-    resolved_at: datetime | None = None,
 ) -> ToolResponse:
     """Resolve an imported PS3.16 context group by CID or exact name."""
-    trace = build_trace(
-        connection,
-        edition=edition,
-        query_id=query_id,
-        resolved_at=resolved_at,
-    )
-    response_input = {"cid_or_name": cid_or_name}
     normalized_input = cid_or_name.strip()
     if not normalized_input:
         return tool_response(
-            edition=edition,
-            tool="lookup_context_group",
-            input=response_input,
             status="validation_error",
             result={"message": "cid_or_name must not be empty."},
-            trace=trace,
         )
 
     records = Part16Repository(connection).list_context_groups(
@@ -138,36 +92,24 @@ def lookup_context_group(
     )
     if not records:
         return tool_response(
-            edition=edition,
-            tool="lookup_context_group",
-            input=response_input,
             status="not_found",
             result={"message": "No PS3.16 context group matched the input."},
-            trace=trace,
         )
     if len(records) > 1:
         return tool_response(
-            edition=edition,
-            tool="lookup_context_group",
-            input=response_input,
             status="validation_error",
             result={
                 "message": "Context group input matched multiple rows.",
                 "candidates": [_context_group_result(record) for record in records],
             },
             refs=_context_group_refs(records),
-            trace=trace,
         )
 
     record = records[0]
     return tool_response(
-        edition=edition,
-        tool="lookup_context_group",
-        input=response_input,
         status="ok",
         result=_context_group_result(record),
         refs=_context_group_refs([record]),
-        trace=trace,
     )
 
 
@@ -176,26 +118,13 @@ def lookup_sr_template(
     *,
     tid_or_name: str,
     edition: str,
-    query_id: str | None = None,
-    resolved_at: datetime | None = None,
 ) -> ToolResponse:
     """Resolve an imported PS3.16 SR template by TID or exact name."""
-    trace = build_trace(
-        connection,
-        edition=edition,
-        query_id=query_id,
-        resolved_at=resolved_at,
-    )
-    response_input = {"tid_or_name": tid_or_name}
     normalized_input = tid_or_name.strip()
     if not normalized_input:
         return tool_response(
-            edition=edition,
-            tool="lookup_sr_template",
-            input=response_input,
             status="validation_error",
             result={"message": "tid_or_name must not be empty."},
-            trace=trace,
         )
 
     records = Part16Repository(connection).list_sr_templates(
@@ -204,36 +133,24 @@ def lookup_sr_template(
     )
     if not records:
         return tool_response(
-            edition=edition,
-            tool="lookup_sr_template",
-            input=response_input,
             status="not_found",
             result={"message": "No PS3.16 SR template matched the input."},
-            trace=trace,
         )
     if len(records) > 1:
         return tool_response(
-            edition=edition,
-            tool="lookup_sr_template",
-            input=response_input,
             status="validation_error",
             result={
                 "message": "SR template input matched multiple rows.",
                 "candidates": [_sr_template_result(record) for record in records],
             },
             refs=_sr_template_refs(records),
-            trace=trace,
         )
 
     record = records[0]
     return tool_response(
-        edition=edition,
-        tool="lookup_sr_template",
-        input=response_input,
         status="ok",
         result=_sr_template_result(record),
         refs=_sr_template_refs([record]),
-        trace=trace,
     )
 
 

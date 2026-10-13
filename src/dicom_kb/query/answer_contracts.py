@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from typing import Any, Literal
-from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -29,51 +27,10 @@ from dicom_kb.ir.models import (
 )
 
 ResponseStatus = Literal["ok", "not_found", "validation_error"]
-Normativity = Literal["normative", "explanatory", "derived", "heuristic", "unsupported"]
-EvidenceLevel = Literal[
-    "parsed_table",
-    "parsed_registry",
-    "parsed_cross_reference",
-    "retrieved_text",
-    "external_comparison",
-]
-MachineDecidability = Literal[
-    "decidable",
-    "partially_decidable",
-    "not_decidable",
-    "not_applicable",
-]
-ParseConfidenceLevel = Literal["high", "medium", "low", "unknown"]
-
-
-REGISTRY_TOOLS = frozenset({"lookup_data_element", "lookup_uid"})
-TABLE_TOOLS = frozenset(
-    {
-        "lookup_iod",
-        "list_modules_for_iod",
-        "list_attributes_for_module",
-        "lookup_enumerated_values",
-        "lookup_defined_terms",
-    }
-)
-CROSS_REFERENCE_TOOLS = frozenset({"lookup_sop_class", "resolve_attribute_context"})
-TEXT_TOOLS = frozenset({"retrieve_standard_text", "search_standard_text"})
-V2_CROSS_REFERENCE_TOOLS = frozenset({"lookup_transfer_syntax"})
-V2_TEXT_TOOLS = frozenset({"explain_encoding_rule"})
-V2_TABLE_TOOLS = frozenset(
-    {
-        "lookup_vr",
-        "lookup_dicomweb_transaction",
-        "lookup_media_type",
-        "lookup_sr_template",
-        "lookup_context_group",
-        "lookup_code_meaning",
-    }
-)
 
 
 class StandardRef(BaseModel):
-    """Citation pointer for a standard fact."""
+    """Where in the standard a fact comes from."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -81,56 +38,18 @@ class StandardRef(BaseModel):
     section: str | None = None
     table: str | None = None
     anchor: str | None = None
-    official_url: str | None = None
     edition: str
-
-
-class ResponseTrace(BaseModel):
-    """Trace metadata for deterministic tool execution."""
-
-    model_config = ConfigDict(frozen=True)
-
-    query_id: str = Field(default_factory=lambda: str(uuid4()))
-    resolved_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    source_manifest_sha256: str | None = None
-
-
-class ResponseClassification(BaseModel):
-    """Safety classification for a public tool response."""
-
-    model_config = ConfigDict(frozen=True)
-
-    normativity: Normativity
-    evidence_level: EvidenceLevel
-    machine_decidability: MachineDecidability
-
-
-class ParseConfidence(BaseModel):
-    """Conservative parse confidence metadata for a public tool response."""
-
-    model_config = ConfigDict(frozen=True)
-
-    level: ParseConfidenceLevel
-    source: str
-    notes: list[str] | None = None
 
 
 class ToolResponse(BaseModel):
-    """Common envelope for all public query tools."""
+    """A resolver's answer: the result, its sources, and real gaps only."""
 
     model_config = ConfigDict(frozen=True)
 
-    edition: str
-    tool: str
-    input: dict[str, str]
     status: ResponseStatus
     result: dict[str, Any] | None
-    classification: ResponseClassification
-    parse_confidence: ParseConfidence
     refs: list[StandardRef] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
-    notice: str | None = None
-    trace: ResponseTrace = Field(default_factory=ResponseTrace)
 
 
 class VRDefinitionResult(BaseModel):
@@ -264,112 +183,18 @@ class CodeMeaningResult(BaseModel):
 
 def tool_response(
     *,
-    edition: str,
-    tool: str,
-    input: dict[str, str],
     status: ResponseStatus,
     result: dict[str, Any] | None,
     refs: list[StandardRef] | None = None,
     warnings: list[str] | None = None,
-    trace: ResponseTrace | None = None,
-    classification: ResponseClassification | None = None,
-    parse_confidence: ParseConfidence | None = None,
 ) -> ToolResponse:
-    """Build a response with deterministic classification metadata."""
-    response_warnings = warnings or []
-    response_classification = classification or classification_for_tool(
-        tool=tool,
-        status=status,
-    )
-    response_parse_confidence = parse_confidence or parse_confidence_for_tool(
-        tool=tool,
-        status=status,
-        warnings=response_warnings,
-        classification=response_classification,
-    )
+    """Build a resolver response."""
     return ToolResponse(
-        edition=edition,
-        tool=tool,
-        input=input,
         status=status,
         result=result,
-        classification=response_classification,
-        parse_confidence=response_parse_confidence,
         refs=refs or [],
-        warnings=response_warnings,
-        trace=trace or ResponseTrace(),
+        warnings=warnings or [],
     )
-
-
-def classification_for_tool(
-    *, tool: str, status: ResponseStatus
-) -> ResponseClassification:
-    """Return deterministic evidence classification for a tool/status pair."""
-    evidence_level = evidence_level_for_tool(tool)
-    if status != "ok":
-        return ResponseClassification(
-            normativity="unsupported",
-            evidence_level=evidence_level,
-            machine_decidability="not_applicable",
-        )
-    if tool in TEXT_TOOLS or tool in V2_TEXT_TOOLS:
-        return ResponseClassification(
-            normativity="explanatory",
-            evidence_level="retrieved_text",
-            machine_decidability="not_applicable",
-        )
-    if tool == "resolve_attribute_context":
-        return ResponseClassification(
-            normativity="normative",
-            evidence_level="parsed_cross_reference",
-            machine_decidability="partially_decidable",
-        )
-    return ResponseClassification(
-        normativity="normative",
-        evidence_level=evidence_level,
-        machine_decidability="decidable",
-    )
-
-
-def parse_confidence_for_tool(
-    *,
-    tool: str,
-    status: ResponseStatus,
-    warnings: list[str],
-    classification: ResponseClassification,
-) -> ParseConfidence:
-    """Return conservative parse confidence metadata for a response."""
-    if status == "validation_error":
-        return ParseConfidence(level="unknown", source="input_validation")
-    if status == "not_found":
-        return ParseConfidence(
-            level="medium",
-            source=classification.evidence_level,
-            notes=["No matching parsed fact was found."],
-        )
-    if tool in TEXT_TOOLS or tool in V2_TEXT_TOOLS:
-        return ParseConfidence(level="low", source="retrieved_text")
-    if tool == "resolve_attribute_context" or warnings:
-        notes = ["Warnings were emitted; inspect the response warnings."]
-        return ParseConfidence(
-            level="medium",
-            source=classification.evidence_level,
-            notes=notes if warnings else None,
-        )
-    return ParseConfidence(level="high", source=classification.evidence_level)
-
-
-def evidence_level_for_tool(tool: str) -> EvidenceLevel:
-    """Map a public tool name to its primary evidence source."""
-    if tool in REGISTRY_TOOLS:
-        return "parsed_registry"
-    if tool in CROSS_REFERENCE_TOOLS or tool in V2_CROSS_REFERENCE_TOOLS:
-        return "parsed_cross_reference"
-    if tool in TEXT_TOOLS or tool in V2_TEXT_TOOLS:
-        return "retrieved_text"
-    if tool in TABLE_TOOLS or tool in V2_TABLE_TOOLS:
-        return "parsed_table"
-    return "parsed_table"
 
 
 def data_element_result(element: DataElement) -> dict[str, Any]:
@@ -714,14 +539,11 @@ def attribute_value_terms_result(
 
 def standard_ref(source_ref: SourceRef) -> StandardRef:
     """Convert an internal source ref to the public citation shape."""
-    from dicom_kb.query.citations import official_source_url
-
     return StandardRef(
         part=source_ref.part,
         section=source_ref.section,
         table=source_ref.title or source_ref.table_id,
         anchor=source_ref.xml_id,
-        official_url=source_ref.canonical_url or official_source_url(source_ref),
         edition=source_ref.edition_id,
     )
 
@@ -730,13 +552,8 @@ def _condition_payload(condition: Condition | None) -> dict[str, Any] | None:
     if condition is None:
         return None
     return {
-        "condition_id": condition.id,
         "source_text": condition.raw_text,
         "condition_kind": condition.condition_kind,
-        "machine_status": condition.machine_status,
-        "dependencies": [],
-        "evaluator": {"available": False},
-        "refs": [standard_ref(condition.source_ref).model_dump(mode="json")],
     }
 
 

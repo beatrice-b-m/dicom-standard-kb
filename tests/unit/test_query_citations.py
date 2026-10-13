@@ -1,22 +1,6 @@
 from dicom_kb.ir.models import SourceRef
 from dicom_kb.query.answer_contracts import StandardRef
-from dicom_kb.query.citations import CitationBuilder, citation_refs, official_source_url
-
-
-def test_official_source_url_uses_edition_part_and_anchor() -> None:
-    source = SourceRef(
-        id="2026b.PS3.3.table_A.3-1",
-        edition_id="2026b",
-        part="PS3.3",
-        section="sect_A.3",
-        table_id="table_A.3-1",
-        xml_id="table_A.3-1",
-    )
-
-    assert official_source_url(source) == (
-        "https://dicom.nema.org/medical/dicom/2026b/output/chtml/"
-        "part03/table_A.3-1.html"
-    )
+from dicom_kb.query.citations import CitationBuilder, citation_refs
 
 
 def test_citation_builder_flattens_groups_and_deduplicates_refs() -> None:
@@ -35,7 +19,6 @@ def test_citation_builder_flattens_groups_and_deduplicates_refs() -> None:
         section="Registry of DICOM Data Elements",
         table="Registry of DICOM Data Elements",
         anchor="sect_6",
-        official_url=None,
         edition="2026b",
     )
 
@@ -78,7 +61,6 @@ def test_citation_refs_accepts_mixed_evidence_groups() -> None:
         section=None,
         table="UID Values",
         anchor="uid_table",
-        official_url=None,
         edition="2026b",
     )
 
