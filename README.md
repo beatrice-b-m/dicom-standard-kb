@@ -1,21 +1,20 @@
 # dicom-standard-kb
 
-Build a local, edition-pinned SQLite knowledge base from official DICOM
-Standard artifacts, then query it through the CLI, Python, or MCP. Lookups
-return structured facts, citations, edition metadata, and explicit uncertainty.
+Build a local SQLite knowledge base from the current DICOM Standard, fetched
+from NEMA, then query it offline through an MCP server or the CLI. Answers are
+compact markdown that ends with the part and table they come from.
 
 This project is a builder and query layer. It does not redistribute the DICOM
 Standard, official source artifacts, or a prebuilt knowledge base.
 
-[Documentation](https://dicom-standard-kb-docs.beatricebm.workers.dev/) ·
-[Developer guide](docs/development.md) ·
-[Examples](examples/README.md)
+[Developer guide](docs/development.md)
 
 ## Status
 
 The parser surface covers PS3.3, PS3.4, PS3.5, PS3.6, PS3.10, PS3.16, and
 PS3.18. Selected PS3.7 and PS3.8 prose is available through cited text retrieval.
-Structured coverage is bounded; inspect response warnings and citations.
+Structured coverage is bounded; a warning appears only when an answer is
+missing something the source has.
 
 ## Install
 
@@ -45,41 +44,38 @@ From the source checkout, build a tiny, synthetic database without downloading
 DICOM content:
 
 ```bash
-uv run dicom-kb build-fixture --edition 2026b \
-  --db /tmp/dicom-kb-fixture.sqlite --force
-uv run dicom-kb lookup tag Modality --edition 2026b \
-  --db /tmp/dicom-kb-fixture.sqlite
+uv run dicom-kb build-fixture --db /tmp/dicom-kb-fixture.sqlite --force
+uv run dicom-kb lookup tag Modality --db /tmp/dicom-kb-fixture.sqlite
 ```
 
 The fixture demonstrates API behavior; it is not official DICOM content.
 
 ## Build from official sources
 
-Network access is needed to fetch official artifacts. Resolve `current` to a
-concrete edition, then use the edition reported by `fetch`:
+`fetch` downloads the current edition's DocBook from dicom.nema.org (about
+100 MB); everything after that works offline:
 
 ```bash
-uv run dicom-kb fetch --edition current
-uv run dicom-kb build --edition <concrete-edition>
-uv run dicom-kb verify --edition <concrete-edition>
-uv run dicom-kb lookup tag Modality --edition <concrete-edition>
+uv run dicom-kb fetch
+uv run dicom-kb build
+uv run dicom-kb lookup tag Modality
 ```
 
-Artifacts default to `~/.cache/dicom-standard-kb/`, with databases under
-`db/<edition>.sqlite`. Use `--cache-dir` or `--db` for explicit locations.
-A rebuild requires `--force`; failed builds preserve the previous database.
+Files go under `~/.cache/dicom-standard-kb/`, with the database at
+`db/<edition>.sqlite`. Commands use the newest fetched or built edition unless
+you pass `--edition`; use `--cache-dir` or `--db` for other locations. A
+rebuild requires `--force`, and a failed build leaves the previous database in
+place. The build never stops on a gap in the source: it logs each one to
+`db/<edition>.gaps.txt` and prints the count per part.
 
-For an MCP client, launch the stdio server against your local database:
+For an MCP client, add the stdio server as one config entry:
 
 ```bash
-uv run --extra mcp dicom-kb mcp serve --edition <concrete-edition>
+uv run --extra mcp dicom-kb mcp serve
 ```
 
 The [documentation website](https://dicom-standard-kb-docs.beatricebm.workers.dev/)
-contains setup guides, CLI and Python references, configuration, MCP tools,
-parser coverage, and limitations. It documents the source state recorded in the
-[documentation repository](https://github.com/beatrice-b-m/dicom-standard-kb-docs);
-this checkout can contain unreleased changes.
+describes the earlier JSON tools and is out of date until the rebuild finishes.
 
 ## Development
 
@@ -89,8 +85,7 @@ make check
 ```
 
 See the [developer guide](docs/development.md) for the code map, extension
-workflow, and test layers, and the [release checklist](docs/release_checklist.md)
-for official-edition validation and distribution checks.
+workflow, and test layers.
 
 ## Legal Notice
 
