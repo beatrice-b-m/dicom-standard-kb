@@ -103,7 +103,6 @@ def _config_file(
           edition: "{edition}"
           artifact_dir: "{cache_dir}"
           database_url: "sqlite:///{db_path}"
-          require_citations: true
         """,
         encoding="utf-8",
     )
