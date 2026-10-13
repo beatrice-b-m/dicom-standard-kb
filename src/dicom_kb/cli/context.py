@@ -24,6 +24,7 @@ from dicom_kb.config import (
 )
 from dicom_kb.db.models import read_sqlite
 from dicom_kb.query.answer_contracts import ToolResponse
+from dicom_kb.query.markdown import render_markdown
 from dicom_kb.sources.downloader import (
     DEFAULT_CACHE_DIR,
 )
@@ -87,8 +88,7 @@ def connect_query_db(
 
 
 def echo_response(response: ToolResponse) -> None:
-    payload = response.model_dump(mode="json", exclude_none=True)
-    typer.echo(json.dumps(payload, indent=2, sort_keys=True))
+    typer.echo(render_markdown(response), nl=False)
 
 
 def json_model(model: BaseModel) -> str:

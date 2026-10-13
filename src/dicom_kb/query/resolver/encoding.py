@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime
 
 from dicom_kb.db.repositories import (
     DocumentRepository,
@@ -25,7 +24,7 @@ from dicom_kb.query.answer_contracts import (
     transfer_syntax_detail_result,
     vr_definition_result,
 )
-from dicom_kb.query.citations import build_trace, citation_refs
+from dicom_kb.query.citations import citation_refs
 from dicom_kb.query.resolver._identifiers import _looks_like_uid
 from dicom_kb.query.search import build_fts_query
 
@@ -35,43 +34,23 @@ def lookup_vr(
     *,
     vr: str,
     edition: str,
-    query_id: str | None = None,
-    resolved_at: datetime | None = None,
 ) -> ToolResponse:
     """Resolve a PS3.5 Value Representation definition by VR code."""
-    trace = build_trace(
-        connection,
-        edition=edition,
-        query_id=query_id,
-        resolved_at=resolved_at,
-    )
-    response_input = {"vr": vr}
     normalized_vr = vr.strip().upper()
     if not _is_vr_code(normalized_vr):
         return tool_response(
-            edition=edition,
-            tool="lookup_vr",
-            input=response_input,
             status="validation_error",
             result={"message": "vr must be a two-letter DICOM VR code."},
-            trace=trace,
         )
 
     definition = Part05Repository(connection).find_vr(normalized_vr, edition=edition)
     if definition is None:
         return tool_response(
-            edition=edition,
-            tool="lookup_vr",
-            input=response_input,
             status="not_found",
             result={"message": "No PS3.5 VR definition matched the input."},
-            trace=trace,
         )
 
     return tool_response(
-        edition=edition,
-        tool="lookup_vr",
-        input=response_input,
         status="ok",
         result=vr_definition_result(
             vr=definition.vr,
@@ -83,7 +62,6 @@ def lookup_vr(
             binary_or_text=definition.binary_or_text,
         ),
         refs=[standard_ref(definition.source_ref)],
-        trace=trace,
     )
 
 
@@ -92,28 +70,15 @@ def lookup_transfer_syntax(
     *,
     uid_or_keyword: str,
     edition: str,
-    query_id: str | None = None,
-    resolved_at: datetime | None = None,
 ) -> ToolResponse:
     """Resolve a transfer syntax UID with deterministic encoding details."""
-    trace = build_trace(
-        connection,
-        edition=edition,
-        query_id=query_id,
-        resolved_at=resolved_at,
-    )
-    response_input = {"uid_or_keyword": uid_or_keyword}
     if _looks_like_uid(uid_or_keyword):
         try:
             normalize_uid(uid_or_keyword)
         except IdentifierValidationError as exc:
             return tool_response(
-                edition=edition,
-                tool="lookup_transfer_syntax",
-                input=response_input,
                 status="validation_error",
                 result={"message": str(exc)},
-                trace=trace,
             )
 
     record = Part05Repository(connection).find_transfer_syntax(
@@ -122,18 +87,11 @@ def lookup_transfer_syntax(
     )
     if record is None:
         return tool_response(
-            edition=edition,
-            tool="lookup_transfer_syntax",
-            input=response_input,
             status="not_found",
             result={"message": "No transfer syntax detail matched the input."},
-            trace=trace,
         )
 
     return tool_response(
-        edition=edition,
-        tool="lookup_transfer_syntax",
-        input=response_input,
         status="ok",
         result=transfer_syntax_detail_result(
             uid_value=record.uid.uid_value,
@@ -150,7 +108,6 @@ def lookup_transfer_syntax(
             (record.uid.source_ref,),
             (record.detail.source_ref,),
         ),
-        trace=trace,
     )
 
 
@@ -159,26 +116,13 @@ def explain_encoding_rule(
     *,
     topic: str,
     edition: str,
-    query_id: str | None = None,
-    resolved_at: datetime | None = None,
 ) -> ToolResponse:
     """Explain a PS3.5 encoding topic using parsed rows or cited text."""
-    trace = build_trace(
-        connection,
-        edition=edition,
-        query_id=query_id,
-        resolved_at=resolved_at,
-    )
-    response_input = {"topic": topic}
     normalized_topic = topic.strip()
     if not normalized_topic:
         return tool_response(
-            edition=edition,
-            tool="explain_encoding_rule",
-            input=response_input,
             status="validation_error",
             result={"message": "topic must not be empty."},
-            trace=trace,
         )
 
     repository = Part05Repository(connection)
@@ -187,9 +131,6 @@ def explain_encoding_rule(
         definition = repository.find_vr(normalized_vr, edition=edition)
         if definition is not None:
             return tool_response(
-                edition=edition,
-                tool="explain_encoding_rule",
-                input=response_input,
                 status="ok",
                 result=encoding_rule_explanation_result(
                     topic=topic,
@@ -197,7 +138,6 @@ def explain_encoding_rule(
                     structured_facts=_vr_structured_facts(definition),
                 ),
                 refs=[standard_ref(definition.source_ref)],
-                trace=trace,
             )
 
     transfer_syntax = repository.find_transfer_syntax(
@@ -206,9 +146,6 @@ def explain_encoding_rule(
     )
     if transfer_syntax is not None:
         return tool_response(
-            edition=edition,
-            tool="explain_encoding_rule",
-            input=response_input,
             status="ok",
             result=encoding_rule_explanation_result(
                 topic=topic,
@@ -224,18 +161,13 @@ def explain_encoding_rule(
                 (transfer_syntax.uid.source_ref,),
                 (transfer_syntax.detail.source_ref,),
             ),
-            trace=trace,
         )
 
     fts_query = build_fts_query(normalized_topic)
     if fts_query is None:
         return tool_response(
-            edition=edition,
-            tool="explain_encoding_rule",
-            input=response_input,
             status="validation_error",
             result={"message": "topic must contain at least one searchable term."},
-            trace=trace,
         )
 
     matches = DocumentRepository(connection).search_text(
@@ -246,20 +178,13 @@ def explain_encoding_rule(
     )
     if not matches:
         return tool_response(
-            edition=edition,
-            tool="explain_encoding_rule",
-            input=response_input,
             status="not_found",
             result={"message": "No PS3.5 encoding rule matched the topic."},
-            trace=trace,
         )
 
     match = matches[0]
     excerpt = (match.node.plain_text or match.snippet)[:800]
     return tool_response(
-        edition=edition,
-        tool="explain_encoding_rule",
-        input=response_input,
         status="ok",
         result=encoding_rule_explanation_result(
             topic=topic,
@@ -267,7 +192,6 @@ def explain_encoding_rule(
             text_excerpt=excerpt,
         ),
         refs=[standard_ref(match.node.source_ref)],
-        trace=trace,
     )
 
 

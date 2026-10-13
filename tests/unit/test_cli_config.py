@@ -51,10 +51,8 @@ def test_cli_config_supplies_query_defaults(tmp_path: Path) -> None:
     )
 
     assert lookup_result.exit_code == 0, lookup_result.output
-    payload = json.loads(lookup_result.output)
-    assert payload["edition"] == "2026c"
-    assert payload["status"] == "ok"
-    assert payload["result"]["keyword"] == "Modality"
+    assert lookup_result.output.rstrip().endswith("(2026c)")
+    assert "Keyword `Modality`" in lookup_result.output
 
 
 def test_cli_flags_override_config_defaults(tmp_path: Path) -> None:
