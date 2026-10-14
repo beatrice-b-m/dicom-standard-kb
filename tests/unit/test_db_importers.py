@@ -447,6 +447,12 @@ def test_import_part03_rolls_back_on_duplicate_iods(tmp_path: Path) -> None:
     assert count == 0
 
 
+IOD_REFS = {
+    "sect_A.3": "2026b.iod.ct_image",
+    "sect_A.38": "2026b.iod.enhanced_ct_image",
+}
+
+
 def test_import_part04_sop_class_records(tmp_path: Path) -> None:
     connection = _connection(tmp_path)
     parsed_part03 = parse_part03(
@@ -464,7 +470,9 @@ def test_import_part04_sop_class_records(tmp_path: Path) -> None:
         conditions=parsed_part03.conditions,
     )
     parsed_part04 = parse_part04(
-        parse_docbook_xml(PS34_SOP_CLASSES_DOCBOOK, part="PS3.4"), edition="2026b"
+        parse_docbook_xml(PS34_SOP_CLASSES_DOCBOOK, part="PS3.4"),
+        edition="2026b",
+        iod_id_by_ref=IOD_REFS,
     )
 
     summary = import_part04(
@@ -491,13 +499,15 @@ def test_import_part04_sop_class_records(tmp_path: Path) -> None:
 
     iods = repository.list_iods_for_sop_class(sop_class.id, edition="2026b")
     assert [record.iod.name for record in iods] == ["CT Image"]
-    assert iods[0].edge.resolution == "inferred_from_name"
+    assert iods[0].edge.resolution == "parsed"
 
 
 def test_import_part04_rolls_back_without_referenced_iods(tmp_path: Path) -> None:
     connection = _connection(tmp_path)
     parsed_part04 = parse_part04(
-        parse_docbook_xml(PS34_SOP_CLASSES_DOCBOOK, part="PS3.4"), edition="2026b"
+        parse_docbook_xml(PS34_SOP_CLASSES_DOCBOOK, part="PS3.4"),
+        edition="2026b",
+        iod_id_by_ref=IOD_REFS,
     )
 
     with pytest.raises(ImportError):

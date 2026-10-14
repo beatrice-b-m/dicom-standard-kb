@@ -12,12 +12,12 @@
           </thead>
           <tbody>
             <row>
-              <entry>CT Image IOD</entry>
+              <entry><olink targetdoc="PS3.3" targetptr="sect_A.3" xrefstyle="select: title"/></entry>
               <entry>CT Image Storage</entry>
               <entry>1.2.840.10008.5.1.4.1.1.2</entry>
             </row>
             <row>
-              <entry>Enhanced CT Image IOD</entry>
+              <entry><olink targetdoc="PS3.3" targetptr="sect_A.38" xrefstyle="select: title"/></entry>
               <entry>Enhanced CT Image Storage</entry>
               <entry>1.2.840.10008.5.1.4.1.1.2.1</entry>
             </row>
