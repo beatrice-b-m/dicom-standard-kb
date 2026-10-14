@@ -28,30 +28,32 @@ def test_source_line_caps_long_lists() -> None:
     assert source_line(refs).endswith(f"Table C.4-1 and 3 more ({EDITION})")
 
 
-def test_tables_drop_internal_ids_and_empty_columns_and_escape_pipes() -> None:
+def test_hits_drop_empty_columns_and_escape_pipes() -> None:
     response = tool_response(
         status="ok",
         result={
-            "items": [
-                {"id": f"{EDITION}.x.1", "name": "a|b", "unused": None},
-                {"id": f"{EDITION}.x.2", "name": "c", "unused": ""},
+            "hits": [
+                {"Ref": "PS3.5 A.4", "Title": "a|b", "Context": ""},
+                {"Ref": "PS3.5 A.4.1", "Title": "c", "Context": None},
             ]
         },
     )
 
-    assert render_markdown(response) == "**Items**\n| Name |\n|---|\n| a\\|b |\n| c |\n"
+    assert render_markdown(response) == (
+        "| Ref | Title |\n|---|---|\n| PS3.5 A.4 | a\\|b |\n| PS3.5 A.4.1 | c |\n"
+    )
 
 
 def test_not_found_lists_candidates() -> None:
     response = tool_response(
-        status="validation_error",
+        status="not_found",
         result={
-            "message": "Matched multiple contexts.",
-            "candidates": [{"media_type": "application/dicom"}],
+            "message": "C.8.8 names more than one section.",
+            "candidates": [{"Ref": "PS3.3 C.8.8", "Title": "RT Series Module"}],
         },
     )
 
     assert render_markdown(response) == (
-        "Matched multiple contexts.\n\nCandidates:\n"
-        "| Media type |\n|---|\n| application/dicom |\n"
+        "C.8.8 names more than one section.\n\nCandidates:\n"
+        "| Ref | Title |\n|---|---|\n| PS3.3 C.8.8 | RT Series Module |\n"
     )
