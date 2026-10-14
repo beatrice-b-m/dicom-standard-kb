@@ -6,11 +6,6 @@ from pathlib import Path
 from dicom_kb.db.models import apply_migrations, connect_sqlite
 
 V2_TABLES = {
-    "vr_definition",
-    "transfer_syntax_detail",
-    "file_meta_requirement",
-    "dicom_media_type",
-    "dicomweb_transaction",
     "sr_template",
     "sr_template_row",
     "context_group",
@@ -52,33 +47,14 @@ def test_empty_database_migrations_create_canonical_v2_tables(
         assert "source_ref_id" in _columns(connection, table_name)
 
     assert {
-        "vr",
-        "name",
-        "value_representation_class",
-        "length_notes_json",
-        "padding_behavior",
-        "character_repertoire_notes_json",
-        "binary_or_text",
-    } <= _columns(connection, "vr_definition")
-    assert {
-        "uid_registry_entry_id",
         "uid_value",
-        "explicit_vr",
-        "endian",
-        "encapsulated",
-        "compression_family",
-        "encoding_notes_json",
+        "vr_encoding",
+        "byte_order",
+        "pixel_data",
+        "deflate",
+        "section_xml_id",
+        "see_also_json",
     } <= _columns(connection, "transfer_syntax_detail")
-    assert {
-        "transaction_name",
-        "resource_category",
-        "http_method",
-        "route_template",
-        "request_constraints_json",
-        "response_constraints_json",
-        "status_codes_json",
-        "media_type_refs_json",
-    } <= _columns(connection, "dicomweb_transaction")
     assert {"tid", "name", "extensibility"} <= _columns(connection, "sr_template")
     assert {
         "sr_template_id",
@@ -162,57 +138,17 @@ def test_v2_tables_accept_minimal_rows_with_source_refs(tmp_path: Path) -> None:
 
     connection.executescript(
         f"""
-        INSERT INTO vr_definition (
-          id, edition_id, vr, name, source_ref_id
-        ) VALUES (
-          '2026b.vr.pn', '2026b', 'PN', 'Person Name', '{source_ref_id}'
-        );
         INSERT INTO transfer_syntax_detail (
-          id, edition_id, uid_registry_entry_id, uid_value, explicit_vr,
-          endian, encapsulated, source_ref_id
+          id, edition_id, uid_value, vr_encoding, byte_order, pixel_data,
+          section_xml_id
         ) VALUES (
           '2026b.ts.explicit_vr_le',
           '2026b',
-          '2026b.uid.explicit_vr_little_endian',
           '1.2.840.10008.1.2.1',
-          1,
-          'little',
-          0,
-          '{source_ref_id}'
-        );
-        INSERT INTO file_meta_requirement (
-          id, edition_id, data_element_id, attribute_tag, attribute_keyword,
-          type_designation, rule_context, source_ref_id
-        ) VALUES (
-          '2026b.file_meta.transfer_syntax_uid',
-          '2026b',
-          '2026b.data_element.transfer_syntax_uid',
-          '(0002,0010)',
-          'TransferSyntaxUID',
-          '1',
-          'file_meta_information',
-          '{source_ref_id}'
-        );
-        INSERT INTO dicom_media_type (
-          id, edition_id, media_type, service_context, source_ref_id
-        ) VALUES (
-          '2026b.media.application_dicom',
-          '2026b',
-          'application/dicom',
-          'PS3.10 file',
-          '{source_ref_id}'
-        );
-        INSERT INTO dicomweb_transaction (
-          id, edition_id, transaction_name, resource_category, http_method,
-          route_template, source_ref_id
-        ) VALUES (
-          '2026b.dicomweb.retrieve_study',
-          '2026b',
-          'RetrieveStudy',
-          'study',
-          'GET',
-          '/studies/{{studyInstanceUID}}',
-          '{source_ref_id}'
+          'Explicit VR',
+          'Little Endian',
+          'Native',
+          'sect_A.2'
         );
         INSERT INTO sr_template (
           id, edition_id, tid, name, source_ref_id
@@ -277,3 +213,7 @@ def test_v2_tables_accept_minimal_rows_with_source_refs(tmp_path: Path) -> None:
         for table_name in V2_TABLES
     }
     assert counts == {table_name: 1 for table_name in V2_TABLES}
+    assert (
+        connection.execute("SELECT count(*) FROM transfer_syntax_detail").fetchone()[0]
+        == 1
+    )

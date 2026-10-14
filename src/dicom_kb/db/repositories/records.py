@@ -4,11 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from dicom_kb.ir.models import (
-    DocNode,
-    TransferSyntaxDetail,
-    UIDRegistryEntry,
-)
+from dicom_kb.ir.models import DocNode
 
 
 @dataclass(frozen=True)
@@ -17,11 +13,3 @@ class DocumentSearchResult:
 
     node: DocNode
     snippet: str
-
-
-@dataclass(frozen=True)
-class TransferSyntaxDetailRecord:
-    """A transfer-syntax detail row joined to its PS3.6 UID registry entry."""
-
-    detail: TransferSyntaxDetail
-    uid: UIDRegistryEntry

@@ -1,74 +1,106 @@
 <book xmlns="http://docbook.org/ns/docbook" xmlns:xml="http://www.w3.org/XML/1998/namespace" xml:id="ps3_5">
-  <chapter xml:id="chapter_5">
-    <title>PS3.5 Synthetic Encoding</title>
-    <section xml:id="sect_5_1">
-      <title>Encoding Overview</title>
-      <para>Synthetic PS3.5 fixture for generic DocBook ingestion.</para>
-      <table xml:id="table_5-1">
-        <title>Synthetic VR Behaviors</title>
-        <tgroup cols="7">
-          <thead>
-            <row>
-              <entry>VR</entry>
-              <entry>Name</entry>
-              <entry>Value Representation Class</entry>
-              <entry>Length Notes</entry>
-              <entry>Padding Behavior</entry>
-              <entry>Character Repertoire Notes</entry>
-              <entry>Binary or Text</entry>
-            </row>
-          </thead>
-          <tbody>
-            <row>
-              <entry>PN</entry>
-              <entry>Person Name</entry>
-              <entry>character string</entry>
-              <entry>variable length</entry>
-              <entry>space padded</entry>
-              <entry>uses the default character repertoire</entry>
-              <entry>text</entry>
-            </row>
-            <row>
-              <entry>OB</entry>
-              <entry>Other Byte</entry>
-              <entry>byte string</entry>
-              <entry>variable length</entry>
-              <entry>null padded</entry>
-              <entry></entry>
-              <entry>binary</entry>
-            </row>
-            <row>
-              <entry>SQ</entry>
-              <entry>Sequence of Items</entry>
-              <entry>sequence</entry>
-              <entry>undefined or explicit length</entry>
-              <entry></entry>
-              <entry></entry>
-              <entry>binary</entry>
-            </row>
-            <row>
-              <entry>UN</entry>
-              <entry>Unknown</entry>
-              <entry>opaque bytes</entry>
-              <entry>variable length</entry>
-              <entry></entry>
-              <entry></entry>
-              <entry>binary</entry>
-            </row>
-          </tbody>
-        </tgroup>
+  <chapter xml:id="chapter_6" label="6">
+    <title>Value Encoding</title>
+    <section xml:id="sect_6.2" label="6.2">
+      <title>Value Representation (VR)</title>
+      <para>Synthetic PS3.5 fixture shaped like the real Annex A and Table 6.2-1.</para>
+      <table xml:id="table_6.2-1" label="6.2-1">
+        <caption>DICOM Value Representations</caption>
+        <thead>
+          <tr>
+            <th><para>VR Name</para></th>
+            <th><para>Definition</para></th>
+            <th><para>Character Repertoire</para></th>
+            <th><para>Length of Value</para></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><para>OB</para><para>Other Byte</para></td>
+            <td><para>An octet-stream whose encoding is specified by the negotiated Transfer Syntax.</para></td>
+            <td><para>not applicable</para></td>
+            <td><para>2^32-2 bytes maximum.</para></td>
+          </tr>
+          <tr>
+            <td><para>PN</para><para>Person Name</para></td>
+            <td><para>A character string encoded using a 5 component convention.</para></td>
+            <td><para>Default Character Repertoire.</para></td>
+            <td><para>64 chars maximum per component group.</para></td>
+          </tr>
+        </tbody>
       </table>
-      <table xml:id="table_5-2">
-        <title>Synthetic Encoding Notes</title>
-        <tgroup cols="2">
-          <thead>
-            <row><entry>Topic</entry><entry>Rule</entry></row>
-          </thead>
-          <tbody>
-            <row><entry>Byte Ordering</entry><entry>Prose-only rule.</entry></row>
-          </tbody>
-        </tgroup>
+    </section>
+  </chapter>
+  <chapter xml:id="chapter_7" label="7">
+    <title>The Data Set</title>
+    <section xml:id="sect_7.1.2" label="7.1.2">
+      <title>Data Element Structure with Explicit VR</title>
+      <para>The Value Length Field depends on the VR.</para>
+      <table xml:id="table_7.1-1" label="7.1-1">
+        <caption>Data Element with Explicit VR other than as shown in Table 7.1-2</caption>
+        <thead><tr><th><para>Tag</para></th><th><para>VR</para></th><th><para>Value Length</para></th></tr></thead>
+        <tbody><tr><td><para>4 bytes</para></td><td><para>2 bytes, then 2 reserved bytes</para></td><td><para>4 bytes</para></td></tr></tbody>
       </table>
+      <table xml:id="table_7.1-2" label="7.1-2">
+        <caption>Data Element with Explicit VR of AE, AS, PN and US</caption>
+        <thead><tr><th><para>Tag</para></th><th><para>VR</para></th><th><para>Value Length</para></th></tr></thead>
+        <tbody><tr><td><para>4 bytes</para></td><td><para>2 bytes</para></td><td><para>2 bytes</para></td></tr></tbody>
+      </table>
+    </section>
+  </chapter>
+  <chapter xml:id="chapter_10" label="10">
+    <title>Transfer Syntax</title>
+    <section xml:id="sect_10.1" label="10.1">
+      <title>DICOM Default Transfer Syntax</title>
+      <para>The DICOM Implicit VR Little Endian Transfer Syntax (identified by Transfer Syntax UID = "1.2.840.10008.1.2") shall be supported by every conformant DICOM Implementation.</para>
+    </section>
+  </chapter>
+  <chapter xml:id="chapter_A" label="A">
+    <title>Transfer Syntax Specifications (Normative)</title>
+    <section xml:id="sect_A.1" label="A.1">
+      <title>DICOM Implicit VR Little Endian Transfer Syntax</title>
+      <para>This Transfer Syntax applies to the encoding of the entire DICOM Data Set.</para>
+      <orderedlist>
+        <listitem><para>The Data Elements contained in the Data Set structure shall be encoded with Implicit VR (without a VR Field).</para></listitem>
+        <listitem><para>The encoding of the overall Data Set structure (Data Element Tags, Value Length, and Value) shall be in Little Endian.</para></listitem>
+      </orderedlist>
+      <para>This DICOM Implicit VR Little Endian Transfer Syntax shall be identified by a UID of Value "1.2.840.10008.1.2".</para>
+    </section>
+    <section xml:id="sect_A.2" label="A.2">
+      <title>DICOM Little Endian Transfer Syntax (Explicit VR)</title>
+      <orderedlist>
+        <listitem><para>The Data Elements contained in the Data Set structure shall be encoded with Explicit VR (with a VR Field).</para></listitem>
+        <listitem><para>The encoding of the overall Data Set structure (Data Element Tags, Value Length, and Value) shall be in Little Endian.</para></listitem>
+      </orderedlist>
+      <para>This DICOM Explicit VR Little Endian Transfer Syntax shall be identified by a UID of Value "1.2.840.10008.1.2.1".</para>
+    </section>
+    <section xml:id="sect_A.3" label="A.3">
+      <title>DICOM Big Endian Transfer Syntax (Explicit VR)</title>
+      <para>This Transfer Syntax was retired in 2006.</para>
+    </section>
+    <section xml:id="sect_A.4" label="A.4">
+      <title>Transfer Syntaxes for Encapsulation of Encoded Pixel Data</title>
+      <orderedlist>
+        <listitem><para>The Data Elements contained in the Data Set structure shall be encoded with Explicit VR (with a VR Field).</para></listitem>
+        <listitem><para>The encoding of the overall Data Set structure (Data Element Tags, Value Length, etc.) shall be in Little Endian.</para></listitem>
+        <listitem><para>Pixel Data (7FE0,0010) may be Encapsulated Format or Native Format. It shall be Encapsulated Format if present in the top-level Data Set.</para></listitem>
+      </orderedlist>
+      <section xml:id="sect_A.4.1" label="A.4.1">
+        <title>JPEG Image Compression</title>
+        <para>A DICOM Transfer Syntax for JPEG Image Compression shall be identified by a UID chosen from <xref linkend="table_A.4-3"/>.</para>
+        <table xml:id="table_A.4-3" label="A.4-3">
+          <caption>DICOM Transfer Syntax UIDs for JPEG</caption>
+          <thead><tr><th><para>DICOM Transfer Syntax UID</para></th><th><para>JPEG coding process</para></th></tr></thead>
+          <tbody><tr><td><para>1.2.840.10008.1.2.4.50</para></td><td><para>1</para></td></tr></tbody>
+        </table>
+        <note><para>The 1.2.840.10008.1.2.1 Transfer Syntax is not a JPEG one; notes do not define UIDs.</para></note>
+      </section>
+    </section>
+    <section xml:id="sect_A.5" label="A.5">
+      <title>DICOM Deflated Explicit VR Little Endian Transfer Syntax</title>
+      <para>The entire Data Set is first encoded according to the rules specified in <xref linkend="sect_A.2"/>.</para>
+      <para>The entire byte stream is then compressed using the Deflate algorithm.</para>
+      <para>This DICOM Deflated Explicit VR Little Endian Transfer Syntax shall be identified by a UID of Value "1.2.840.10008.1.2.1.99".</para>
     </section>
   </chapter>
 </book>

@@ -17,17 +17,13 @@ from dicom_kb.db.importers import (
     import_build_metadata,
     import_coded_concepts,
     import_context_groups,
-    import_dicom_media_types,
-    import_dicomweb_transactions,
     import_docbook_structure,
-    import_file_meta_requirements,
     import_manifest,
     import_part03,
     import_part04,
     import_part06,
     import_sr_templates,
     import_transfer_syntax_details,
-    import_vr_definitions,
 )
 from dicom_kb.db.models import apply_migrations, connect_sqlite, read_sqlite
 from dicom_kb.docbook.parser import (
@@ -41,15 +37,11 @@ from dicom_kb.metadata import __version__
 from dicom_kb.parsers.part03_iods import parse_part03
 from dicom_kb.parsers.part04_sop_classes import parse_part04
 from dicom_kb.parsers.part05_encoding import (
-    parse_part05,
-    transfer_syntax_details_from_uid_registry,
+    TransferSyntaxUID,
+    parse_transfer_syntaxes,
 )
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
-from dicom_kb.parsers.part07_messages import parse_part07
-from dicom_kb.parsers.part08_network import parse_part08
-from dicom_kb.parsers.part10_media_storage import parse_part10
 from dicom_kb.parsers.part16_content_mapping import parse_part16
-from dicom_kb.parsers.part18_web_services import parse_part18
 from dicom_kb.sources.downloader import DEFAULT_CACHE_DIR, EDITION_RE
 from dicom_kb.sources.manifest import (
     SourceManifest,
@@ -58,7 +50,7 @@ from dicom_kb.sources.manifest import (
     utc_now,
 )
 
-SCHEMA_VERSION = "11"
+SCHEMA_VERSION = "12"
 DOCBOOK_XML_FORMAT = "docbook_xml"
 
 
@@ -352,29 +344,16 @@ def _build_staged_database(
                 connection, edition, documents["PS3.4"], iod_id_by_ref, log, record
             )
         if "PS3.5" in documents:
-            _build_part05(connection, edition, documents["PS3.5"], log, record)
-        if "PS3.7" in documents:
-            parsed07 = log.step(
-                "PS3.7",
-                "parse",
-                lambda: parse_part07(documents["PS3.7"], edition=edition),
+            _build_part05(
+                connection,
+                edition,
+                documents["PS3.5"],
+                documents.get("PS3.22"),
+                log,
+                record,
             )
-            if parsed07 is not None:
-                log.parser_warnings(parsed07.warnings)
-        if "PS3.8" in documents:
-            parsed08 = log.step(
-                "PS3.8",
-                "parse",
-                lambda: parse_part08(documents["PS3.8"], edition=edition),
-            )
-            if parsed08 is not None:
-                log.parser_warnings(parsed08.warnings)
-        if "PS3.10" in documents:
-            _build_part10(connection, edition, documents["PS3.10"], log, record)
         if "PS3.16" in documents:
             _build_part16(connection, edition, documents["PS3.16"], log, record)
-        if "PS3.18" in documents:
-            _build_part18(connection, edition, documents["PS3.18"], log, record)
 
         metrics = BuildMetrics.from_imports(
             edition=edition,
@@ -440,20 +419,6 @@ def _build_part06(
                 edition=edition,
                 data_elements=parsed.data_elements,
                 uid_registry_entries=parsed.uid_registry_entries,
-            ),
-        )
-    )
-    record(
-        log.step(
-            "PS3.6",
-            "transfer syntax import",
-            lambda: import_transfer_syntax_details(
-                connection,
-                edition=edition,
-                transfer_syntax_details=transfer_syntax_details_from_uid_registry(
-                    edition=edition,
-                    uid_registry_entries=parsed.uid_registry_entries,
-                ),
             ),
         )
     )
@@ -535,54 +500,38 @@ def _build_part05(
     connection: sqlite3.Connection,
     edition: str,
     document: ParsedDocument,
+    rtv_document: ParsedDocument | None,
     log: _BuildLog,
     record: _Record,
 ) -> None:
-    parsed = log.step("PS3.5", "parse", lambda: parse_part05(document, edition=edition))
+    # Transfer syntax UIDs come from the PS3.6 registry, imported before this.
+    transfer_syntaxes = [
+        TransferSyntaxUID(uid=str(row["uid_value"]), retired=bool(row["retired"]))
+        for row in connection.execute(
+            "SELECT uid_value, retired FROM uid_registry_entry "
+            "WHERE edition_id = ? AND uid_type = 'Transfer Syntax'",
+            (edition,),
+        )
+    ]
+    parsed = log.step(
+        "PS3.5",
+        "transfer syntax parse",
+        lambda: parse_transfer_syntaxes(
+            document,
+            edition=edition,
+            transfer_syntaxes=transfer_syntaxes,
+            rtv_document=rtv_document,
+        ),
+    )
     if parsed is None:
         return
     log.parser_warnings(parsed.warnings)
     record(
         log.step(
             "PS3.5",
-            "VR import",
-            lambda: import_vr_definitions(
-                connection, edition=edition, vr_definitions=parsed.vr_definitions
-            ),
-        )
-    )
-
-
-def _build_part10(
-    connection: sqlite3.Connection,
-    edition: str,
-    document: ParsedDocument,
-    log: _BuildLog,
-    record: _Record,
-) -> None:
-    parsed = log.step(
-        "PS3.10", "parse", lambda: parse_part10(document, edition=edition)
-    )
-    if parsed is None:
-        return
-    log.parser_warnings(parsed.warnings)
-    record(
-        log.step(
-            "PS3.10",
-            "file meta import",
-            lambda: import_file_meta_requirements(
-                connection,
-                edition=edition,
-                file_meta_requirements=parsed.file_meta_requirements,
-            ),
-        )
-    )
-    record(
-        log.step(
-            "PS3.10",
-            "media type import",
-            lambda: import_dicom_media_types(
-                connection, edition=edition, media_types=parsed.media_types
+            "transfer syntax import",
+            lambda: import_transfer_syntax_details(
+                connection, edition=edition, transfer_syntax_details=parsed.details
             ),
         )
     )
@@ -631,41 +580,6 @@ def _build_part16(
             "coded concept import",
             lambda: import_coded_concepts(
                 connection, edition=edition, coded_concepts=parsed.coded_concepts
-            ),
-        )
-    )
-
-
-def _build_part18(
-    connection: sqlite3.Connection,
-    edition: str,
-    document: ParsedDocument,
-    log: _BuildLog,
-    record: _Record,
-) -> None:
-    parsed = log.step(
-        "PS3.18", "parse", lambda: parse_part18(document, edition=edition)
-    )
-    if parsed is None:
-        return
-    log.parser_warnings(parsed.warnings)
-    record(
-        log.step(
-            "PS3.18",
-            "DICOMweb transaction import",
-            lambda: import_dicomweb_transactions(
-                connection,
-                edition=edition,
-                transactions=parsed.dicomweb_transactions,
-            ),
-        )
-    )
-    record(
-        log.step(
-            "PS3.18",
-            "media type import",
-            lambda: import_dicom_media_types(
-                connection, edition=edition, media_types=parsed.media_types
             ),
         )
     )
