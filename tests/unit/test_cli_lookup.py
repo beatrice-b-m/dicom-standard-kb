@@ -143,10 +143,13 @@ def _fixture_db(tmp_path: Path) -> Path:
         edition="2026b",
         media_types=parsed_part10.media_types,
     )
-    parsed_part16 = parse_part16(
-        parse_docbook_xml(PS316_CONTENT_MAPPING_DOCBOOK, part="PS3.16"),
+    part16_document = parse_docbook_xml(PS316_CONTENT_MAPPING_DOCBOOK, part="PS3.16")
+    import_docbook_structure(
+        connection,
         edition="2026b",
+        document=part16_document,
     )
+    parsed_part16 = parse_part16(part16_document, edition="2026b")
     import_sr_templates(
         connection,
         edition="2026b",
@@ -245,21 +248,18 @@ def _invoke(tmp_path: Path, *args: str) -> str:
             id="dicomweb",
         ),
         pytest.param(
-            ["lookup", "sr-template", "TID 1500"],
-            [
-                "**TID 1500 Measurement Report**",
-                "| CONTAINS | INCLUDE | Include TID 1501 | 1-n |",
-            ],
-            id="sr template",
+            ["code", "TID 1500"],
+            ["TID 1500", "Measurement Report"],
+            id="template",
         ),
         pytest.param(
-            ["lookup", "context-group", "CID 29"],
+            ["code", "CID 29"],
             ["**CID 29 Acquisition Modality**", "| DCM | CT | Computed Tomography |"],
             id="context group",
         ),
         pytest.param(
-            ["lookup", "code", "CT", "--scheme", "DCM"],
-            ["**Code meaning:** Computed Tomography", "- CID 29"],
+            ["code", "CT", "--scheme", "DCM"],
+            ['**(CT, DCM, "Computed Tomography")**', "In CID 29"],
             id="code",
         ),
         pytest.param(
@@ -268,9 +268,9 @@ def _invoke(tmp_path: Path, *args: str) -> str:
             id="explain encoding",
         ),
         pytest.param(
-            ["lookup", "defined-terms", "PatientName", "--context", "CT Image Storage"],
-            ["| ALPHA | Alphabetic representation. | Defined |", "| IDEOGRAPHIC |"],
-            id="defined terms",
+            ["values", "PatientName"],
+            ["| ALPHA | Alphabetic representation. |", "| IDEOGRAPHIC |"],
+            id="values",
         ),
         pytest.param(
             ["read", "PS3.3 A.3"],

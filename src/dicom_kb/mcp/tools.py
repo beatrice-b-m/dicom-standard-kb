@@ -8,14 +8,11 @@ from typing import Any, cast
 
 from dicom_kb.query.answer_contracts import ToolResponse
 from dicom_kb.query.resolver import (
+    attribute_values,
+    code_lookup,
     explain_encoding_rule,
-    lookup_code_meaning,
-    lookup_context_group,
-    lookup_defined_terms,
     lookup_dicomweb_transaction,
-    lookup_enumerated_values,
     lookup_media_type,
-    lookup_sr_template,
     lookup_transfer_syntax,
     lookup_uid,
     lookup_vr,
@@ -49,18 +46,6 @@ def dispatch_mcp_tool(
             uid_or_keyword=str(arguments["uid_or_keyword"]),
             edition=edition,
         ),
-        "dicom_lookup_enumerated_values": lambda: lookup_enumerated_values(
-            connection,
-            attribute=str(arguments["attribute"]),
-            edition=edition,
-            context=_optional_string(arguments.get("context")),
-        ),
-        "dicom_lookup_defined_terms": lambda: lookup_defined_terms(
-            connection,
-            attribute=str(arguments["attribute"]),
-            edition=edition,
-            context=_optional_string(arguments.get("context")),
-        ),
         "dicom_lookup_vr": lambda: lookup_vr(
             connection,
             vr=str(arguments["vr"]),
@@ -86,22 +71,6 @@ def dispatch_mcp_tool(
             name_or_route=str(arguments["name_or_route"]),
             edition=edition,
         ),
-        "dicom_lookup_sr_template": lambda: lookup_sr_template(
-            connection,
-            tid_or_name=str(arguments["tid_or_name"]),
-            edition=edition,
-        ),
-        "dicom_lookup_context_group": lambda: lookup_context_group(
-            connection,
-            cid_or_name=str(arguments["cid_or_name"]),
-            edition=edition,
-        ),
-        "dicom_lookup_code_meaning": lambda: lookup_code_meaning(
-            connection,
-            code_value=str(arguments["code_value"]),
-            scheme=_optional_string(arguments.get("scheme")),
-            edition=edition,
-        ),
         "dicom_element": lambda: element_usage(
             connection,
             name=str(arguments["name"]),
@@ -119,6 +88,20 @@ def dispatch_mcp_tool(
             connection,
             name=str(arguments["name"]),
             edition=edition,
+            page=int(arguments.get("page", 1)),
+        ),
+        "dicom_values": lambda: attribute_values(
+            connection,
+            name=str(arguments["name"]),
+            edition=edition,
+            within=_optional_string(arguments.get("within")),
+            page=int(arguments.get("page", 1)),
+        ),
+        "dicom_code": lambda: code_lookup(
+            connection,
+            query=str(arguments["query"]),
+            edition=edition,
+            scheme=_optional_string(arguments.get("scheme")),
             page=int(arguments.get("page", 1)),
         ),
         "dicom_search": lambda: search_standard(
@@ -146,30 +129,6 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
             @_tool(server, name=spec["name"], description=spec["description"])
             def dicom_lookup_uid(uid_or_keyword: str) -> str:
                 return executor("dicom_lookup_uid", {"uid_or_keyword": uid_or_keyword})
-
-        elif spec["name"] == "dicom_lookup_enumerated_values":
-
-            @_tool(server, name=spec["name"], description=spec["description"])
-            def dicom_lookup_enumerated_values(
-                attribute: str,
-                context: str | None = None,
-            ) -> str:
-                return executor(
-                    "dicom_lookup_enumerated_values",
-                    {"attribute": attribute, "context": context},
-                )
-
-        elif spec["name"] == "dicom_lookup_defined_terms":
-
-            @_tool(server, name=spec["name"], description=spec["description"])
-            def dicom_lookup_defined_terms(
-                attribute: str,
-                context: str | None = None,
-            ) -> str:
-                return executor(
-                    "dicom_lookup_defined_terms",
-                    {"attribute": attribute, "context": context},
-                )
 
         elif spec["name"] == "dicom_lookup_vr":
 
@@ -214,36 +173,6 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
                     {"name_or_route": name_or_route},
                 )
 
-        elif spec["name"] == "dicom_lookup_sr_template":
-
-            @_tool(server, name=spec["name"], description=spec["description"])
-            def dicom_lookup_sr_template(tid_or_name: str) -> str:
-                return executor(
-                    "dicom_lookup_sr_template",
-                    {"tid_or_name": tid_or_name},
-                )
-
-        elif spec["name"] == "dicom_lookup_context_group":
-
-            @_tool(server, name=spec["name"], description=spec["description"])
-            def dicom_lookup_context_group(cid_or_name: str) -> str:
-                return executor(
-                    "dicom_lookup_context_group",
-                    {"cid_or_name": cid_or_name},
-                )
-
-        elif spec["name"] == "dicom_lookup_code_meaning":
-
-            @_tool(server, name=spec["name"], description=spec["description"])
-            def dicom_lookup_code_meaning(
-                code_value: str,
-                scheme: str | None = None,
-            ) -> str:
-                return executor(
-                    "dicom_lookup_code_meaning",
-                    {"code_value": code_value, "scheme": scheme},
-                )
-
         elif spec["name"] == "dicom_element":
 
             @_tool(server, name=spec["name"], description=spec["description"])
@@ -263,6 +192,24 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
             @_tool(server, name=spec["name"], description=spec["description"])
             def dicom_module(name: str, page: int = 1) -> str:
                 return executor("dicom_module", {"name": name, "page": page})
+
+        elif spec["name"] == "dicom_values":
+
+            @_tool(server, name=spec["name"], description=spec["description"])
+            def dicom_values(
+                name: str, within: str | None = None, page: int = 1
+            ) -> str:
+                return executor(
+                    "dicom_values", {"name": name, "within": within, "page": page}
+                )
+
+        elif spec["name"] == "dicom_code":
+
+            @_tool(server, name=spec["name"], description=spec["description"])
+            def dicom_code(query: str, scheme: str | None = None, page: int = 1) -> str:
+                return executor(
+                    "dicom_code", {"query": query, "scheme": scheme, "page": page}
+                )
 
         elif spec["name"] == "dicom_search":
 
