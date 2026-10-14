@@ -17,7 +17,7 @@ from dicom_kb.query.resolver import (
     attribute_values,
     element_usage,
     iod_modules,
-    lookup_vr,
+    read_standard,
 )
 from dicom_kb.sources.downloader import (
     DOCBOOK_XML_FORMAT,
@@ -99,26 +99,9 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
     assert summary.db_path == default_db_path(cache_dir, "2026b")
     assert summary.db_path.exists()
     assert any("skipped malformed tag row" in warning for warning in summary.warnings)
-    assert any("PS3.5 table_5-2" in warning for warning in summary.warnings)
-    assert any("PS3.7 table_7-2" in warning for warning in summary.warnings)
-    assert any("PS3.8 table_8-2" in warning for warning in summary.warnings)
-    assert any("PS3.10 table_10-3" in warning for warning in summary.warnings)
     assert any("PS3.16 table_16-2" in warning for warning in summary.warnings)
-    assert any("PS3.18 table_18-3" in warning for warning in summary.warnings)
     assert any(
-        import_summary.file_meta_requirements == 7
-        for import_summary in summary.import_summaries
-    )
-    assert any(
-        import_summary.dicom_media_types == 1
-        for import_summary in summary.import_summaries
-    )
-    assert any(
-        import_summary.dicom_media_types == 3
-        for import_summary in summary.import_summaries
-    )
-    assert any(
-        import_summary.dicomweb_transactions == 2
+        import_summary.transfer_syntax_details == 4
         for import_summary in summary.import_summaries
     )
     assert any(
@@ -170,13 +153,13 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
         # Class with no IOD reference.
         "PS3.3": 2,
         "PS3.4": 2,
-        "PS3.5": 1,
+        "PS3.5": 0,
         "PS3.6": 2,
-        "PS3.7": 1,
-        "PS3.8": 1,
-        "PS3.10": 1,
+        "PS3.7": 0,
+        "PS3.8": 0,
+        "PS3.10": 0,
         "PS3.16": 1,
-        "PS3.18": 1,
+        "PS3.18": 0,
     }
     assert metrics["include_rows_resolved"] == 1
     assert metrics["include_rows_unresolved"] == 0
@@ -206,47 +189,12 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
             "ORDER BY part, xml_id",
             ("2026b",),
         ).fetchall()
-        vr_rows = connection.execute(
-            "SELECT vr, name, binary_or_text FROM vr_definition "
-            "WHERE edition_id = ? ORDER BY vr",
-            ("2026b",),
-        ).fetchall()
         transfer_syntax_rows = connection.execute(
             """
-            SELECT uid_value, explicit_vr, endian, encapsulated, compression_family
+            SELECT uid_value, vr_encoding, byte_order, pixel_data, deflate
             FROM transfer_syntax_detail
             WHERE edition_id = ?
             ORDER BY uid_value
-            """,
-            ("2026b",),
-        ).fetchall()
-        file_meta_rows = connection.execute(
-            """
-            SELECT attribute_tag, type_designation, rule_context
-            FROM file_meta_requirement
-            WHERE edition_id = ?
-            ORDER BY attribute_tag
-            """,
-            ("2026b",),
-        ).fetchall()
-        media_type_rows = connection.execute(
-            """
-            SELECT media_type, service_context, transfer_syntax_constraints_json,
-                   directions_json
-            FROM dicom_media_type
-            WHERE edition_id = ?
-            ORDER BY media_type, service_context
-            """,
-            ("2026b",),
-        ).fetchall()
-        dicomweb_rows = connection.execute(
-            """
-            SELECT transaction_name, resource_category, http_method, route_template,
-                   request_constraints_json, response_constraints_json,
-                   status_codes_json, media_type_refs_json
-            FROM dicomweb_transaction
-            WHERE edition_id = ?
-            ORDER BY transaction_name
             """,
             ("2026b",),
         ).fetchall()
@@ -293,7 +241,7 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
     assert terms_response.status == "ok"
     assert terms_response.result is not None
     assert "| ALPHA | Alphabetic representation. |" in terms_response.result["markdown"]
-    assert metadata["schema_version"] == "11"
+    assert metadata["schema_version"] == "12"
     payload = json.loads(metadata["metadata_json"])
     assert payload["edition"] == "2026b"
     assert {row["part"] for row in v2_parts} == {
@@ -304,171 +252,25 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
         "PS3.16",
         "PS3.18",
     }
-    assert len(v2_tables) == 15
+    assert len(v2_tables) == 17
     assert all(row["markdown"].startswith("**") for row in v2_tables)
-    assert [dict(row) for row in vr_rows] == [
-        {"vr": "OB", "name": "Other Byte", "binary_or_text": "binary"},
-        {"vr": "PN", "name": "Person Name", "binary_or_text": "text"},
-        {"vr": "SQ", "name": "Sequence of Items", "binary_or_text": "binary"},
-        {"vr": "UN", "name": "Unknown", "binary_or_text": "binary"},
-    ]
-    assert [dict(row) for row in transfer_syntax_rows] == [
-        {
-            "uid_value": "1.2.840.10008.1.2",
-            "explicit_vr": 0,
-            "endian": "little",
-            "encapsulated": 0,
-            "compression_family": None,
-        },
-        {
-            "uid_value": "1.2.840.10008.1.2.1",
-            "explicit_vr": 1,
-            "endian": "little",
-            "encapsulated": 0,
-            "compression_family": None,
-        },
-        {
-            "uid_value": "1.2.840.10008.1.2.1.99",
-            "explicit_vr": 1,
-            "endian": "little",
-            "encapsulated": 0,
-            "compression_family": "deflated",
-        },
-        {
-            "uid_value": "1.2.840.10008.1.2.2",
-            "explicit_vr": 1,
-            "endian": "big",
-            "encapsulated": 0,
-            "compression_family": None,
-        },
-        {
-            "uid_value": "1.2.840.10008.1.2.4.50",
-            "explicit_vr": None,
-            "endian": None,
-            "encapsulated": 1,
-            "compression_family": "jpeg",
-        },
-    ]
-    assert [dict(row) for row in file_meta_rows] == [
-        {
-            "attribute_tag": "(0002,0000)",
-            "type_designation": "1",
-            "rule_context": "file_meta_information",
-        },
-        {
-            "attribute_tag": "(0002,0002)",
-            "type_designation": "1",
-            "rule_context": "file_meta_information",
-        },
-        {
-            "attribute_tag": "(0002,0003)",
-            "type_designation": "1",
-            "rule_context": "file_meta_information",
-        },
-        {
-            "attribute_tag": "(0002,0010)",
-            "type_designation": "1",
-            "rule_context": "file_meta_information",
-        },
-        {
-            "attribute_tag": "(0002,0012)",
-            "type_designation": "1",
-            "rule_context": "file_meta_information",
-        },
-        {
-            "attribute_tag": "(0002,0013)",
-            "type_designation": "3",
-            "rule_context": "file_meta_information",
-        },
-        {
-            "attribute_tag": "(0002,0016)",
-            "type_designation": "3",
-            "rule_context": "file_meta_information",
-        },
-    ]
-    assert [dict(row) for row in media_type_rows] == [
-        {
-            "media_type": "application/dicom",
-            "service_context": "Instance Media Types",
-            "transfer_syntax_constraints_json": json.dumps(
-                ("Explicit VR Little Endian required for single-instance media",),
-                separators=(",", ":"),
-            ),
-            "directions_json": json.dumps(("response",), separators=(",", ":")),
-        },
-        {
-            "media_type": "application/dicom",
-            "service_context": "PS3.10 file",
-            "transfer_syntax_constraints_json": json.dumps(
-                ("Encoded using the Transfer Syntax UID in the File Meta Information",),
-                separators=(",", ":"),
-            ),
-            "directions_json": json.dumps(("file",), separators=(",", ":")),
-        },
-        {
-            "media_type": "multipart/related",
-            "service_context": "STOW-RS request",
-            "transfer_syntax_constraints_json": json.dumps(
-                ("Each part supplies a DICOM instance payload",),
-                separators=(",", ":"),
-            ),
-            "directions_json": json.dumps(("request",), separators=(",", ":")),
-        },
-        {
-            "media_type": "multipart/related",
-            "service_context": "WADO-RS response",
-            "transfer_syntax_constraints_json": json.dumps(
-                ("Rendered transfer syntax negotiated by Accept header",),
-                separators=(",", ":"),
-            ),
-            "directions_json": json.dumps(("response",), separators=(",", ":")),
-        },
-    ]
-    assert [dict(row) for row in dicomweb_rows] == [
-        {
-            "transaction_name": "RetrieveStudy",
-            "resource_category": "study",
-            "http_method": "GET",
-            "route_template": "/studies/{studyInstanceUID}",
-            "request_constraints_json": json.dumps(
-                ("Study Instance UID required",),
-                separators=(",", ":"),
-            ),
-            "response_constraints_json": json.dumps(
-                ("DICOM instances returned",),
-                separators=(",", ":"),
-            ),
-            "status_codes_json": json.dumps(
-                ("200", "400", "404"),
-                separators=(",", ":"),
-            ),
-            "media_type_refs_json": json.dumps(
-                ("application/dicom",),
-                separators=(",", ":"),
-            ),
-        },
-        {
-            "transaction_name": "StoreInstances",
-            "resource_category": "study",
-            "http_method": "POST",
-            "route_template": "/studies/{studyInstanceUID}",
-            "request_constraints_json": json.dumps(
-                ("Multipart request body required",),
-                separators=(",", ":"),
-            ),
-            "response_constraints_json": json.dumps(
-                ("Store response returned",),
-                separators=(",", ":"),
-            ),
-            "status_codes_json": json.dumps(
-                ("200", "202", "409"),
-                separators=(",", ":"),
-            ),
-            "media_type_refs_json": json.dumps(
-                ("multipart/related", "application/dicom"),
-                separators=(",", ":"),
-            ),
-        },
+    assert [tuple(row) for row in transfer_syntax_rows] == [
+        ("1.2.840.10008.1.2", "Implicit VR", "Little Endian", "Native", None),
+        ("1.2.840.10008.1.2.1", "Explicit VR", "Little Endian", "Native", None),
+        (
+            "1.2.840.10008.1.2.1.99",
+            "Explicit VR",
+            "Little Endian",
+            "Native",
+            "Whole Data Set",
+        ),
+        (
+            "1.2.840.10008.1.2.4.50",
+            "Explicit VR",
+            "Little Endian",
+            "Encapsulated",
+            None,
+        ),
     ]
     assert [dict(row) for row in sr_template_rows] == [
         {
@@ -541,63 +343,38 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
     assert payload["metrics"] == metrics
 
 
-def test_build_sqlite_database_derives_transfer_syntax_details_from_part06_only(
-    tmp_path: Path,
-) -> None:
+def test_build_reads_transfer_syntaxes_and_vrs_from_ps35(tmp_path: Path) -> None:
     cache_dir = tmp_path / "cache"
     _register_synthetic_parts(
         cache_dir,
-        {"PS3.6": "synthetic_ps3_6_registry_docbook.xml"},
+        {
+            "PS3.5": "synthetic_ps3_5_encoding_docbook.xml",
+            "PS3.6": "synthetic_ps3_6_registry_docbook.xml",
+        },
     )
 
     summary = build_sqlite_database(edition="2026b", cache_dir=cache_dir)
 
-    assert summary.metrics.parts_loaded == ("PS3.6",)
-    assert any(
-        import_summary.transfer_syntax_details == 5
-        for import_summary in summary.import_summaries
-    )
+    assert not [w for w in summary.warnings if w.startswith("PS3.5")]
     with _connect(summary.db_path) as connection:
-        row = connection.execute(
-            """
-            SELECT explicit_vr, endian
-            FROM transfer_syntax_detail
-            WHERE edition_id = ? AND uid_value = ?
-            """,
-            ("2026b", "1.2.840.10008.1.2.1"),
-        ).fetchone()
+        transfer_syntax = read_standard(
+            connection, reference="ExplicitVRLittleEndian", edition="2026b"
+        )
+        vr = read_standard(connection, reference="PN", edition="2026b")
 
-    assert row is not None
-    assert dict(row) == {"explicit_vr": 1, "endian": "little"}
-
-
-def test_build_sqlite_database_imports_official_shape_part05_vr_table(
-    tmp_path: Path,
-) -> None:
-    cache_dir = tmp_path / "cache"
-    _register_synthetic_parts(
-        cache_dir,
-        {"PS3.5": "synthetic_ps3_5_official_shape_docbook.xml"},
+    assert transfer_syntax.status == "ok"
+    assert transfer_syntax.result is not None
+    assert (
+        "| Explicit VR | Little Endian | Native | No |"
+        in (transfer_syntax.result["markdown"])
     )
-
-    summary = build_sqlite_database(edition="2026b", cache_dir=cache_dir)
-
-    assert summary.metrics.parts_loaded == ("PS3.5",)
-    assert summary.warnings == ()
-    assert any(
-        import_summary.vr_definitions == 2
-        for import_summary in summary.import_summaries
-    )
-    with _connect(summary.db_path) as connection:
-        response = lookup_vr(connection, vr="PN", edition="2026b")
-
-    assert response.status == "ok"
-    assert response.result is not None
-    assert response.result["name"] == "Person Name"
-    assert response.result["binary_or_text"] == "text"
-    assert response.refs[0].part == "PS3.5"
-    assert response.refs[0].section == "sect_6.2"
-    assert response.refs[0].anchor == "table_6.2-1"
+    assert vr.status == "ok"
+    assert vr.result is not None
+    assert vr.result["markdown"].startswith("**PN** Person Name")
+    assert [ref.label for ref in vr.refs] == [
+        "PS3.5 Table 6.2-1",
+        "PS3.5 Table 7.1-2",
+    ]
 
 
 def test_build_sqlite_database_imports_official_shape_part16_rows(
@@ -873,10 +650,13 @@ def test_failed_import_step_is_logged_and_build_continues(
     def fail_import(*args: object, **kwargs: object) -> None:
         raise ImportError("injected import failure")
 
-    monkeypatch.setattr(build, "import_vr_definitions", fail_import)
+    monkeypatch.setattr(build, "import_transfer_syntax_details", fail_import)
     summary = build_sqlite_database(edition="2026b", cache_dir=cache_dir)
 
-    assert "PS3.5 VR import skipped: injected import failure" in summary.warnings
+    assert (
+        "PS3.5 transfer syntax import skipped: injected import failure"
+        in summary.warnings
+    )
     assert summary.metrics.parse_warnings_by_part is not None
     assert summary.metrics.parse_warnings_by_part["PS3.5"] >= 1
     connection = _connect(summary.db_path)

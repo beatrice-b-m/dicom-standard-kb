@@ -34,11 +34,7 @@ class ImportSummary:
     xrefs: int = 0
     xrefs_unresolved: int = 0
     attribute_value_terms: int = 0
-    vr_definitions: int = 0
     transfer_syntax_details: int = 0
-    file_meta_requirements: int = 0
-    dicom_media_types: int = 0
-    dicomweb_transactions: int = 0
     sr_templates: int = 0
     sr_template_rows: int = 0
     context_groups: int = 0
