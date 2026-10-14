@@ -249,7 +249,7 @@ def _invoke(tmp_path: Path, *args: str) -> str:
             id="iod checklist",
         ),
         pytest.param(
-            ["module", "Patient"],
+            ["module", "Patient", "--full"],
             [
                 "**Patient Module** (C.7.1.1, Table C.7-1)",
                 "| >ReferencedSOPClassUID | (0008,1150) | UI | 1 | 1 |",

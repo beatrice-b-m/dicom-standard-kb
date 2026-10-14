@@ -25,6 +25,13 @@ from dicom_kb.query.resolver import (
 app = typer.Typer()
 
 PageOption = Annotated[int, typer.Option("--page", help="Page to read.")]
+TypeOption = Annotated[
+    str | None,
+    typer.Option(
+        "--type",
+        help="Keep these Types, e.g. '1,1C', or 'required' for 1/1C/2/2C.",
+    ),
+]
 
 
 @app.command("element")
@@ -63,14 +70,23 @@ def iod_command(
     ],
     expand: Annotated[
         bool,
-        typer.Option("--expand", help="List every attribute of every module."),
+        typer.Option("--expand", help="List the attributes of its modules."),
     ] = False,
+    type_: TypeOption = None,
+    usage: Annotated[
+        str | None,
+        typer.Option("--usage", help="Module usages to list, default 'M,C'."),
+    ] = None,
+    module: Annotated[
+        str | None,
+        typer.Option("--module", help="Only these modules, comma-separated."),
+    ] = None,
     page: PageOption = 1,
     edition: EditionOption = None,
     db: DatabaseOption = None,
     cache_dir: CacheDirectoryOption = None,
 ) -> None:
-    """List an IOD's modules, or with --expand every attribute it needs."""
+    """List an IOD's modules, or with --expand the attributes it needs."""
     resolved_edition = resolve_query_edition(ctx, edition, db=db, cache_dir=cache_dir)
     with connect_query_db(
         resolve_db_path(ctx, db),
@@ -83,6 +99,9 @@ def iod_command(
                 name=name,
                 edition=resolved_edition,
                 expand=expand,
+                types=type_,
+                usage=usage,
+                module=module,
                 page=page,
             )
         )
@@ -95,12 +114,17 @@ def module_command(
         str,
         typer.Argument(help="Module or macro name, or a table like 'C.7-5a'."),
     ],
+    full: Annotated[
+        bool,
+        typer.Option("--full", help="Expand macros, with full descriptions."),
+    ] = False,
+    type_: TypeOption = None,
     page: PageOption = 1,
     edition: EditionOption = None,
     db: DatabaseOption = None,
     cache_dir: CacheDirectoryOption = None,
 ) -> None:
-    """List a module's or macro's attributes with its macros expanded."""
+    """Outline a module's or macro's attributes; --full expands its macros."""
     resolved_edition = resolve_query_edition(ctx, edition, db=db, cache_dir=cache_dir)
     with connect_query_db(
         resolve_db_path(ctx, db),
@@ -109,7 +133,12 @@ def module_command(
     ) as connection:
         echo_response(
             module_attributes(
-                connection, name=name, edition=resolved_edition, page=page
+                connection,
+                name=name,
+                edition=resolved_edition,
+                detail="full" if full else "outline",
+                types=type_,
+                page=page,
             )
         )
 
