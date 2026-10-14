@@ -47,7 +47,7 @@ DICOM content:
 
 ```bash
 uv run dicom-kb build-fixture --db /tmp/dicom-kb-fixture.sqlite --force
-uv run dicom-kb lookup tag Modality --db /tmp/dicom-kb-fixture.sqlite
+uv run dicom-kb iod "CT Image" --db /tmp/dicom-kb-fixture.sqlite
 ```
 
 The fixture demonstrates API behavior; it is not official DICOM content.
@@ -60,10 +60,18 @@ dicom.nema.org (about 125 MB); everything after that works offline:
 ```bash
 uv run dicom-kb fetch
 uv run dicom-kb build
-uv run dicom-kb lookup tag Modality
+uv run dicom-kb element Modality
+uv run dicom-kb iod "CT Image" --expand
+uv run dicom-kb module "General Series"
 uv run dicom-kb search "undefined length sequence delimitation"
 uv run dicom-kb read "PS3.5 7.5.2"
 ```
+
+`element` lists the modules and IODs that use a tag or keyword (add `--iod` for
+where it sits in one IOD). `iod` takes an IOD name or SOP Class name or UID and
+lists its modules; `--expand` turns that into the full attribute checklist.
+`module` takes a module or macro name or table (`Table 10-2`). Each macro is
+expanded the first time it appears and marked "listed above" after that.
 
 `read` takes a section, table, annex, CID or TID (`PS3.3 Table C.7-5a`,
 `Annex A`, `CID 7010`) and pages long answers at about 4k tokens.
@@ -81,8 +89,8 @@ For an MCP client, add the stdio server as one config entry:
 uv run --extra mcp dicom-kb mcp serve
 ```
 
-Its `dicom_search` and `dicom_read` tools do the same as `search` and
-`read`.
+Its `dicom_element`, `dicom_iod`, `dicom_module`, `dicom_search` and
+`dicom_read` tools do the same as the matching commands.
 
 The [documentation website](https://dicom-standard-kb-docs.beatricebm.workers.dev/)
 describes the earlier JSON tools and is out of date until the rebuild finishes.
