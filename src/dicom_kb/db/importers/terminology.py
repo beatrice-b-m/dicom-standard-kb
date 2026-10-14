@@ -215,8 +215,8 @@ def _insert_coded_concept(connection: sqlite3.Connection, record: CodedConcept) 
         """
         INSERT INTO coded_concept (
           id, edition_id, code_value, coding_scheme_designator,
-          coding_scheme_version, code_meaning, source_ref_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+          coding_scheme_version, code_meaning, definition, notes, source_ref_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             record.id,
@@ -225,6 +225,8 @@ def _insert_coded_concept(connection: sqlite3.Connection, record: CodedConcept) 
             record.coding_scheme_designator,
             record.coding_scheme_version,
             record.code_meaning,
+            record.definition,
+            record.notes,
             record.source_ref.id,
         ),
     )
