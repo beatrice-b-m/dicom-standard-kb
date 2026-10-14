@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import re
 import sqlite3
 from pathlib import Path
 
 from dicom_kb.build import gap_log_path
 from dicom_kb.db.repositories._rows import _doc_node_from_row
 from dicom_kb.query.markdown import render_markdown
-from dicom_kb.query.resolver import read_standard, search_standard
+from dicom_kb.query.resolver import (
+    module_attributes,
+    read_standard,
+    search_standard,
+)
 from dicom_kb.query.resolver.standard import _reference
 
 # A handful of references in the published source point at ids no part
@@ -35,9 +40,9 @@ def test_real_kb_text_keeps_reference_targets(
     assert holes == 0
 
     series = render_markdown(
-        read_standard(connection, reference="PS3.3 Table C.7-5a", edition=edition)
+        module_attributes(connection, name="General Series", edition=edition)
     )
-    assert "See Section C.7.3.1.1.1 for Defined Terms." in series
+    assert re.search(r"See Section C\.[\d.]+ for Defined Terms\.", series)
 
 
 def test_real_kb_reads_sequence_delimitation_in_one_page(

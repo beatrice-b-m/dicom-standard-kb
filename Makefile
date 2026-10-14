@@ -21,7 +21,7 @@ test:
 	$(UV_RUN) pytest tests/unit
 
 test-integration:
-	$(UV_RUN) pytest tests/integration_requires_dicom_download
+	DICOM_KB_REQUIRE_KB=1 $(UV_RUN) pytest tests/integration_requires_dicom_download
 
 ingest-fixture:
 	$(UV_RUN) dicom-kb build-fixture
