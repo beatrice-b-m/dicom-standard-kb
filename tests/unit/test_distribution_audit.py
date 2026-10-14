@@ -2,6 +2,8 @@ import re
 import subprocess
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 FORBIDDEN_TRACKED_PATH_PREFIXES = (
@@ -39,10 +41,13 @@ def _tracked_files() -> list[str]:
     completed = subprocess.run(
         ["git", "ls-files"],
         cwd=REPO_ROOT,
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
     )
+    if completed.returncode != 0:
+        # An sdist, tarball or Docker build context has no git history to audit.
+        pytest.skip("not a git checkout")
     return [line for line in completed.stdout.splitlines() if line]
 
 

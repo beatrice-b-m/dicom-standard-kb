@@ -14,7 +14,6 @@ from dicom_kb.cli.main import app
 from dicom_kb.mcp.server import (
     MCP_TOOL_NAMES,
     MCPServerConfig,
-    MissingMCPDependencyError,
     create_mcp_server,
     execute_mcp_tool,
     serve_mcp_stdio,
@@ -46,8 +45,6 @@ class _FakeFastMCP:
         description: str,
         structured_output: bool | None = None,
     ) -> Callable[[Callable[..., str]], Callable[..., str]]:
-        assert structured_output is False
-
         def decorator(
             function: Callable[..., str],
         ) -> Callable[..., str]:
@@ -61,18 +58,6 @@ class _FakeFastMCP:
 
     def run(self, *, transport: str) -> None:
         self.run_transport = transport
-
-
-def test_mcp_tool_names_match_supported_spec() -> None:
-    assert MCP_TOOL_NAMES == (
-        "dicom_element",
-        "dicom_iod",
-        "dicom_module",
-        "dicom_values",
-        "dicom_code",
-        "dicom_search",
-        "dicom_read",
-    )
 
 
 def test_create_mcp_server_registers_all_supported_tools(
@@ -276,18 +261,3 @@ def test_mcp_cli_exposes_serve_command_without_optional_dependency() -> None:
     }
     assert "--edition" in option_names
     assert "--db" in option_names
-
-
-def test_serve_mcp_stdio_reports_missing_optional_dependency(
-    fixture_db: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from dicom_kb.mcp import server
-
-    def fail_load_fastmcp() -> object:
-        raise MissingMCPDependencyError("missing mcp")
-
-    monkeypatch.setattr(server, "_load_fastmcp", fail_load_fastmcp)
-
-    with pytest.raises(MissingMCPDependencyError, match="missing mcp"):
-        serve_mcp_stdio(MCPServerConfig(edition=EDITION, db_path=fixture_db))

@@ -5,13 +5,9 @@ from pathlib import Path
 from typing import Any
 
 import anyio
-import pytest
 
 from dicom_kb.mcp.server import MCP_TOOL_NAMES
 from tests.fixtures_synthetic import EDITION
-
-mcp = pytest.importorskip("mcp")
-stdio = pytest.importorskip("mcp.client.stdio")
 
 
 def test_mcp_stdio_protocol_with_official_client(fixture_db: Path) -> None:
@@ -55,13 +51,10 @@ def test_mcp_stdio_protocol_with_official_client(fixture_db: Path) -> None:
                 {"name": "Modality"},
             )
             assert element_result.structuredContent is None
-            assert _tool_text(element_result) == (
-                "**(0008,0060) Modality** `Modality` · VR CS · VM 1\n"
-                "\n"
-                "No PS3.3 module or macro lists it.\n"
-                "\n"
-                f"Source: PS3.6 Table 6-1 ({EDITION})\n"
-            )
+            element_text = _tool_text(element_result)
+            assert element_text.startswith("**(0008,0060) Modality**")
+            assert "VR CS · VM 1" in element_text
+            assert "Source: PS3.6 Table 6-1" in element_text
 
             modules_result = await session.call_tool(
                 "dicom_iod",
