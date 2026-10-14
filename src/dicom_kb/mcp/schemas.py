@@ -47,19 +47,26 @@ MCP_TOOL_SPECS: tuple[MCPToolSpec, ...] = (
             "Look up an IOD by name, or by SOP Class name, UID or keyword: its "
             "SOP Classes and its modules with usage (M, C with the condition, "
             "U), plus functional group macros for multi-frame IODs. With "
-            "expand=true, every attribute of every module with macros "
+            "expand=true, the attributes of its M and C modules with macros "
             "expanded: the checklist for building or validating an instance. "
-            "Long answers come in pages; pass page to continue."
+            "Narrow it with type ('required' for 1/1C/2/2C, or e.g. '1,1C'; a "
+            "row counts only if its enclosing sequences match too), usage "
+            "('M,C,U' adds U modules) or module (one or more module names). "
+            "The answer ends with what was left out. Long answers come in "
+            "pages; pass page to continue."
         ),
     },
     {
         "name": "dicom_module",
         "description": (
-            "List a module's or macro's attributes with included macros "
-            "expanded in place: keyword, tag, VR, VM, Type and the full "
-            "description. Takes a name ('General Series', 'Code Sequence "
-            "Macro') or a table ('Table C.7-5a'). Long answers come in pages; "
-            "pass page to continue."
+            "A module's or macro's attributes: keyword, tag, VR, VM, Type and "
+            "description. By default an outline: the module's own rows, each "
+            "included macro as one line with its size, descriptions cut to "
+            "the first sentence and condition. detail='full' expands macros in "
+            "place with full descriptions. type ('required', or e.g. '1,1C') "
+            "keeps those Types, macros expanded. Takes a name ('General "
+            "Series', 'Code Sequence Macro') or a table ('Table C.7-5a'). Long "
+            "answers come in pages; pass page to continue."
         ),
     },
     {

@@ -157,12 +157,57 @@ def test_real_kb_expands_each_macro_once(
     # The Code Sequence macros include one another; expanding every include
     # made General Series 205 KB.
     text = render_markdown(
-        module_attributes(connection, name="General Series", edition=edition)
+        module_attributes(
+            connection, name="General Series", detail="full", edition=edition
+        )
     )
 
     assert text.startswith("**General Series Module** (C.7.3.1, Table C.7-5a)")
     assert "(listed above)" in text
     assert len(text) < 20_000
+
+
+def test_real_kb_module_outline_is_small(
+    connection: sqlite3.Connection, edition: str
+) -> None:
+    text = render_markdown(
+        module_attributes(connection, name="General Series", edition=edition)
+    )
+
+    assert "| Modality | (0008,0060) | CS | 1 | 1 |" in text
+    assert "Person Identification Macro Attributes” (25 attributes) |" in text
+    assert "| >>CodeValue |" not in text
+    assert len(text) < 6_000
+
+
+def test_real_kb_required_ct_checklist(
+    connection: sqlite3.Connection, edition: str
+) -> None:
+    pages = []
+    page = 1
+    while True:
+        response = iod_modules(
+            connection, name="CT Image", types="1,1C", page=page, edition=edition
+        )
+        assert response.status == "ok"
+        pages.append(render_markdown(response))
+        if f"page={page + 1})" not in pages[-1]:
+            break
+        page += 1
+    text = "\n".join(pages)
+
+    for row in (
+        "| StudyInstanceUID | (0020,000D) | UI | 1 | 1 |",
+        "| SOPClassUID | (0008,0016) | UI | 1 | 1 |",
+        "| RescaleType | (0028,1054) | LO | 1 | 1C | Required if",
+    ):
+        assert row in text
+    # Type 2 and 3 rows, and the U modules, are named in the closing line only.
+    assert "| PatientName |" not in text
+    assert "### Clinical Trial Subject Module" not in text
+    assert "Modules not shown: Clinical Trial Subject (U)" in text
+    assert "sit inside sequences of other Types" in text
+    assert len(text) < 30_000
 
 
 def test_real_kb_range_tag_lookup_matches_the_range_row(

@@ -141,7 +141,7 @@ def test_execute_mcp_tool_returns_compact_markdown(tmp_path: Path) -> None:
     [
         (
             "dicom_module",
-            {"name": "Patient"},
+            {"name": "Patient", "detail": "full"},
             [
                 "| Attribute | Tag | VR | VM | Type |",
                 "Include",

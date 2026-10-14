@@ -5,8 +5,8 @@ from __future__ import annotations
 import difflib
 import re
 import sqlite3
-from collections.abc import Iterable, Iterator
-from dataclasses import dataclass
+from collections.abc import Callable, Iterable, Iterator
+from dataclasses import dataclass, field
 
 from dicom_kb.db.repositories import DataElementRepository
 from dicom_kb.ir.models import DataElement
@@ -17,6 +17,20 @@ from dicom_kb.query.resolver.standard import paginate
 _MAX_IODS_NAMED = 25
 _TABLE_RE = re.compile(r"^(?:PS3\.3\s+)?(?:Table\s+)?([A-Z]?\d[\w.]*-\w+)$", re.I)
 _UID_RE = re.compile(r"^\d+(?:\.\d+)+$")
+# Types a `type="required"` filter keeps.
+_REQUIRED_TYPES = ("1", "1C", "2", "2C")
+_TYPES = ("1", "1C", "2", "2C", "3")
+_USAGES = ("M", "C", "U")
+# Optional sequences named before the rest are counted.
+_MAX_SEQUENCES_NAMED = 5
+_SENTENCE_RE = re.compile(r"(?<=[.:])\s+(?=[A-Z])")
+# Sentences of a conditional attribute that state when it is present.
+_CONDITION_RE = re.compile(
+    r"^(?:Required|Shall|May (?:only )?be present|Should be present|"
+    r"Not required|Only (?:required|present)|Otherwise|If required|Either|"
+    r"Mutually exclusive|It shall not)",
+    re.I,
+)
 
 
 @dataclass(frozen=True)
@@ -46,6 +60,8 @@ class _Line:
     via: tuple[str, ...] = ()
     # An include whose macro is already listed earlier in this answer.
     repeated: bool = False
+    # An include shown as one line, its macro not expanded.
+    collapsed: bool = False
 
 
 @dataclass(frozen=True)
@@ -167,6 +183,14 @@ class _Tables:
     def owner(self, owner_id: str) -> _Owner | None:
         return self.owners().get(owner_id)
 
+    def attribute_count(self, owner_id: str) -> int:
+        """Attributes an owner holds, its macros expanded once."""
+        return sum(
+            1
+            for line in self.expand(owner_id, listed={owner_id})
+            if line.row.kind == "attribute"
+        )
+
     def expand(
         self,
         owner_id: str,
@@ -174,12 +198,15 @@ class _Tables:
         listed: set[str] | None = None,
         depth: int = 0,
         via: tuple[str, ...] = (),
+        skip: Callable[[], bool] | None = None,
     ) -> Iterator[_Line]:
         """Yield an owner's rows with every included macro's rows in place.
 
         With `listed`, each macro is expanded only the first time it appears
         and later includes of it are marked repeated. Without it every include
-        is expanded, so each row carries its full nesting.
+        is expanded, so each row carries its full nesting. `skip` is asked
+        after an include is yielded, so the caller has seen it; when it
+        answers true, that include is neither expanded nor counted as listed.
         """
         for row in self.rows(owner_id):
             line_depth = row.depth + depth
@@ -193,7 +220,7 @@ class _Tables:
                 owner_id,
             }
             yield _Line(row=row, depth=line_depth, via=via, repeated=repeated)
-            if repeated:
+            if repeated or (skip is not None and skip()):
                 continue
             if listed is not None:
                 listed.add(macro_id)
@@ -202,6 +229,7 @@ class _Tables:
                 listed=listed,
                 depth=line_depth,
                 via=(*via, macro_id),
+                skip=skip,
             )
 
 
@@ -213,9 +241,23 @@ def module_attributes(
     *,
     name: str,
     edition: str,
+    detail: str = "outline",
+    types: str | None = None,
     page: int = 1,
 ) -> ToolResponse:
-    """Return a module's or macro's attributes with its macros expanded."""
+    """Return a module's or macro's attributes.
+
+    The outline lists the module's own rows, each macro as one line, and
+    descriptions cut to their first sentence and condition. `detail="full"`
+    expands every macro in place with full descriptions. `types` keeps the
+    attributes of those Types whose enclosing sequences are of those Types
+    too, with macros expanded.
+    """
+    if detail not in {"outline", "full"}:
+        return _invalid("detail is 'outline' or 'full'.")
+    kept_types = _parse_types(types)
+    if isinstance(kept_types, ToolResponse):
+        return kept_types
     tables = _Tables(connection, edition)
     owner = _find_owner(tables, name)
     if owner is None:
@@ -223,18 +265,53 @@ def module_attributes(
             f"No module or macro is named {name!r}.",
             _close_matches(name, (owner.label for owner in tables.owners().values())),
         )
-    lines = list(tables.expand(owner.id, listed={owner.id}))
+    descriptions = "all" if detail == "full" else "summary"
+    notes: list[str] = []
+    if kept_types is not None:
+        lines, omitted = _keep_types(
+            tables, owner.id, kept_types, listed={owner.id}, shown=set()
+        )
+        notes.append(omitted.note(kept_types))
+    elif detail == "full":
+        lines = list(tables.expand(owner.id, listed={owner.id}))
+    else:
+        lines = [
+            _Line(row=row, depth=row.depth, collapsed=row.kind == "include")
+            for row in tables.rows(owner.id)
+        ]
+        macros = sum(1 for line in lines if line.row.kind == "include")
+        if macros:
+            notes.append(
+                f"{macros} macro include{'s' if macros != 1 else ''} not expanded; "
+                'open one with dicom_module("<macro>").'
+            )
+    if descriptions == "summary":
+        notes.append(
+            "Descriptions cut to their first sentence and condition. Everything: "
+            + _call("dicom_module", name, detail="full", type=types)
+            + "."
+        )
     body = "\n".join(
         [
             f"**{owner.label}** ({owner.locator})",
             "",
-            *_attribute_table(tables, lines, descriptions="all"),
+            *(
+                _attribute_table(tables, lines, descriptions=descriptions)
+                or ["No attributes."]
+            ),
+            *(["", " ".join(note for note in notes if note)] if notes else []),
         ]
     )
     return _paged(
         body,
         page=page,
-        next_call=f'dicom_module("{name}", page={{page}})',
+        next_call=_call(
+            "dicom_module",
+            name,
+            detail=None if detail == "outline" else detail,
+            type=types,
+            page="{page}",
+        ),
         refs=[_ref(edition, owner.table or owner.section)],
     )
 
@@ -248,9 +325,24 @@ def iod_modules(
     name: str,
     edition: str,
     expand: bool = False,
+    types: str | None = None,
+    usage: str | None = None,
+    module: str | None = None,
     page: int = 1,
 ) -> ToolResponse:
-    """Return an IOD's modules, or with `expand` every attribute it needs."""
+    """Return an IOD's modules, or with `expand` the attributes it needs.
+
+    The checklist covers M and C modules unless `usage` says otherwise, or
+    only the modules `module` names. `types` keeps the attributes of those
+    Types whose enclosing sequences are of those Types too. Passing any of
+    these filters implies `expand`.
+    """
+    kept_types = _parse_types(types)
+    if isinstance(kept_types, ToolResponse):
+        return kept_types
+    usages = _parse_usage(usage)
+    if isinstance(usages, ToolResponse):
+        return usages
     found = _find_iod(connection, name, edition=edition)
     if found is None:
         return _not_found(
@@ -271,7 +363,7 @@ def iod_modules(
             + "; ".join(f"{sop_name} `{uid}`" for sop_name, uid in sop_classes)
         )
 
-    if not expand:
+    if not (expand or types or usage or module):
         lines += ["", "| IE | Module | Reference | Usage |", "|---|---|---|---|"]
         last_ie = None
         for use in module_uses:
@@ -302,10 +394,12 @@ def iod_modules(
                     if (owner := tables.owner(use.module_id)) is not None
                 ),
             ]
+        every = _call("dicom_iod", iod.name, expand=True)
+        required = _call("dicom_iod", iod.name, type="required")
         lines += [
             "",
-            f'Every attribute: dicom_iod("{iod.name}", expand=true). '
-            f'One module: dicom_module("<module>").',
+            f"Attributes of the M and C modules: {every}; only the required "
+            f'ones: {required}. One module: dicom_module("<module>").',
         ]
         return tool_response(
             status="ok",
@@ -313,47 +407,253 @@ def iod_modules(
             refs=[_ref(edition, iod.table)],
         )
 
+    if module is not None:
+        wanted = _named_uses(tables, [*module_uses, *group_uses], module)
+        if isinstance(wanted, ToolResponse):
+            return wanted
+        selected = wanted
+    else:
+        selected = {
+            use.module_id for use in [*module_uses, *group_uses] if use.usage in usages
+        }
+
     lines += [
         "",
-        "Every module expanded, macros in place. Descriptions are shown for "
-        "conditional (1C, 2C) attributes only; dicom_module has the rest. A macro "
-        "is listed once, where it first appears.",
+        "Macros expanded in place, each listed once. Conditional attributes "
+        "show their condition; dicom_module has the full descriptions.",
     ]
     listed: set[str] = set()
-    for use in module_uses:
-        owner = tables.owner(use.module_id)
-        if owner is None:
-            continue
-        lines += ["", f"### {owner.label}: {use.usage_text} ({owner.locator})", ""]
-        listed.add(owner.id)
-        rows = list(tables.expand(owner.id, listed=listed))
-        lines += _attribute_table(tables, rows, descriptions="conditional") or [
-            "No attributes."
-        ]
-    if group_uses:
-        lines += [
-            "",
-            "## Functional group macros",
-            "",
-            "Each one sits in the Shared or Per-Frame Functional Groups Sequence.",
-        ]
-        for use in group_uses:
+    shown: set[str] = set()
+    omitted = _Omitted()
+    for title, uses in (("", module_uses), ("## Functional group macros", group_uses)):
+        uses = [use for use in uses if use.module_id in selected]
+        if title and uses:
+            lines += [
+                "",
+                title,
+                "",
+                "Each one sits in the Shared or Per-Frame Functional Groups Sequence.",
+            ]
+        for use in uses:
             owner = tables.owner(use.module_id)
             if owner is None:
                 continue
             lines += ["", f"### {owner.label}: {use.usage_text} ({owner.locator})", ""]
-            if owner.id in listed:
+            # Under a Type filter a macro listed earlier may have shown no rows.
+            if owner.id in listed and (kept_types is None or owner.id in shown):
                 lines.append("Listed above.")
                 continue
             listed.add(owner.id)
-            rows = list(tables.expand(owner.id, listed=listed))
-            lines += _attribute_table(tables, rows, descriptions="conditional")
+            if kept_types is not None:
+                rows, module_omitted = _keep_types(
+                    tables, owner.id, kept_types, listed=listed, shown=shown
+                )
+                omitted.add(module_omitted)
+            else:
+                rows = list(tables.expand(owner.id, listed=listed))
+            lines += _attribute_table(tables, rows, descriptions="condition") or [
+                "No attributes." if kept_types is None else "None of those Types."
+            ]
+
+    notes = []
+    if kept_types is not None:
+        notes.append(omitted.note(kept_types))
+    if module is None:
+        left_out = [
+            (owner.name, use.usage)
+            for use in [*module_uses, *group_uses]
+            if use.module_id not in selected
+            and (owner := tables.owner(use.module_id)) is not None
+        ]
+        if left_out:
+            names = ", ".join(f"{label} ({use})" for label, use in left_out)
+            notes.append(
+                f"Modules not shown: {names}. Add them with "
+                f'usage="{",".join([*usages, *sorted({u for _, u in left_out})])}"'
+                ', or name one with module="<module>".'
+            )
+    if notes:
+        lines += ["", " ".join(notes)]
     return _paged(
         "\n".join(lines),
         page=page,
-        next_call=f'dicom_iod("{iod.name}", expand=true, page={{page}})',
+        next_call=_call(
+            "dicom_iod",
+            iod.name,
+            expand=True,
+            type=types,
+            usage=usage,
+            module=module,
+            page="{page}",
+        ),
         refs=[_ref(edition, iod.table)],
     )
+
+
+# Filters ---------------------------------------------------------------------
+
+
+@dataclass
+class _Omitted:
+    """What a Type filter left out, for the line that says so."""
+
+    other_types: int = 0
+    # Attributes of the kept Types inside a sequence that is not, by the
+    # outermost such sequence.
+    nested: dict[str, int] = field(default_factory=dict)
+
+    def add(self, other: _Omitted) -> None:
+        self.other_types += other.other_types
+        for sequence, count in other.nested.items():
+            self.nested[sequence] = self.nested.get(sequence, 0) + count
+
+    def note(self, types: tuple[str, ...]) -> str:
+        kept = "/".join(types)
+        parts = [f"Kept Type {kept}, in sequences of those Types."]
+        if self.other_types:
+            parts.append(f"Not shown: {self.other_types} attributes of other Types.")
+        if self.nested:
+            ranked = sorted(self.nested.items(), key=lambda item: -item[1])
+            named = ", ".join(
+                f"{sequence} ({count})"
+                for sequence, count in ranked[:_MAX_SEQUENCES_NAMED]
+            )
+            more = len(ranked) - _MAX_SEQUENCES_NAMED
+            if more > 0:
+                named += f" and {more} more"
+            parts.append(
+                f"{sum(self.nested.values())} Type {kept} attributes sit inside "
+                f"sequences of other Types: {named}."
+            )
+        return " ".join(parts)
+
+
+def _keep_types(
+    tables: _Tables,
+    owner_id: str,
+    types: tuple[str, ...],
+    *,
+    listed: set[str],
+    shown: set[str],
+) -> tuple[list[_Line], _Omitted]:
+    """Expand an owner, keeping attributes of `types` in sequences of `types`.
+
+    A macro inside a sequence that is left out is not expanded, so it stays
+    unlisted for a later include. `shown` collects the macros that kept a
+    row; a later include of one stays as "listed above", other includes stay
+    when something they brought in stays.
+    """
+    omitted = _Omitted()
+    lines: list[_Line] = []
+    keep: list[bool] = []
+    # (depth, name, kept) for each attribute enclosing the current line.
+    stack: list[tuple[int, str, bool]] = []
+    blocker: str | None = None
+
+    def blocked() -> bool:
+        return blocker is not None
+
+    for line in tables.expand(owner_id, listed=listed, skip=blocked):
+        while stack and stack[-1][0] >= line.depth:
+            stack.pop()
+        blocker = next((name for _, name, kept in stack if not kept), None)
+        row = line.row
+        lines.append(line)
+        keep.append(False)
+        if row.kind == "include":
+            if blocker is not None and row.macro_id is not None:
+                count = sum(
+                    1
+                    for inner in tables.expand(row.macro_id, listed={row.macro_id})
+                    if inner.row.kind == "attribute" and (inner.row.type or "") in types
+                )
+                if count:
+                    omitted.nested[blocker] = omitted.nested.get(blocker, 0) + count
+            continue
+        if row.kind != "attribute":
+            continue
+        matches = (row.type or "") in types
+        if blocker is None and matches:
+            keep[-1] = True
+            shown.update(line.via)
+        elif blocker is None:
+            omitted.other_types += 1
+        elif matches:
+            omitted.nested[blocker] = omitted.nested.get(blocker, 0) + 1
+        stack.append((line.depth, row.keyword or row.name, blocker is None and matches))
+    for index, line in enumerate(lines):
+        macro_id = line.row.macro_id
+        if line.row.kind != "include" or macro_id is None:
+            continue
+        if line.repeated:
+            keep[index] = macro_id in shown and _encloser_kept(lines, keep, index)
+            continue
+        # Its own rows follow it, carrying it at the end of their path.
+        inside = (*line.via, macro_id)
+        later = index + 1
+        while later < len(lines) and lines[later].via[: len(inside)] == inside:
+            if keep[later]:
+                keep[index] = True
+                break
+            later += 1
+    return [line for index, line in enumerate(lines) if keep[index]], omitted
+
+
+def _encloser_kept(lines: list[_Line], keep: list[bool], index: int) -> bool:
+    """Whether the attribute enclosing an include row is kept (or none is)."""
+    depth = lines[index].depth
+    for earlier in range(index - 1, -1, -1):
+        line = lines[earlier]
+        if line.row.kind == "attribute" and line.depth < depth:
+            return keep[earlier]
+    return True
+
+
+def _parse_types(value: str | None) -> tuple[str, ...] | ToolResponse | None:
+    if value is None or not value.strip():
+        return None
+    if value.strip().lower() == "required":
+        return _REQUIRED_TYPES
+    wanted = {part.upper() for part in re.split(r"[\s,/]+", value.strip()) if part}
+    unknown = sorted(wanted - set(_TYPES))
+    if unknown:
+        return _invalid(
+            f"Unknown Type {', '.join(unknown)}. Use 1, 1C, 2, 2C, 3 or 'required'."
+        )
+    return tuple(type_ for type_ in _TYPES if type_ in wanted)
+
+
+def _parse_usage(value: str | None) -> tuple[str, ...] | ToolResponse:
+    if value is None or not value.strip():
+        return ("M", "C")
+    wanted = {part.upper() for part in re.split(r"[\s,/]+", value.strip()) if part}
+    unknown = sorted(wanted - set(_USAGES))
+    if unknown:
+        return _invalid(f"Unknown usage {', '.join(unknown)}. Use M, C or U.")
+    return tuple(usage for usage in _USAGES if usage in wanted)
+
+
+def _named_uses(
+    tables: _Tables, uses: list[_Use], names: str
+) -> set[str] | ToolResponse:
+    """Module ids of the IOD's uses that `names` (comma-separated) picks."""
+    by_id = {
+        use.module_id: owner
+        for use in uses
+        if (owner := tables.owner(use.module_id)) is not None
+    }
+    selected: set[str] = set()
+    for name in (part.strip() for part in names.split(",")):
+        if not name:
+            continue
+        owner = _find_owner(tables, name)
+        if owner is None or owner.id not in by_id:
+            return _not_found(
+                f"The IOD has no module or functional group macro named {name!r}.",
+                _close_matches(name, (owner.label for owner in by_id.values())),
+            )
+        selected.add(owner.id)
+    return selected
 
 
 # dicom_element --------------------------------------------------------------
@@ -574,7 +874,12 @@ def _iods_using(
 def _attribute_table(
     tables: _Tables, lines: list[_Line], *, descriptions: str
 ) -> list[str]:
-    """Render rows as `| Attribute | Tag | VR | VM | Type | Description |`."""
+    """Render rows as `| Attribute | Tag | VR | VM | Type | Description |`.
+
+    `descriptions` is `all`, `summary` (first sentence, plus the condition of
+    a conditional attribute) or `condition` (a conditional attribute's
+    condition only).
+    """
     if not lines:
         return []
     out = [
@@ -588,6 +893,9 @@ def _attribute_table(
             text = _include_text(tables, row)
             if line.repeated:
                 text += " (listed above)"
+            elif line.collapsed and row.macro_id is not None:
+                count = tables.attribute_count(row.macro_id)
+                text += f" ({count} attribute{'s' if count != 1 else ''})"
             # Trailing empty cells may be left out of a pipe-table row.
             out.append(_pipe(f"{nesting}{text}"))
         elif row.kind == "text" and row.description:
@@ -595,9 +903,6 @@ def _attribute_table(
         elif row.kind == "text":
             out.append(_pipe(f"{nesting}*{row.name}*"))
         else:
-            show = descriptions == "all" or (
-                row.type is not None and row.type.endswith("C")
-            )
             out.append(
                 _pipe(
                     f"{nesting}{row.keyword or row.name}",
@@ -605,10 +910,31 @@ def _attribute_table(
                     row.vr or "",
                     row.vm or "",
                     row.type or "",
-                    (row.description or "") if show else "",
+                    _description(row, descriptions),
                 )
             )
     return out
+
+
+def _description(row: _Row, mode: str) -> str:
+    text = row.description or ""
+    if mode == "all" or not text:
+        return text
+    conditional = row.type is not None and row.type.endswith("C")
+    sentences = [
+        sentence.strip()
+        for paragraph in re.split(r"<br>|\n", text)
+        for sentence in _SENTENCE_RE.split(paragraph)
+        if sentence.strip()
+    ]
+    condition = [s for s in sentences if _CONDITION_RE.match(s)] if conditional else []
+    # A condition worded some other way keeps the whole description.
+    if conditional and not condition:
+        return text
+    if mode == "condition":
+        return " ".join(condition)
+    first = sentences[0] if sentences else ""
+    return " ".join([first, *(s for s in condition if s != first)])
 
 
 def _include_text(tables: _Tables, row: _Row) -> str:
@@ -656,6 +982,25 @@ def _not_found(message: str, candidates: list[str]) -> ToolResponse:
     if candidates:
         message += " Closest: " + "; ".join(candidates) + "."
     return tool_response(status="not_found", result={"message": message})
+
+
+def _invalid(message: str) -> ToolResponse:
+    return tool_response(status="validation_error", result={"message": message})
+
+
+def _call(tool: str, name: str, **arguments: object) -> str:
+    """`dicom_iod("CT Image", type="required")`, leaving out unset arguments."""
+    parts = [f'"{name}"']
+    for key, value in arguments.items():
+        if value is None or value is False:
+            continue
+        if value is True:
+            parts.append(f"{key}=true")
+        elif value == "{page}":
+            parts.append(f"{key}={{page}}")
+        else:
+            parts.append(f'{key}="{value}"')
+    return f"{tool}({', '.join(parts)})"
 
 
 def _close_matches(query: str, names: Iterable[str]) -> list[str]:
