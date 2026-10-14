@@ -1,4 +1,4 @@
-"""Read and search the standard's text, and explain encoding rules."""
+"""Read and search the standard's text."""
 
 from __future__ import annotations
 
@@ -14,14 +14,9 @@ from dicom_kb.cli.context import (
     resolve_query_edition,
 )
 from dicom_kb.cli.options import CacheDirectoryOption, DatabaseOption, EditionOption
-from dicom_kb.query.resolver import (
-    explain_encoding_rule,
-    read_standard,
-    search_standard,
-)
+from dicom_kb.query.resolver import read_standard, search_standard
 
 app = typer.Typer()
-explain_app = typer.Typer(help="Explain cited DICOM rules from a local KB.")
 
 
 @app.command("read")
@@ -30,7 +25,8 @@ def read_command(
     ref: Annotated[
         str,
         typer.Argument(
-            help="Section or table, e.g. 'PS3.5 7.5.2', 'Table C.7-5a', 'CID 7010'."
+            help="Section or table ('PS3.5 7.5.2', 'Table C.7-5a', 'CID 7010'), "
+            "UID or UID keyword, or VR code ('OB')."
         ),
     ],
     page: Annotated[int, typer.Option("--page", help="Page to read.")] = 1,
@@ -38,7 +34,7 @@ def read_command(
     db: DatabaseOption = None,
     cache_dir: CacheDirectoryOption = None,
 ) -> None:
-    """Read a section or table of the standard as markdown."""
+    """Read a section, table, UID or VR of the standard as markdown."""
     resolved_edition = resolve_query_edition(ctx, edition, db=db, cache_dir=cache_dir)
     with connect_query_db(
         resolve_db_path(ctx, db),
@@ -82,32 +78,5 @@ def search_command(
                 edition=resolved_edition,
                 part=part,
                 limit=limit,
-            )
-        )
-
-
-@explain_app.command("encoding")
-def explain_encoding_command(
-    ctx: typer.Context,
-    topic: Annotated[
-        str,
-        typer.Argument(help="PS3.5 encoding topic, VR, or transfer syntax name."),
-    ],
-    edition: EditionOption = None,
-    db: DatabaseOption = None,
-    cache_dir: CacheDirectoryOption = None,
-) -> None:
-    """Explain a PS3.5 encoding rule with citations."""
-    resolved_edition = resolve_query_edition(ctx, edition, db=db, cache_dir=cache_dir)
-    with connect_query_db(
-        resolve_db_path(ctx, db),
-        cache_dir=resolve_cache_dir(ctx, cache_dir),
-        edition=resolved_edition,
-    ) as connection:
-        echo_response(
-            explain_encoding_rule(
-                connection,
-                topic=topic,
-                edition=resolved_edition,
             )
         )
