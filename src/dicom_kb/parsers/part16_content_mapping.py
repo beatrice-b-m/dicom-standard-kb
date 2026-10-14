@@ -20,6 +20,9 @@ from dicom_kb.ir.models import (
     SRTemplateRow,
 )
 
+# PS3.16 Annex D: the DCM codes, each with its definition.
+DCM_DEFINITIONS_TABLE = "table_D-1"
+
 
 @dataclass(frozen=True)
 class Part16TableSummary:
@@ -66,9 +69,12 @@ def parse_part16(document: ParsedDocument, *, edition: str) -> Part16ParseResult
         if section.xml_id is not None
     }
 
+    dcm_definitions: list[CodedConcept] = []
     for table in document.tables:
         headers = _headers(table)
-        if _is_sr_template_table(table, headers, sections_by_id):
+        if table.xml_id == DCM_DEFINITIONS_TABLE:
+            dcm_definitions = _parse_dcm_definitions(table, headers, edition)
+        elif _is_sr_template_table(table, headers, sections_by_id):
             recognized.append(
                 Part16TableSummary(
                     table_id=table.xml_id,
@@ -114,9 +120,68 @@ def parse_part16(document: ParsedDocument, *, edition: str) -> Part16ParseResult
         sr_template_rows=tuple(template_rows),
         context_groups=tuple(context_groups.values()),
         context_group_rows=tuple(context_group_rows),
-        coded_concepts=coded_concepts_from_context_group_rows(context_group_rows),
+        coded_concepts=_with_definitions(
+            coded_concepts_from_context_group_rows(context_group_rows),
+            dcm_definitions,
+        ),
         warnings=tuple(warnings),
     )
+
+
+def _parse_dcm_definitions(
+    table: ParsedTable, headers: dict[str, int], edition: str
+) -> list[CodedConcept]:
+    """Read the DCM codes and their definitions from Table D-1."""
+    value_column = headers.get("code value")
+    meaning_column = headers.get("code meaning")
+    if value_column is None or meaning_column is None:
+        return []
+    concepts = []
+    for row in _data_rows(table):
+        value = normalize_text(_cell(row, value_column))
+        meaning = normalize_text(_cell(row, meaning_column))
+        if not value or not meaning:
+            continue
+        concepts.append(
+            CodedConcept(
+                id=_coded_concept_id(
+                    edition=edition,
+                    code_value=value,
+                    coding_scheme_designator="DCM",
+                    coding_scheme_version="",
+                ),
+                edition_id=edition,
+                code_value=value,
+                coding_scheme_designator="DCM",
+                code_meaning=meaning,
+                definition=_optional_cell(row, headers.get("definition")),
+                notes=_optional_cell(row, headers.get("notes")),
+                source_ref=_source_ref(edition, table),
+            )
+        )
+    return concepts
+
+
+def _with_definitions(
+    concepts: tuple[CodedConcept, ...], definitions: list[CodedConcept]
+) -> tuple[CodedConcept, ...]:
+    """Add Table D-1 definitions to DCM concepts, and the codes no CID lists."""
+    by_key = {
+        (concept.code_value, concept.coding_scheme_designator): index
+        for index, concept in enumerate(concepts)
+        if not concept.coding_scheme_version
+    }
+    merged = list(concepts)
+    for definition in definitions:
+        index = by_key.get((definition.code_value, "DCM"))
+        if index is None:
+            by_key[(definition.code_value, "DCM")] = len(merged)
+            merged.append(definition)
+        else:
+            merged[index] = merged[index].model_copy(
+                update={"definition": definition.definition, "notes": definition.notes}
+            )
+    return tuple(merged)
 
 
 def coded_concepts_from_context_group_rows(

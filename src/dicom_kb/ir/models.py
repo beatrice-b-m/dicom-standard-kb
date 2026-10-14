@@ -333,6 +333,9 @@ class CodedConcept(BaseModel):
     coding_scheme_designator: str
     coding_scheme_version: str = ""
     code_meaning: str
+    # Set for DCM codes, from PS3.16 Table D-1.
+    definition: str | None = None
+    notes: str | None = None
     source_ref: SourceRef
 
 
