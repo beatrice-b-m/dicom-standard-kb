@@ -71,13 +71,11 @@ def test_mcp_stdio_protocol_with_official_client(tmp_path: Path) -> None:
             assert modules_text.startswith("**CT Image IOD**")
             assert "| Patient | Patient | C.7.1.1, Table C.7-1 | M |" in modules_text
 
-            code_meaning_result = await session.call_tool(
-                "dicom_lookup_code_meaning",
-                {"code_value": "CT", "scheme": "DCM"},
+            code_result = await session.call_tool(
+                "dicom_code",
+                {"query": "CT", "scheme": "DCM"},
             )
-            assert "**Code meaning:** Computed Tomography" in _tool_text(
-                code_meaning_result
-            )
+            assert '**(CT, DCM, "Computed Tomography")**' in _tool_text(code_result)
 
     anyio.run(run_client)
 

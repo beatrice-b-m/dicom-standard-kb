@@ -154,6 +154,8 @@ CREATE TABLE IF NOT EXISTS coded_concept (
   coding_scheme_designator TEXT NOT NULL,
   coding_scheme_version TEXT NOT NULL DEFAULT '',
   code_meaning TEXT NOT NULL,
+  definition TEXT,
+  notes TEXT,
   source_ref_id TEXT NOT NULL REFERENCES source_ref(id),
   UNIQUE (
     edition_id,

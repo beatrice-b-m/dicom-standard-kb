@@ -6,6 +6,8 @@ from pathlib import Path
 from dicom_kb.build import gap_log_path
 from dicom_kb.query.markdown import render_markdown
 from dicom_kb.query.resolver import (
+    attribute_values,
+    code_lookup,
     element_usage,
     iod_modules,
     lookup_uid,
@@ -131,6 +133,45 @@ def test_real_kb_range_tag_lookup_matches_the_range_row(
     )
 
     assert text.startswith("**(60xx,3000) Overlay Data** `OverlayData`")
+
+
+def test_real_kb_values_cover_sections_and_table_cells(
+    connection: sqlite3.Connection, edition: str
+) -> None:
+    sex = render_markdown(
+        attribute_values(connection, name="Patient's Sex", edition=edition)
+    )
+    source = render_markdown(
+        attribute_values(connection, name="Respiratory Signal Source", edition=edition)
+    )
+    photometric = render_markdown(
+        attribute_values(
+            connection,
+            name="Photometric Interpretation",
+            within="CT Image",
+            edition=edition,
+        )
+    )
+
+    assert "| M | male |" in sex
+    assert "| BELT |" in source
+    assert "MONOCHROME2" in photometric
+
+
+def test_real_kb_coded_attribute_names_its_context_group(
+    connection: sqlite3.Connection, edition: str
+) -> None:
+    values = render_markdown(
+        attribute_values(
+            connection, name="Gender Identity Code Sequence", edition=edition
+        )
+    )
+    group = render_markdown(code_lookup(connection, query="CID 7458", edition=edition))
+    code = render_markdown(code_lookup(connection, query="121071", edition=edition))
+
+    assert "BCID 7458" in values
+    assert group.startswith("**CID 7458 Person Gender Identity**")
+    assert "Definition: An observation found on an imaging study." in code
 
 
 def _count(connection: sqlite3.Connection, table: str, edition: str) -> int:

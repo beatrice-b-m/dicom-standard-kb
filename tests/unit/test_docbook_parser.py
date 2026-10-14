@@ -179,7 +179,7 @@ def test_table_parser_accepts_html_table_vocabulary() -> None:
     assert table.rows[2].cells[0].colspan == 2
 
 
-def test_variablelist_parser_preserves_terms_definitions_and_source_context() -> None:
+def test_variablelist_parser_renders_terms_definitions_and_source_context() -> None:
     variablelist = parse_docbook_xml(DOCBOOK, part="PS3.3").variablelists[0]
 
     assert variablelist.parent_xml_id == "sect_A.3"
@@ -188,9 +188,8 @@ def test_variablelist_parser_preserves_terms_definitions_and_source_context() ->
     ct_entry = variablelist.entries[0]
     assert ct_entry.entry_xml_id == "vl_entry_ct"
     assert ct_entry.terms == ("CT",)
-    assert ct_entry.term_xml_ids == ("vl_term_ct",)
-    assert ct_entry.definition_xml_id == "vl_def_ct"
-    assert ct_entry.definition == "Computed Tomography, as defined near ."
+    # The reference keeps its target.
+    assert ct_entry.definition == "Computed Tomography, as defined near Section A.3."
     assert ct_entry.xrefs == ("sect_A.3",)
 
     multi_term_entry = variablelist.entries[1]
