@@ -1,4 +1,4 @@
-"""Parser scaffold for PS3.16 content mapping tables."""
+"""Parse PS3.16 templates (TID), context groups (CID) and DCM definitions."""
 
 from __future__ import annotations
 
@@ -20,25 +20,16 @@ from dicom_kb.ir.models import (
     SRTemplateRow,
 )
 
-# PS3.16 Annex D: the DCM codes, each with its definition.
-DCM_DEFINITIONS_TABLE = "table_D-1"
-
-
-@dataclass(frozen=True)
-class Part16TableSummary:
-    """A recognized PS3.16 table awaiting semantic import in Phase 5."""
-
-    table_id: str | None
-    title: str | None
-    table_kind: str
-    source_ref: SourceRef
+# PS3.16 Annex D lists the DCM codes, each with its definition. It is the only
+# table with these columns and no coding scheme column; finding it by shape
+# survives a renumbering of the annex.
+_DCM_DEFINITION_HEADERS = {"code value", "code meaning", "definition"}
 
 
 @dataclass(frozen=True)
 class Part16ParseResult:
-    """Parsed PS3.16 scaffold metadata and parser gap warnings."""
+    """Parsed PS3.16 templates, context groups, codes and parser warnings."""
 
-    recognized_tables: tuple[Part16TableSummary, ...]
     sr_templates: tuple[SRTemplate, ...]
     sr_template_rows: tuple[SRTemplateRow, ...]
     context_groups: tuple[ContextGroup, ...]
@@ -57,12 +48,11 @@ class _TableMetadata:
 
 def parse_part16(document: ParsedDocument, *, edition: str) -> Part16ParseResult:
     """Parse supported PS3.16 content mapping tables and report parser gaps."""
-    recognized: list[Part16TableSummary] = []
     templates: dict[str, SRTemplate] = {}
     template_rows: list[SRTemplateRow] = []
     context_groups: dict[str, ContextGroup] = {}
     context_group_rows: list[ContextGroupRow] = []
-    warnings: list[ParserWarning] = []
+    row_counts: dict[str, int] = {}
     sections_by_id = {
         section.xml_id: section
         for section in document.sections
@@ -72,50 +62,24 @@ def parse_part16(document: ParsedDocument, *, edition: str) -> Part16ParseResult
     dcm_definitions: list[CodedConcept] = []
     for table in document.tables:
         headers = _headers(table)
-        if table.xml_id == DCM_DEFINITIONS_TABLE:
+        if _is_dcm_definitions_table(headers):
             dcm_definitions = _parse_dcm_definitions(table, headers, edition)
         elif _is_sr_template_table(table, headers, sections_by_id):
-            recognized.append(
-                Part16TableSummary(
-                    table_id=table.xml_id,
-                    title=table.title,
-                    table_kind="sr_template",
-                    source_ref=_source_ref(edition, table),
-                )
+            template, rows = _parse_sr_template_table(
+                table, headers, edition, sections_by_id, row_counts
             )
-            parsed_templates, parsed_template_rows = _parse_sr_template_table(
-                table, headers, edition, warnings, sections_by_id
-            )
-            for template in parsed_templates:
-                templates[template.id] = template
-            template_rows.extend(parsed_template_rows)
+            templates.setdefault(template.id, template)
+            template_rows.extend(rows)
         elif _is_context_group_table(table, headers, sections_by_id):
-            recognized.append(
-                Part16TableSummary(
-                    table_id=table.xml_id,
-                    title=table.title,
-                    table_kind="context_group",
-                    source_ref=_source_ref(edition, table),
-                )
+            group, group_rows = _parse_context_group_table(
+                table, headers, edition, sections_by_id, row_counts
             )
-            parsed_groups, parsed_group_rows = _parse_context_group_table(
-                table, headers, edition, warnings, sections_by_id
-            )
-            for group in parsed_groups:
-                context_groups[group.id] = group
-            context_group_rows.extend(parsed_group_rows)
-        else:
-            warnings.append(
-                ParserWarning(
-                    part="PS3.16",
-                    table_id=table.xml_id,
-                    row_index=None,
-                    message="unsupported PS3.16 table shape",
-                )
-            )
+            context_groups.setdefault(group.id, group)
+            context_group_rows.extend(group_rows)
+        # Every other table (TID parameters, annex examples, ...) is read as
+        # text through doc_node, so it is not a gap.
 
     return Part16ParseResult(
-        recognized_tables=tuple(recognized),
         sr_templates=tuple(templates.values()),
         sr_template_rows=tuple(template_rows),
         context_groups=tuple(context_groups.values()),
@@ -124,18 +88,16 @@ def parse_part16(document: ParsedDocument, *, edition: str) -> Part16ParseResult
             coded_concepts_from_context_group_rows(context_group_rows),
             dcm_definitions,
         ),
-        warnings=tuple(warnings),
+        warnings=(),
     )
 
 
 def _parse_dcm_definitions(
     table: ParsedTable, headers: dict[str, int], edition: str
 ) -> list[CodedConcept]:
-    """Read the DCM codes and their definitions from Table D-1."""
-    value_column = headers.get("code value")
-    meaning_column = headers.get("code meaning")
-    if value_column is None or meaning_column is None:
-        return []
+    """Read the DCM codes and their definitions from Annex D."""
+    value_column = headers["code value"]
+    meaning_column = headers["code meaning"]
     concepts = []
     for row in _data_rows(table):
         value = normalize_text(_cell(row, value_column))
@@ -232,15 +194,17 @@ def _headers(table: ParsedTable) -> dict[str, int]:
     return {_key(cell.text): cell.column for cell in table.rows[0].cells}
 
 
+def _is_dcm_definitions_table(headers: dict[str, int]) -> bool:
+    return set(headers) >= _DCM_DEFINITION_HEADERS and (
+        "coding scheme designator" not in headers
+    )
+
+
 def _is_sr_template_table(
     table: ParsedTable,
     headers: dict[str, int],
     sections_by_id: dict[str, ParsedSection],
 ) -> bool:
-    if "tid" in headers and bool(
-        headers.keys() & {"name", "template name", "template", "extensibility"}
-    ):
-        return True
     return {"nl", "vt", "concept name"} <= set(headers) and _metadata_from_context(
         table, sections_by_id, prefix="TID", normalizer=_normalize_tid
     ).identifier is not None
@@ -251,17 +215,6 @@ def _is_context_group_table(
     headers: dict[str, int],
     sections_by_id: dict[str, ParsedSection],
 ) -> bool:
-    if "cid" in headers and bool(
-        headers.keys()
-        & {
-            "name",
-            "context group name",
-            "context group",
-            "code value",
-            "code meaning",
-        }
-    ):
-        return True
     return {"coding scheme designator", "code value", "code meaning"} <= set(
         headers
     ) and _metadata_from_context(
@@ -273,84 +226,36 @@ def _parse_sr_template_table(
     table: ParsedTable,
     headers: dict[str, int],
     edition: str,
-    warnings: list[ParserWarning],
     sections_by_id: dict[str, ParsedSection],
-) -> tuple[list[SRTemplate], list[SRTemplateRow]]:
-    templates: dict[str, SRTemplate] = {}
-    template_rows: list[SRTemplateRow] = []
+    row_counts: dict[str, int],
+) -> tuple[SRTemplate, list[SRTemplateRow]]:
     metadata = _metadata_from_context(
         table, sections_by_id, prefix="TID", normalizer=_normalize_tid
     )
-    tid_column = headers.get("tid")
-    name_column = _first_header(headers, "name", "template name", "template")
-    if (tid_column is None or name_column is None) and (
-        metadata.identifier is None or metadata.name is None
-    ):
-        warnings.append(
-            ParserWarning(
-                part="PS3.16",
-                table_id=table.xml_id,
-                row_index=None,
-                message="skipped SR template table without TID/name metadata",
-            )
-        )
-        return [], []
-
-    row_column = _first_header(headers, "row", "row order", "nl")
-    extensibility_column = _first_header(headers, "extensibility")
-    relationship_column = _first_header(
-        headers,
-        "relationship type",
-        "relationship",
-        "rel with parent",
-        "rel",
+    assert metadata.identifier is not None
+    tid = metadata.identifier
+    template_id = f"{edition}.PS3.16.sr_template.{_identifier_fragment(tid)}"
+    template = SRTemplate(
+        id=template_id,
+        edition_id=edition,
+        tid=tid,
+        name=metadata.name or tid,
+        extensibility=metadata.extensibility,
+        source_ref=_source_ref(edition, table),
     )
-    value_type_column = _first_header(headers, "value type", "vt")
-    concept_name_column = _first_header(headers, "concept name")
-    cardinality_column = _first_header(headers, "cardinality", "vm")
-    condition_column = _first_header(headers, "condition", "condition text")
-    include_column = _first_header(headers, "include tid", "included tid", "include")
+    relationship_column = _first_header(headers, "rel with parent", "rel")
+    value_type_column = headers["vt"]
+    concept_name_column = headers["concept name"]
+    cardinality_column = _first_header(headers, "vm")
+    condition_column = _first_header(headers, "condition")
 
-    row_count_by_template: dict[str, int] = {}
+    template_rows: list[SRTemplateRow] = []
     for row in _data_rows(table):
-        tid = (
-            _normalize_tid(_cell(row, tid_column))
-            if tid_column is not None
-            else metadata.identifier
-        )
-        name = _cell(row, name_column) if name_column is not None else metadata.name
-        if tid is None or not name:
-            warnings.append(_warning(table, row, "skipped incomplete SR template row"))
-            continue
-
-        template_id = f"{edition}.PS3.16.sr_template.{_identifier_fragment(tid)}"
-        templates.setdefault(
-            template_id,
-            SRTemplate(
-                id=template_id,
-                edition_id=edition,
-                tid=tid,
-                name=name,
-                extensibility=_optional_cell(row, extensibility_column)
-                or metadata.extensibility,
-                source_ref=_source_ref(edition, table),
-            ),
-        )
-
-        row_count_by_template[template_id] = (
-            row_count_by_template.get(template_id, 0) + 1
-        )
-        row_order = _row_order(row, row_column) or row_count_by_template[template_id]
+        # Count across tables: a template split over two tables keeps going.
+        row_order = row_counts[template_id] = row_counts.get(template_id, 0) + 1
         value_type = _optional_cell(row, value_type_column)
-        concept_name = _sr_template_concept_name(
-            row, concept_name_column, sections_by_id
-        )
-        include_tid = _normalize_tid(_optional_cell(row, include_column))
-        if (
-            include_tid is None
-            and value_type is not None
-            and value_type.upper() == "INCLUDE"
-        ):
+        include_tid = None
+        if value_type is not None and value_type.upper() == "INCLUDE":
             include_tid = _sr_template_include_target(row)
         template_rows.append(
             SRTemplateRow(
@@ -360,121 +265,75 @@ def _parse_sr_template_table(
                 row_order=row_order,
                 relationship_type=_optional_cell(row, relationship_column),
                 value_type=value_type,
-                concept_name=concept_name,
+                concept_name=_sr_template_concept_name(
+                    row, concept_name_column, sections_by_id
+                ),
                 cardinality=_optional_cell(row, cardinality_column),
                 condition_text=_optional_cell(row, condition_column),
                 include_tid=include_tid,
                 source_ref=_source_ref(edition, table),
             )
         )
-
-    return list(templates.values()), template_rows
+    return template, template_rows
 
 
 def _parse_context_group_table(
     table: ParsedTable,
     headers: dict[str, int],
     edition: str,
-    warnings: list[ParserWarning],
     sections_by_id: dict[str, ParsedSection],
-) -> tuple[list[ContextGroup], list[ContextGroupRow]]:
-    groups: dict[str, ContextGroup] = {}
-    group_rows: list[ContextGroupRow] = []
+    row_counts: dict[str, int],
+) -> tuple[ContextGroup, list[ContextGroupRow]]:
     metadata = _metadata_from_context(
         table, sections_by_id, prefix="CID", normalizer=_normalize_cid
     )
-    cid_column = headers.get("cid")
-    name_column = _first_header(headers, "name", "context group name", "context group")
-    if (cid_column is None or name_column is None) and (
-        metadata.identifier is None or metadata.name is None
-    ):
-        warnings.append(
-            ParserWarning(
-                part="PS3.16",
-                table_id=table.xml_id,
-                row_index=None,
-                message="skipped context group table without CID/name metadata",
-            )
-        )
-        return [], []
-
-    row_column = _first_header(headers, "row", "row order")
-    extensibility_column = _first_header(headers, "extensibility")
-    version_column = _first_header(headers, "version")
-    scheme_column = _first_header(
-        headers,
-        "coding scheme designator",
-        "scheme",
-        "coding scheme",
+    assert metadata.identifier is not None
+    cid = metadata.identifier
+    group_id = f"{edition}.PS3.16.context_group.{_identifier_fragment(cid)}"
+    group = ContextGroup(
+        id=group_id,
+        edition_id=edition,
+        cid=cid,
+        name=metadata.name or cid,
+        extensibility=metadata.extensibility,
+        version=metadata.version,
+        source_ref=_source_ref(edition, table),
     )
-    scheme_version_column = _first_header(
-        headers,
-        "coding scheme version",
-        "scheme version",
-    )
-    code_value_column = _first_header(headers, "code value", "code")
-    code_meaning_column = _first_header(headers, "code meaning", "meaning")
-    include_column = _first_header(headers, "include cid", "included cid", "include")
+    scheme_column = headers["coding scheme designator"]
+    scheme_version_column = _first_header(headers, "coding scheme version")
+    code_value_column = headers["code value"]
+    code_meaning_column = headers["code meaning"]
 
-    row_count_by_group: dict[str, int] = {}
+    group_rows: list[ContextGroupRow] = []
     for row in _body_rows(table):
-        cid = (
-            _normalize_cid(_cell(row, cid_column))
-            if cid_column is not None
-            else metadata.identifier
-        )
-        name = _cell(row, name_column) if name_column is not None else metadata.name
-        if cid is None or not name:
-            warnings.append(
-                _warning(table, row, "skipped incomplete context group row")
+        row_order = row_counts[group_id] = row_counts.get(group_id, 0) + 1
+        include_cid = _context_group_include_target(row)
+        # An include row carries no code of its own.
+        scheme, scheme_version, code_value, code_meaning = (
+            (None, None, None, None)
+            if include_cid
+            else (
+                _optional_cell(row, scheme_column),
+                _optional_cell(row, scheme_version_column),
+                _optional_cell(row, code_value_column),
+                _optional_cell(row, code_meaning_column),
             )
-            continue
-
-        group_id = f"{edition}.PS3.16.context_group.{_identifier_fragment(cid)}"
-        groups.setdefault(
-            group_id,
-            ContextGroup(
-                id=group_id,
-                edition_id=edition,
-                cid=cid,
-                name=name,
-                extensibility=_optional_cell(row, extensibility_column)
-                or metadata.extensibility,
-                version=_optional_cell(row, version_column) or metadata.version,
-                source_ref=_source_ref(edition, table),
-            ),
         )
-
-        row_count_by_group[group_id] = row_count_by_group.get(group_id, 0) + 1
-        row_order = _row_order(row, row_column) or row_count_by_group[group_id]
-        include_cid = _normalize_cid(_optional_cell(row, include_column))
-        if include_cid is None:
-            include_cid = _context_group_include_target(row)
-        coding_scheme_designator = _optional_cell(row, scheme_column)
-        coding_scheme_version = _optional_cell(row, scheme_version_column)
-        code_value = _optional_cell(row, code_value_column)
-        code_meaning = _optional_cell(row, code_meaning_column)
-        if row.row_kind == "include" or include_cid is not None:
-            coding_scheme_designator = None
-            coding_scheme_version = None
-            code_value = None
-            code_meaning = None
         group_rows.append(
             ContextGroupRow(
                 id=f"{group_id}.row.{row_order}",
                 edition_id=edition,
                 context_group_id=group_id,
                 row_order=row_order,
-                coding_scheme_designator=coding_scheme_designator,
-                coding_scheme_version=coding_scheme_version,
+                coding_scheme_designator=scheme,
+                coding_scheme_version=scheme_version,
                 code_value=code_value,
                 code_meaning=code_meaning,
                 include_cid=include_cid,
                 source_ref=_source_ref(edition, table),
             )
         )
-
-    return list(groups.values()), group_rows
+    return group, group_rows
 
 
 def _data_rows(table: ParsedTable) -> list[ParsedRow]:
@@ -542,16 +401,6 @@ def _xref_label(
         return None
     title = normalize_text(section.title or "")
     return title or None
-
-
-def _row_order(row: ParsedRow, column: int | None) -> int | None:
-    value = _optional_cell(row, column)
-    if value is None:
-        return None
-    match = re.search(r"\d+", value)
-    if match is None:
-        return None
-    return int(match.group(0))
 
 
 def _normalize_tid(value: str | None) -> str | None:
@@ -690,10 +539,18 @@ def _sr_template_include_target(row: ParsedRow) -> str | None:
 
 
 def _context_group_include_target(row: ParsedRow) -> str | None:
+    """Return the CID an "Include CID n" row pulls in, or None for a code row.
+
+    Only include rows count: a code row whose meaning mentions a CID is
+    still a code.
+    """
+    first_cell = normalize_text(row.cells[0].text) if row.cells else ""
+    if row.row_kind != "include" and not first_cell.lower().startswith("include"):
+        return None
     targets = [row.include_table_ref or "", row.include_title or ""]
-    targets.extend(cell.text for cell in row.cells)
     for cell in row.cells:
         targets.extend(cell.xrefs)
+    targets.extend(cell.text for cell in row.cells)
     for target in targets:
         include_cid = _find_identifier(target, prefix="CID")
         if include_cid is not None:
@@ -727,15 +584,6 @@ def _coded_concept_id(
     ).encode("utf-8")
     parts.append(hashlib.sha1(digest_input).hexdigest()[:8])
     return ".".join(parts)
-
-
-def _warning(table: ParsedTable, row: ParsedRow, message: str) -> ParserWarning:
-    return ParserWarning(
-        part="PS3.16",
-        table_id=table.xml_id,
-        row_index=row.row_index,
-        message=message,
-    )
 
 
 def _source_ref(edition: str, table: ParsedTable) -> SourceRef:

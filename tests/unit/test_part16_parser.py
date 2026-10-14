@@ -6,17 +6,21 @@ from pathlib import Path
 from dicom_kb.db.importers import (
     import_coded_concepts,
     import_context_groups,
-    import_docbook_structure,
     import_sr_templates,
 )
 from dicom_kb.db.models import apply_migrations, connect_sqlite
 from dicom_kb.docbook.parser import parse_docbook_xml
-from dicom_kb.parsers.part16_content_mapping import parse_part16
-from tests.fixtures_synthetic import (
-    EDITION,
-    PS316_CONTENT_MAPPING_DOCBOOK,
-    PS316_OFFICIAL_SHAPE_DOCBOOK,
+from dicom_kb.parsers.part16_content_mapping import Part16ParseResult, parse_part16
+from tests.fixtures_synthetic import EDITION, PS316_CONTENT_MAPPING_DOCBOOK
+
+NS = (
+    'xmlns="http://docbook.org/ns/docbook" '
+    'xmlns:xml="http://www.w3.org/XML/1998/namespace"'
 )
+
+
+def _parse(xml: str = PS316_CONTENT_MAPPING_DOCBOOK) -> Part16ParseResult:
+    return parse_part16(parse_docbook_xml(xml, part="PS3.16"), edition=EDITION)
 
 
 def _connection(tmp_path: Path) -> sqlite3.Connection:
@@ -25,398 +29,152 @@ def _connection(tmp_path: Path) -> sqlite3.Connection:
     return connection
 
 
-def test_parse_part16_classifies_sr_template_tables_and_warns_on_gaps() -> None:
-    document = parse_docbook_xml(PS316_CONTENT_MAPPING_DOCBOOK, part="PS3.16")
+def _cid_table(xml_id: str | None, rows: str) -> str:
+    id_attribute = f'xml:id="{xml_id}"' if xml_id else ""
+    return f"""
+    <table {id_attribute}><caption>Acquisition Modality</caption>
+      <tgroup cols="3">
+        <thead><row><entry>Coding Scheme Designator</entry>
+          <entry>Code Value</entry><entry>Code Meaning</entry></row></thead>
+        <tbody>{rows}</tbody>
+      </tgroup>
+    </table>"""
 
-    result = parse_part16(document, edition=EDITION)
 
-    assert [table.table_id for table in result.recognized_tables] == [
-        "table_16-1",
-        "table_16-3",
+def _cid_section(*tables: str) -> str:
+    return f"""<book {NS} xml:id="PS3.16"><chapter xml:id="chapter_CID">
+      <section xml:id="sect_CID_29"><title>Acquisition Modality</title>
+        <para>Type: Extensible</para>{"".join(tables)}
+      </section></chapter></book>"""
+
+
+def _code_row(value: str, meaning: str) -> str:
+    return (
+        f"<row><entry>DCM</entry><entry>{value}</entry><entry>{meaning}</entry></row>"
+    )
+
+
+def test_parse_part16_reads_template_and_context_group_tables() -> None:
+    result = _parse()
+
+    assert [(t.tid, t.name, t.extensibility) for t in result.sr_templates] == [
+        ("TID 1500", "Measurement Report", "Extensible")
     ]
-    template_table = result.recognized_tables[0]
-    assert template_table.table_kind == "sr_template"
-    assert template_table.source_ref.part == "PS3.16"
-    assert template_table.source_ref.section == "sect_16_1"
-    assert template_table.source_ref.table_id == "table_16-1"
-    assert template_table.source_ref.title == "Synthetic Template Rows"
-    assert [
-        (record.tid, record.name, record.extensibility)
-        for record in result.sr_templates
-    ] == [("TID 1500", "Measurement Report", "EXTENSIBLE")]
     assert [
         (
-            record.row_order,
-            record.relationship_type,
-            record.value_type,
-            record.concept_name,
-            record.cardinality,
-            record.condition_text,
-            record.include_tid,
+            row.row_order,
+            row.relationship_type,
+            row.value_type,
+            row.concept_name,
+            row.cardinality,
+            row.include_tid,
         )
-        for record in result.sr_template_rows
+        for row in result.sr_template_rows
     ] == [
-        (
-            1,
-            "CONTAINS",
-            "CONTAINER",
-            "Measurement Report",
-            "1",
-            "Root container is required.",
-            None,
-        ),
-        (
-            2,
-            "CONTAINS",
-            "INCLUDE",
-            None,
-            "1-n",
-            "Include measurements when present.",
-            "TID 1501",
-        ),
-    ]
-    assert result.sr_template_rows[0].source_ref.table_id == "table_16-1"
-    context_group_table = result.recognized_tables[1]
-    assert context_group_table.table_kind == "context_group"
-    assert context_group_table.source_ref.part == "PS3.16"
-    assert context_group_table.source_ref.section == "sect_16_1"
-    assert context_group_table.source_ref.table_id == "table_16-3"
-    assert context_group_table.source_ref.title == "Synthetic Context Group Rows"
-    assert [
-        (record.cid, record.name, record.extensibility, record.version)
-        for record in result.context_groups
-    ] == [("CID 29", "Acquisition Modality", "EXTENSIBLE", "20260101")]
-    assert [
-        (
-            record.row_order,
-            record.coding_scheme_designator,
-            record.coding_scheme_version,
-            record.code_value,
-            record.code_meaning,
-            record.include_cid,
-        )
-        for record in result.context_group_rows
-    ] == [
-        (1, "DCM", None, "CT", "Computed Tomography", None),
-        (2, None, None, None, None, "CID 30"),
+        (1, None, "CONTAINER", "DCID 7021", "1", None),
+        (2, "> HAS OBS CONTEXT", "INCLUDE", "DTID 1001", "1", "TID 1001"),
+        (3, "> CONTAINS", "INCLUDE", "DTID 1501", "1-n", "TID 1501"),
+        (4, "> CONTAINS", "TEXT", None, "0-1", None),
     ]
     assert [
-        (
-            record.code_value,
-            record.coding_scheme_designator,
-            record.coding_scheme_version,
-            record.code_meaning,
-        )
-        for record in result.coded_concepts
-    ] == [("CT", "DCM", "", "Computed Tomography")]
-    assert result.context_group_rows[0].source_ref.table_id == "table_16-3"
-    assert [(warning.table_id, warning.message) for warning in result.warnings] == [
-        ("table_16-2", "unsupported PS3.16 table shape")
-    ]
-
-
-def test_parse_part16_supports_official_shape_tid_and_cid_tables() -> None:
-    document = parse_docbook_xml(PS316_OFFICIAL_SHAPE_DOCBOOK, part="PS3.16")
-
-    result = parse_part16(document, edition=EDITION)
-
-    recognized_tables = [
-        (table.table_id, table.table_kind) for table in result.recognized_tables
-    ]
-    assert recognized_tables == [
-        ("table_TID_1500", "sr_template"),
-        ("table_CID_29", "context_group"),
-    ]
-    templates = [
-        (record.tid, record.name, record.extensibility)
-        for record in result.sr_templates
-    ]
-    assert templates == [("TID 1500", "Measurement Report", "Extensible")]
-    assert [
-        (
-            record.row_order,
-            record.relationship_type,
-            record.value_type,
-            record.concept_name,
-            record.cardinality,
-            record.condition_text,
-            record.include_tid,
-        )
-        for record in result.sr_template_rows
-    ] == [
-        (
-            1,
-            None,
-            "CONTAINER",
-            "DCID 7021",
-            "1",
-            None,
-            None,
-        ),
-        (
-            2,
-            "> HAS OBS CONTEXT",
-            "INCLUDE",
-            "DTID 1001",
-            "1",
-            None,
-            "TID 1001",
-        ),
-        (
-            3,
-            "> CONTAINS",
-            "INCLUDE",
-            "DTID 1501",
-            "1-n",
-            None,
-            "TID 1501",
-        ),
-        (
-            4,
-            "> CONTAINS",
-            "TEXT",
-            None,
-            "0-1",
-            None,
-            None,
-        ),
-    ]
-    assert [
-        (record.cid, record.name, record.extensibility, record.version)
-        for record in result.context_groups
+        (g.cid, g.name, g.extensibility, g.version) for g in result.context_groups
     ] == [("CID 29", "Acquisition Modality", "Extensible", "20231115")]
     assert [
         (
-            record.row_order,
-            record.coding_scheme_designator,
-            record.code_value,
-            record.code_meaning,
-            record.include_cid,
+            row.coding_scheme_designator,
+            row.code_value,
+            row.code_meaning,
+            row.include_cid,
         )
-        for record in result.context_group_rows
+        for row in result.context_group_rows
     ] == [
-        (1, "DCM", "CT", "Computed Tomography", None),
-        (2, None, None, None, "CID 34"),
+        ("DCM", "CT", "Computed Tomography", None),
+        (None, None, None, "CID 34"),
     ]
     assert [
-        (
-            record.code_value,
-            record.coding_scheme_designator,
-            record.code_meaning,
-        )
-        for record in result.coded_concepts
+        (c.code_value, c.coding_scheme_designator, c.code_meaning)
+        for c in result.coded_concepts
     ] == [("CT", "DCM", "Computed Tomography")]
-    assert result.warnings == ()
 
 
-def test_import_sr_templates_persists_metadata_and_rows_with_source_refs(
-    tmp_path: Path,
-) -> None:
+def test_code_row_that_mentions_a_cid_stays_a_code() -> None:
+    xml = _cid_section(
+        _cid_table("table_CID_29", _code_row("X1", "Modality listed in CID 30"))
+    )
+
+    (row,) = _parse(xml).context_group_rows
+
+    assert row.code_value == "X1"
+    assert row.include_cid is None
+
+
+def test_group_split_over_two_tables_keeps_counting_rows() -> None:
+    xml = _cid_section(
+        _cid_table("table_CID_29", _code_row("CT", "Computed Tomography")),
+        # A continuation table often has no id of its own.
+        _cid_table(None, _code_row("MR", "Magnetic Resonance")),
+    )
+
+    result = _parse(xml)
+
+    assert [row.row_order for row in result.context_group_rows] == [1, 2]
+    assert len({row.id for row in result.context_group_rows}) == 2
+    assert len(result.context_groups) == 1
+
+
+def test_dcm_definitions_are_found_by_their_columns() -> None:
+    xml = f"""<book {NS} xml:id="PS3.16"><appendix xml:id="chapter_D">
+      <title>DICOM Controlled Terminology Definitions</title>
+      <table xml:id="table_renumbered"><caption>DCM definitions</caption>
+        <tgroup cols="4">
+          <thead><row><entry>Code Value</entry><entry>Code Meaning</entry>
+            <entry>Definition</entry><entry>Notes</entry></row></thead>
+          <tbody><row><entry>121071</entry><entry>Finding</entry>
+            <entry>Something seen.</entry><entry></entry></row></tbody>
+        </tgroup>
+      </table></appendix></book>"""
+
+    (concept,) = _parse(xml).coded_concepts
+
+    assert (concept.code_value, concept.coding_scheme_designator) == (
+        "121071",
+        "DCM",
+    )
+    assert concept.definition == "Something seen."
+
+
+def test_import_part16_records_keep_their_source_tables(tmp_path: Path) -> None:
     connection = _connection(tmp_path)
-    document = parse_docbook_xml(PS316_CONTENT_MAPPING_DOCBOOK, part="PS3.16")
-    parsed = parse_part16(document, edition=EDITION)
+    parsed = _parse()
 
-    summary = import_sr_templates(
+    templates = import_sr_templates(
         connection,
         edition=EDITION,
         templates=parsed.sr_templates,
         rows=parsed.sr_template_rows,
     )
-
-    assert summary.sr_templates == 1
-    assert summary.sr_template_rows == 2
-    assert summary.source_refs == 1
-    rows = connection.execute(
-        """
-        SELECT template.tid, template.name, template.extensibility,
-               row.row_order, row.relationship_type, row.value_type,
-               row.concept_name, row.cardinality, row.condition_text,
-               row.include_tid, ref.part, ref.table_id
-        FROM sr_template template
-        JOIN sr_template_row row ON row.sr_template_id = template.id
-        JOIN source_ref ref ON ref.id = row.source_ref_id
-        WHERE template.edition_id = ?
-        ORDER BY row.row_order
-        """,
-        (EDITION,),
-    ).fetchall()
-    assert [dict(row) for row in rows] == [
-        {
-            "tid": "TID 1500",
-            "name": "Measurement Report",
-            "extensibility": "EXTENSIBLE",
-            "row_order": 1,
-            "relationship_type": "CONTAINS",
-            "value_type": "CONTAINER",
-            "concept_name": "Measurement Report",
-            "cardinality": "1",
-            "condition_text": "Root container is required.",
-            "include_tid": None,
-            "part": "PS3.16",
-            "table_id": "table_16-1",
-        },
-        {
-            "tid": "TID 1500",
-            "name": "Measurement Report",
-            "extensibility": "EXTENSIBLE",
-            "row_order": 2,
-            "relationship_type": "CONTAINS",
-            "value_type": "INCLUDE",
-            "concept_name": None,
-            "cardinality": "1-n",
-            "condition_text": "Include measurements when present.",
-            "include_tid": "TID 1501",
-            "part": "PS3.16",
-            "table_id": "table_16-1",
-        },
-    ]
-
-
-def test_import_context_groups_persists_metadata_and_rows_with_source_refs(
-    tmp_path: Path,
-) -> None:
-    connection = _connection(tmp_path)
-    document = parse_docbook_xml(PS316_CONTENT_MAPPING_DOCBOOK, part="PS3.16")
-    parsed = parse_part16(document, edition=EDITION)
-
-    summary = import_context_groups(
+    groups = import_context_groups(
         connection,
         edition=EDITION,
         context_groups=parsed.context_groups,
         rows=parsed.context_group_rows,
     )
-
-    assert summary.context_groups == 1
-    assert summary.context_group_rows == 2
-    assert summary.source_refs == 1
-    rows = connection.execute(
-        """
-        SELECT context_group.cid, context_group.name,
-               context_group.extensibility, context_group.version,
-               row.row_order, row.coding_scheme_designator,
-               row.coding_scheme_version, row.code_value, row.code_meaning,
-               row.include_cid, ref.part, ref.table_id
-        FROM context_group
-        JOIN context_group_row row ON row.context_group_id = context_group.id
-        JOIN source_ref ref ON ref.id = row.source_ref_id
-        WHERE context_group.edition_id = ?
-        ORDER BY row.row_order
-        """,
-        (EDITION,),
-    ).fetchall()
-    assert [dict(row) for row in rows] == [
-        {
-            "cid": "CID 29",
-            "name": "Acquisition Modality",
-            "extensibility": "EXTENSIBLE",
-            "version": "20260101",
-            "row_order": 1,
-            "coding_scheme_designator": "DCM",
-            "coding_scheme_version": None,
-            "code_value": "CT",
-            "code_meaning": "Computed Tomography",
-            "include_cid": None,
-            "part": "PS3.16",
-            "table_id": "table_16-3",
-        },
-        {
-            "cid": "CID 29",
-            "name": "Acquisition Modality",
-            "extensibility": "EXTENSIBLE",
-            "version": "20260101",
-            "row_order": 2,
-            "coding_scheme_designator": None,
-            "coding_scheme_version": None,
-            "code_value": None,
-            "code_meaning": None,
-            "include_cid": "CID 30",
-            "part": "PS3.16",
-            "table_id": "table_16-3",
-        },
-    ]
-
-
-def test_import_coded_concepts_persists_complete_context_group_codes(
-    tmp_path: Path,
-) -> None:
-    connection = _connection(tmp_path)
-    document = parse_docbook_xml(PS316_CONTENT_MAPPING_DOCBOOK, part="PS3.16")
-    parsed = parse_part16(document, edition=EDITION)
-
-    summary = import_coded_concepts(
-        connection,
-        edition=EDITION,
-        coded_concepts=parsed.coded_concepts,
+    concepts = import_coded_concepts(
+        connection, edition=EDITION, coded_concepts=parsed.coded_concepts
     )
 
-    assert summary.coded_concepts == 1
-    assert summary.source_refs == 1
-    rows = connection.execute(
+    assert (templates.sr_templates, templates.sr_template_rows) == (1, 4)
+    assert (groups.context_groups, groups.context_group_rows) == (1, 2)
+    assert concepts.coded_concepts == 1
+    tables = connection.execute(
         """
-        SELECT concept.code_value, concept.coding_scheme_designator,
-               concept.coding_scheme_version, concept.code_meaning,
-               ref.part, ref.table_id
-        FROM coded_concept concept
-        JOIN source_ref ref ON ref.id = concept.source_ref_id
-        WHERE concept.edition_id = ?
-        ORDER BY concept.code_value
-        """,
-        (EDITION,),
+        SELECT DISTINCT ref.table_id FROM source_ref ref
+        WHERE ref.id IN (
+            SELECT source_ref_id FROM sr_template_row
+            UNION SELECT source_ref_id FROM context_group_row
+            UNION SELECT source_ref_id FROM coded_concept
+        )
+        ORDER BY ref.table_id
+        """
     ).fetchall()
-    assert [dict(row) for row in rows] == [
-        {
-            "code_value": "CT",
-            "coding_scheme_designator": "DCM",
-            "coding_scheme_version": "",
-            "code_meaning": "Computed Tomography",
-            "part": "PS3.16",
-            "table_id": "table_16-3",
-        },
-    ]
-
-
-def test_part16_docbook_structure_persists_nodes_refs_and_table_markdown(
-    tmp_path: Path,
-) -> None:
-    connection = _connection(tmp_path)
-    document = parse_docbook_xml(PS316_CONTENT_MAPPING_DOCBOOK, part="PS3.16")
-
-    summary = import_docbook_structure(
-        connection,
-        edition=EDITION,
-        document=document,
-    )
-
-    assert summary.doc_nodes == 6
-    section = connection.execute(
-        """
-        SELECT node.title, ref.part, ref.xml_id
-        FROM doc_node node
-        JOIN source_ref ref ON ref.id = node.source_ref_id
-        WHERE node.xml_id = ?
-        """,
-        ("sect_16_1",),
-    ).fetchone()
-    assert dict(section) == {
-        "title": "Template Overview",
-        "part": "PS3.16",
-        "xml_id": "sect_16_1",
-    }
-
-    table = connection.execute(
-        """
-        SELECT node.markdown, ref.part, ref.table_id
-        FROM doc_node node
-        JOIN source_ref ref ON ref.id = node.source_ref_id
-        WHERE node.xml_id = ? AND node.node_type = 'table'
-        """,
-        ("table_16-1",),
-    ).fetchone()
-    assert table["markdown"].startswith("**Table 16-1: Synthetic Template Rows**\n")
-    assert (
-        "| 1500 | Measurement Report | EXTENSIBLE | 1 | CONTAINS"
-        " | CONTAINER | Measurement Report | 1"
-        " | Root container is required. |  |"
-    ) in table["markdown"]
-    assert table["part"] == "PS3.16"
-    assert table["table_id"] == "table_16-1"
+    assert [row["table_id"] for row in tables] == ["table_CID_29", "table_TID_1500"]

@@ -189,7 +189,7 @@ def test_execute_mcp_tool_returns_compact_markdown(tmp_path: Path) -> None:
             [
                 "**CID 29 Acquisition Modality**",
                 "| DCM | CT | Computed Tomography |",
-                "Includes CID 30",
+                "Includes CID 34",
             ],
         ),
         (

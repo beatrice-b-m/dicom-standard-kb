@@ -24,6 +24,3 @@ PS36_REGISTRY_DOCBOOK = (
 PS316_CONTENT_MAPPING_DOCBOOK = (
     FIXTURE_DIR / "synthetic_ps3_16_content_mapping_docbook.xml"
 ).read_text(encoding="utf-8")
-PS316_OFFICIAL_SHAPE_DOCBOOK = (
-    FIXTURE_DIR / "synthetic_ps3_16_official_shape_docbook.xml"
-).read_text(encoding="utf-8")
