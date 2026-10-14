@@ -10,8 +10,8 @@ from dicom_kb.query.resolver import (
     code_lookup,
     element_usage,
     iod_modules,
-    lookup_uid,
     module_attributes,
+    read_standard,
 )
 from dicom_kb.sources.manifest import SourceManifest
 
@@ -41,21 +41,61 @@ def test_real_kb_resolves_well_known_data_elements_and_uids(
     assert modality.startswith("**(0008,0060) Modality** `Modality` · VR CS · VM 1")
     assert "| CT Series Module | C.8.15.1, Table C.8-113 | 1 |  |" in modality
 
-    little_endian = lookup_uid(
-        connection, uid_or_keyword="1.2.840.10008.1.2.1", edition=edition
+    little_endian = render_markdown(
+        read_standard(connection, reference="1.2.840.10008.1.2.1", edition=edition)
     )
-    assert little_endian.status == "ok"
-    assert little_endian.result is not None
-    assert little_endian.result["uid_name"] == "Explicit VR Little Endian"
-    assert little_endian.result["retired"] is False
+    big_endian = render_markdown(
+        read_standard(connection, reference="ExplicitVRBigEndian", edition=edition)
+    )
 
-    big_endian = lookup_uid(
-        connection, uid_or_keyword="1.2.840.10008.1.2.2", edition=edition
-    )
-    assert big_endian.status == "ok"
-    assert big_endian.result is not None
-    assert big_endian.result["uid_name"] == "Explicit VR Big Endian"
-    assert big_endian.result["retired"] is True
+    assert little_endian.startswith("**1.2.840.10008.1.2.1** Explicit VR Little Endian")
+    assert "| Explicit VR | Little Endian | Native | No |" in little_endian
+    assert big_endian.startswith("**1.2.840.10008.1.2.2** Explicit VR Big Endian")
+    assert "Retired: PS3.5" in big_endian
+
+
+def test_real_kb_every_current_transfer_syntax_has_its_encoding(
+    connection: sqlite3.Connection, edition: str
+) -> None:
+    # Phase 5's bar: VR style, byte order and Pixel Data encoding for every
+    # transfer syntax PS3.5 still specifies, read from Annex A.
+    missing = connection.execute(
+        """
+        SELECT uid.uid_value FROM uid_registry_entry uid
+        LEFT JOIN transfer_syntax_detail ts
+          ON ts.edition_id = uid.edition_id AND ts.uid_value = uid.uid_value
+        WHERE uid.edition_id = ? AND uid.uid_type = 'Transfer Syntax'
+          AND uid.retired = 0
+          AND (ts.vr_encoding IS NULL OR ts.byte_order IS NULL
+               OR ts.pixel_data IS NULL)
+        """,
+        (edition,),
+    ).fetchall()
+    facts = {
+        row["uid_value"]: (row["vr_encoding"], row["byte_order"], row["pixel_data"])
+        for row in connection.execute(
+            "SELECT * FROM transfer_syntax_detail WHERE edition_id = ?", (edition,)
+        )
+    }
+
+    assert [row["uid_value"] for row in missing] == []
+    assert facts["1.2.840.10008.1.2"] == ("Implicit VR", "Little Endian", "Native")
+    assert facts["1.2.840.10008.1.2.4.50"][2] == "Encapsulated"
+    assert facts["1.2.840.10008.1.2.4.94"][2].startswith("Not in the Data Set")
+    assert facts["1.2.840.10008.1.2.7.1"][:2] == ("Explicit VR", "Little Endian")
+
+
+def test_real_kb_reads_every_vr(connection: sqlite3.Connection, edition: str) -> None:
+    vrs = "AE AS AT CS DA DS DT FD FL IS LO LT OB OD OF OL OV OW PN SH SL SQ SS ST SV"
+    for vr in [*vrs.split(), "TM", "UC", "UI", "UL", "UN", "UR", "US", "UT", "UV"]:
+        text = render_markdown(read_standard(connection, reference=vr, edition=edition))
+        assert text.startswith(f"**{vr}** "), text
+        assert "**Explicit VR header:**" in text
+
+    ob = render_markdown(read_standard(connection, reference="OB", edition=edition))
+    us = render_markdown(read_standard(connection, reference="US", edition=edition))
+    assert "2 reserved bytes (0000H), then a 32-bit Value Length" in ob
+    assert "VR, then a 16-bit Value Length" in us
 
 
 def test_real_kb_resolves_ct_modules_from_the_sop_class(
