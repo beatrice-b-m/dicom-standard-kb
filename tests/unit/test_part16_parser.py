@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import sqlite3
 from pathlib import Path
 
@@ -148,7 +147,7 @@ def test_parse_part16_supports_official_shape_tid_and_cid_tables() -> None:
             1,
             None,
             "CONTAINER",
-            "CID 7021 Measurement Report Document Titles",
+            "DCID 7021",
             "1",
             None,
             None,
@@ -157,7 +156,7 @@ def test_parse_part16_supports_official_shape_tid_and_cid_tables() -> None:
             2,
             "> HAS OBS CONTEXT",
             "INCLUDE",
-            "TID 1001 Observation Context",
+            "DTID 1001",
             "1",
             None,
             "TID 1001",
@@ -166,7 +165,7 @@ def test_parse_part16_supports_official_shape_tid_and_cid_tables() -> None:
             3,
             "> CONTAINS",
             "INCLUDE",
-            "TID 1501 Measurement Group",
+            "DTID 1501",
             "1-n",
             None,
             "TID 1501",
@@ -375,7 +374,7 @@ def test_import_coded_concepts_persists_complete_context_group_codes(
     ]
 
 
-def test_part16_docbook_structure_persists_nodes_refs_and_raw_table_ir(
+def test_part16_docbook_structure_persists_nodes_refs_and_table_markdown(
     tmp_path: Path,
 ) -> None:
     connection = _connection(tmp_path)
@@ -388,7 +387,6 @@ def test_part16_docbook_structure_persists_nodes_refs_and_raw_table_ir(
     )
 
     assert summary.doc_nodes == 6
-    assert summary.raw_table_irs == 3
     section = connection.execute(
         """
         SELECT node.title, ref.part, ref.xml_id
@@ -404,18 +402,20 @@ def test_part16_docbook_structure_persists_nodes_refs_and_raw_table_ir(
         "xml_id": "sect_16_1",
     }
 
-    raw_table = connection.execute(
+    table = connection.execute(
         """
-        SELECT ir.ir_json, ir.ir_sha256, ref.part, ref.table_id
-        FROM raw_table_ir ir
-        JOIN source_ref ref ON ref.id = ir.source_ref_id
-        WHERE ir.table_id = ?
+        SELECT node.markdown, ref.part, ref.table_id
+        FROM doc_node node
+        JOIN source_ref ref ON ref.id = node.source_ref_id
+        WHERE node.xml_id = ? AND node.node_type = 'table'
         """,
         ("table_16-1",),
     ).fetchone()
-    payload = json.loads(raw_table["ir_json"])
-    assert payload["title"] == "Synthetic Template Rows"
-    assert payload["rows"][1]["cells"][0]["text"] == "1500"
-    assert len(raw_table["ir_sha256"]) == 64
-    assert raw_table["part"] == "PS3.16"
-    assert raw_table["table_id"] == "table_16-1"
+    assert table["markdown"].startswith("**Table 16-1: Synthetic Template Rows**\n")
+    assert (
+        "| 1500 | Measurement Report | EXTENSIBLE | 1 | CONTAINS"
+        " | CONTAINER | Measurement Report | 1"
+        " | Root container is required. |  |"
+    ) in table["markdown"]
+    assert table["part"] == "PS3.16"
+    assert table["table_id"] == "table_16-1"

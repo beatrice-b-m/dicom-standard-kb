@@ -2,20 +2,17 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 import sqlite3
-from dataclasses import asdict
 
 from dicom_kb.db.importers._shared import (
     ImportSummary,
     _insert_source_ref,
     _unique_source_refs,
 )
-from dicom_kb.docbook.parser import ParsedDocument
+from dicom_kb.docbook.markdown import plain_text
+from dicom_kb.docbook.parser import ParsedDocument, is_informative_title
 from dicom_kb.ir.models import (
     DocNode,
-    RawTableIR,
     SourceRef,
     Xref,
 )
@@ -27,14 +24,11 @@ def import_docbook_structure(
     edition: str,
     document: ParsedDocument,
 ) -> ImportSummary:
-    """Import parsed DocBook structure, xrefs, and raw table snapshots."""
+    """Import every section and table as markdown, indexed for search."""
     nodes = _doc_nodes_from_document(edition, document)
     node_by_xml_id = {node.xml_id: node for node in nodes if node.xml_id is not None}
-    raw_tables = _raw_table_irs_from_document(edition, document)
     xrefs = _xrefs_from_document(edition, document, node_by_xml_id)
-    source_refs = _unique_source_refs(
-        [node.source_ref for node in nodes] + [table.source_ref for table in raw_tables]
-    )
+    source_refs = _unique_source_refs(node.source_ref for node in nodes)
 
     try:
         with connection:
@@ -42,8 +36,6 @@ def import_docbook_structure(
                 _insert_source_ref(connection, source_ref)
             for node in nodes:
                 _insert_doc_node(connection, node)
-            for table in raw_tables:
-                _insert_raw_table_ir(connection, table)
             for xref in xrefs:
                 _insert_xref(connection, xref)
     except sqlite3.IntegrityError as exc:
@@ -57,7 +49,6 @@ def import_docbook_structure(
         doc_nodes=len(nodes),
         xrefs=len(xrefs),
         xrefs_unresolved=sum(1 for xref in xrefs if not xref.resolved),
-        raw_table_irs=len(raw_tables),
     )
 
 
@@ -82,6 +73,7 @@ def _doc_nodes_from_document(
 
     nodes: list[DocNode] = [root]
     section_by_xml_id: dict[str, str] = {}
+    informative_by_xml_id: dict[str, bool] = {}
     for section in document.sections:
         source_ref = SourceRef(
             id=_doc_source_ref_id(
@@ -111,11 +103,14 @@ def _doc_nodes_from_document(
             title=section.title,
             ordinal=section.ordinal,
             plain_text=section.plain_text,
+            markdown=section.markdown,
+            informative=section.informative,
             source_ref=source_ref,
         )
         nodes.append(node)
         if section.xml_id is not None:
             section_by_xml_id[section.xml_id] = node.id
+            informative_by_xml_id[section.xml_id] = section.informative
 
     for table in document.tables:
         source_ref = SourceRef(
@@ -128,9 +123,6 @@ def _doc_nodes_from_document(
             table_id=table.xml_id,
             xml_id=table.xml_id,
             title=table.title,
-        )
-        row_text = " ".join(
-            " ".join(cell.text for cell in row.cells) for row in table.rows
         )
         nodes.append(
             DocNode(
@@ -147,9 +139,13 @@ def _doc_nodes_from_document(
                 ),
                 xml_id=table.xml_id,
                 anchor=table.xml_id,
+                number=table.label,
                 title=table.title,
                 ordinal=table.ordinal,
-                plain_text=row_text,
+                plain_text=plain_text(table.markdown),
+                markdown=table.markdown,
+                informative=informative_by_xml_id.get(table.parent_xml_id or "", False)
+                or is_informative_title(table.title),
                 source_ref=source_ref,
             )
         )
@@ -162,8 +158,8 @@ def _insert_doc_node(connection: sqlite3.Connection, node: DocNode) -> None:
         """
         INSERT INTO doc_node (
           id, edition_id, part, node_type, parent_id, xml_id, anchor, number,
-          title, ordinal, plain_text, source_ref_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          title, ordinal, plain_text, markdown, informative, source_ref_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             node.id,
@@ -177,9 +173,14 @@ def _insert_doc_node(connection: sqlite3.Connection, node: DocNode) -> None:
             node.title,
             node.ordinal,
             node.plain_text,
+            node.markdown,
+            int(node.informative),
             node.source_ref.id,
         ),
     )
+    if node.node_type == "book" or (node.node_type == "table" and not node.xml_id):
+        # Unnamed tables are read in place within their section.
+        return
     connection.execute(
         """
         INSERT INTO doc_node_fts (
@@ -190,30 +191,10 @@ def _insert_doc_node(connection: sqlite3.Connection, node: DocNode) -> None:
             node.id,
             node.edition_id,
             node.part,
-            node.title,
-            node.plain_text,
-        ),
-    )
-
-
-def _insert_raw_table_ir(connection: sqlite3.Connection, table: RawTableIR) -> None:
-    connection.execute(
-        """
-        INSERT INTO raw_table_ir (
-          id, edition_id, part, table_id, title, ordinal, source_ref_id,
-          ir_json, ir_sha256
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            table.id,
-            table.edition_id,
-            table.part,
-            table.table_id,
-            table.title,
-            table.ordinal,
-            table.source_ref.id,
-            table.ir_json,
-            table.ir_sha256,
+            " ".join(item for item in (node.number, node.title) if item),
+            # A section is searched by its own words; its tables are their
+            # own nodes, so a table match points at the table.
+            plain_text(node.markdown) if node.markdown else node.plain_text,
         ),
     )
 
@@ -238,42 +219,6 @@ def _insert_xref(connection: sqlite3.Connection, xref: Xref) -> None:
             xref.text,
         ),
     )
-
-
-def _raw_table_irs_from_document(
-    edition: str, document: ParsedDocument
-) -> tuple[RawTableIR, ...]:
-    records: list[RawTableIR] = []
-    for table in document.tables:
-        payload = json.dumps(asdict(table), sort_keys=True, separators=(",", ":"))
-        digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
-        source_ref = SourceRef(
-            id=_doc_source_ref_id(
-                edition, document.part, "table", table.xml_id, table.ordinal
-            ),
-            edition_id=edition,
-            part=document.part,
-            section=table.parent_xml_id,
-            table_id=table.xml_id,
-            xml_id=table.xml_id,
-            title=table.title,
-        )
-        records.append(
-            RawTableIR(
-                id=_raw_table_ir_id(
-                    edition, document.part, table.xml_id, table.ordinal
-                ),
-                edition_id=edition,
-                part=document.part,
-                table_id=table.xml_id,
-                title=table.title,
-                ordinal=table.ordinal,
-                source_ref=source_ref,
-                ir_json=payload,
-                ir_sha256=digest,
-            )
-        )
-    return tuple(records)
 
 
 def _xrefs_from_document(
@@ -317,7 +262,3 @@ def _doc_source_ref_id(
     edition: str, part: str, node_type: str, xml_id: str | None, ordinal: int
 ) -> str:
     return f"{edition}.{part}.{xml_id or f'{node_type}.{ordinal}'}"
-
-
-def _raw_table_ir_id(edition: str, part: str, xml_id: str | None, ordinal: int) -> str:
-    return f"{edition}.{part}.raw_table_ir.{xml_id or ordinal}"

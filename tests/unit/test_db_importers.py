@@ -1,4 +1,3 @@
-import json
 import sqlite3
 from pathlib import Path
 
@@ -67,7 +66,7 @@ def test_import_part06_and_lookup_tag_uid(tmp_path: Path) -> None:
     assert uid.uid_value == "1.2.840.10008.1.2.1"
 
 
-def test_import_docbook_structure_persists_nodes_xrefs_and_table_ir(
+def test_import_docbook_structure_persists_nodes_xrefs_and_table_markdown(
     tmp_path: Path,
 ) -> None:
     connection = _connection(tmp_path)
@@ -82,7 +81,6 @@ def test_import_docbook_structure_persists_nodes_xrefs_and_table_ir(
     assert summary.doc_nodes == 10
     assert summary.xrefs == 2
     assert summary.xrefs_unresolved == 0
-    assert summary.raw_table_irs == 4
 
     section = connection.execute(
         """
@@ -120,18 +118,16 @@ def test_import_docbook_structure_persists_nodes_xrefs_and_table_ir(
     assert xref["target_node_id"] == "2026b.PS3.3.table_10-7"
     assert xref["resolution_warning"] is None
 
-    raw_table = connection.execute(
+    table_markdown = connection.execute(
         """
-        SELECT ir_json, ir_sha256
-        FROM raw_table_ir
-        WHERE table_id = ?
+        SELECT markdown
+        FROM doc_node
+        WHERE xml_id = ? AND node_type = 'table'
         """,
         ("table_A.3-1",),
-    ).fetchone()
-    payload = json.loads(raw_table["ir_json"])
-    assert payload["title"] == "CT Image IOD Modules"
-    assert payload["rows"][1]["cells"][1]["text"] == "Patient"
-    assert len(raw_table["ir_sha256"]) == 64
+    ).fetchone()["markdown"]
+    assert table_markdown.startswith("**Table A.3-1: CT Image IOD Modules**\n")
+    assert "| Patient | Patient | Section C.7.1.1 | M |" in table_markdown
 
     fts_match = connection.execute(
         """
@@ -143,7 +139,7 @@ def test_import_docbook_structure_persists_nodes_xrefs_and_table_ir(
         """,
         ('"Patient" AND "name"',),
     ).fetchone()
-    assert fts_match["node_id"] == "2026b.PS3.3.sect_C.7.1.1"
+    assert fts_match["node_id"] == "2026b.PS3.3.table_C.7-1"
 
 
 def test_import_docbook_structure_counts_unresolved_xrefs(tmp_path: Path) -> None:

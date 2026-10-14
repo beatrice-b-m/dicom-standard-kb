@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import sqlite3
 from pathlib import Path
 
@@ -265,7 +264,7 @@ def test_import_transfer_syntax_details_persists_joined_uid_rows(
     ]
 
 
-def test_part05_docbook_structure_persists_nodes_refs_and_raw_table_ir(
+def test_part05_docbook_structure_persists_nodes_refs_and_table_markdown(
     tmp_path: Path,
 ) -> None:
     connection = _connection(tmp_path)
@@ -278,7 +277,6 @@ def test_part05_docbook_structure_persists_nodes_refs_and_raw_table_ir(
     )
 
     assert summary.doc_nodes == 5
-    assert summary.raw_table_irs == 2
     section = connection.execute(
         """
         SELECT node.title, ref.part, ref.xml_id
@@ -294,18 +292,20 @@ def test_part05_docbook_structure_persists_nodes_refs_and_raw_table_ir(
         "xml_id": "sect_5_1",
     }
 
-    raw_table = connection.execute(
+    table = connection.execute(
         """
-        SELECT ir.ir_json, ir.ir_sha256, ref.part, ref.table_id
-        FROM raw_table_ir ir
-        JOIN source_ref ref ON ref.id = ir.source_ref_id
-        WHERE ir.table_id = ?
+        SELECT node.markdown, ref.part, ref.table_id
+        FROM doc_node node
+        JOIN source_ref ref ON ref.id = node.source_ref_id
+        WHERE node.xml_id = ? AND node.node_type = 'table'
         """,
         ("table_5-1",),
     ).fetchone()
-    payload = json.loads(raw_table["ir_json"])
-    assert payload["title"] == "Synthetic VR Behaviors"
-    assert payload["rows"][1]["cells"][0]["text"] == "PN"
-    assert len(raw_table["ir_sha256"]) == 64
-    assert raw_table["part"] == "PS3.5"
-    assert raw_table["table_id"] == "table_5-1"
+    assert table["markdown"].startswith("**Table 5-1: Synthetic VR Behaviors**\n")
+    assert (
+        "| PN | Person Name | character string | variable length"
+        " | space padded | uses the default character repertoire"
+        " | text |"
+    ) in table["markdown"]
+    assert table["part"] == "PS3.5"
+    assert table["table_id"] == "table_5-1"
