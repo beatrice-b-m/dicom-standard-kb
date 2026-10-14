@@ -24,3 +24,12 @@ PS36_REGISTRY_DOCBOOK = (
 PS316_CONTENT_MAPPING_DOCBOOK = (
     FIXTURE_DIR / "synthetic_ps3_16_content_mapping_docbook.xml"
 ).read_text(encoding="utf-8")
+
+# One synthetic DocBook file per part the build parses.
+SYNTHETIC_PARTS = {
+    "PS3.3": "synthetic_ps3_3_ct_image_docbook.xml",
+    "PS3.4": "synthetic_ps3_4_sop_classes_docbook.xml",
+    "PS3.5": "synthetic_ps3_5_encoding_docbook.xml",
+    "PS3.6": "synthetic_ps3_6_registry_docbook.xml",
+    "PS3.16": "synthetic_ps3_16_content_mapping_docbook.xml",
+}

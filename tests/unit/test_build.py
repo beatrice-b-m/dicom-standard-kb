@@ -28,15 +28,7 @@ from dicom_kb.sources.downloader import (
     official_artifact_destination,
     register_local_artifacts,
 )
-from tests.fixtures_synthetic import EDITION, FIXTURE_DIR
-
-SYNTHETIC_PARTS = {
-    "PS3.3": "synthetic_ps3_3_ct_image_docbook.xml",
-    "PS3.4": "synthetic_ps3_4_sop_classes_docbook.xml",
-    "PS3.5": "synthetic_ps3_5_encoding_docbook.xml",
-    "PS3.6": "synthetic_ps3_6_registry_docbook.xml",
-    "PS3.16": "synthetic_ps3_16_content_mapping_docbook.xml",
-}
+from tests.fixtures_synthetic import EDITION, FIXTURE_DIR, SYNTHETIC_PARTS
 
 
 def _register_synthetic_parts(

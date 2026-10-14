@@ -8,27 +8,6 @@ from click.utils import strip_ansi
 from typer.testing import CliRunner
 
 from dicom_kb.cli.main import app
-from dicom_kb.db.importers import (
-    import_attribute_value_terms,
-    import_coded_concepts,
-    import_context_groups,
-    import_docbook_structure,
-    import_part03,
-    import_part04,
-    import_part06,
-    import_sr_templates,
-    import_transfer_syntax_details,
-)
-from dicom_kb.db.models import apply_migrations, connect_sqlite
-from dicom_kb.docbook.parser import parse_docbook_xml
-from dicom_kb.parsers.part03_iods import parse_part03
-from dicom_kb.parsers.part04_sop_classes import parse_part04
-from dicom_kb.parsers.part05_encoding import (
-    TransferSyntaxUID,
-    parse_transfer_syntaxes,
-)
-from dicom_kb.parsers.part06_data_dictionary import parse_part06
-from dicom_kb.parsers.part16_content_mapping import parse_part16
 from dicom_kb.sources.downloader import (
     DEFAULT_DOCBOOK_PARTS,
     official_docbook_xml_url,
@@ -36,11 +15,6 @@ from dicom_kb.sources.downloader import (
 from tests.fixtures_synthetic import (
     EDITION,
     FIXTURE_DIR,
-    PS33_CT_IMAGE_DOCBOOK,
-    PS34_SOP_CLASSES_DOCBOOK,
-    PS35_ENCODING_DOCBOOK,
-    PS36_REGISTRY_DOCBOOK,
-    PS316_CONTENT_MAPPING_DOCBOOK,
 )
 
 _RICH_BOX_CHARS = str.maketrans("", "", "\u256d\u2500\u256e\u2502\u2570\u256f")
@@ -56,108 +30,9 @@ class _FakeResponse(BytesIO):
         self.close()
 
 
-def _fixture_db(tmp_path: Path) -> Path:
-    db_path = tmp_path / "kb.sqlite"
-    connection = connect_sqlite(db_path)
-    apply_migrations(connection)
-    parsed = parse_part06(
-        parse_docbook_xml(PS36_REGISTRY_DOCBOOK, part="PS3.6"),
-        edition=EDITION,
-    )
-    import_part06(
-        connection,
-        edition=EDITION,
-        data_elements=parsed.data_elements,
-        uid_registry_entries=parsed.uid_registry_entries,
-    )
-    part05_document = parse_docbook_xml(PS35_ENCODING_DOCBOOK, part="PS3.5")
-    import_docbook_structure(
-        connection,
-        edition=EDITION,
-        document=part05_document,
-    )
-    import_transfer_syntax_details(
-        connection,
-        edition=EDITION,
-        transfer_syntax_details=parse_transfer_syntaxes(
-            part05_document,
-            edition=EDITION,
-            transfer_syntaxes=[
-                TransferSyntaxUID(uid=entry.uid_value, retired=entry.retired)
-                for entry in parsed.uid_registry_entries
-                if entry.uid_type == "Transfer Syntax"
-            ],
-        ).details,
-    )
-    part03_document = parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3")
-    import_docbook_structure(
-        connection,
-        edition=EDITION,
-        document=part03_document,
-    )
-    parsed_part03 = parse_part03(part03_document, edition=EDITION)
-    import_part03(
-        connection,
-        edition=EDITION,
-        iods=parsed_part03.iods,
-        modules=parsed_part03.modules,
-        macros=parsed_part03.macros,
-        iod_module_uses=parsed_part03.iod_module_uses,
-        iod_functional_group_uses=parsed_part03.iod_functional_group_uses,
-        attribute_uses=parsed_part03.attribute_uses,
-        conditions=parsed_part03.conditions,
-    )
-    import_attribute_value_terms(
-        connection,
-        edition=EDITION,
-        document=part03_document,
-    )
-    parsed_part04 = parse_part04(
-        parse_docbook_xml(PS34_SOP_CLASSES_DOCBOOK, part="PS3.4"),
-        edition=EDITION,
-        iod_id_by_ref={
-            "sect_A.3": f"{EDITION}.iod.ct_image",
-            "sect_A.38": f"{EDITION}.iod.enhanced_ct_image",
-        },
-    )
-    import_part04(
-        connection,
-        edition=EDITION,
-        service_classes=parsed_part04.service_classes,
-        sop_classes=parsed_part04.sop_classes,
-        sop_class_iods=parsed_part04.sop_class_iods,
-    )
-    part16_document = parse_docbook_xml(PS316_CONTENT_MAPPING_DOCBOOK, part="PS3.16")
-    import_docbook_structure(
-        connection,
-        edition=EDITION,
-        document=part16_document,
-    )
-    parsed_part16 = parse_part16(part16_document, edition=EDITION)
-    import_sr_templates(
-        connection,
-        edition=EDITION,
-        templates=parsed_part16.sr_templates,
-        rows=parsed_part16.sr_template_rows,
-    )
-    import_context_groups(
-        connection,
-        edition=EDITION,
-        context_groups=parsed_part16.context_groups,
-        rows=parsed_part16.context_group_rows,
-    )
-    import_coded_concepts(
-        connection,
-        edition=EDITION,
-        coded_concepts=parsed_part16.coded_concepts,
-    )
-    connection.close()
-    return db_path
-
-
-def _invoke(tmp_path: Path, *args: str) -> str:
+def _invoke(db_path: Path, *args: str) -> str:
     result = CliRunner().invoke(
-        app, [*args, "--edition", EDITION, "--db", str(_fixture_db(tmp_path))]
+        app, [*args, "--edition", EDITION, "--db", str(db_path)]
     )
     assert result.exit_code == 0, result.output
     return result.output
@@ -267,9 +142,9 @@ def _invoke(tmp_path: Path, *args: str) -> str:
     ],
 )
 def test_cli_query_commands_print_markdown(
-    tmp_path: Path, args: list[str], expected: list[str]
+    fixture_db: Path, args: list[str], expected: list[str]
 ) -> None:
-    output = _invoke(tmp_path, *args)
+    output = _invoke(fixture_db, *args)
 
     for fragment in expected:
         assert fragment in output
