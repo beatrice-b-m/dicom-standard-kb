@@ -6,38 +6,32 @@ from typing import Literal, TypedDict
 
 MCPToolName = Literal[
     "dicom_lookup_uid",
-    "dicom_lookup_enumerated_values",
-    "dicom_lookup_defined_terms",
     "dicom_lookup_vr",
     "dicom_lookup_transfer_syntax",
     "dicom_explain_encoding_rule",
     "dicom_lookup_media_type",
     "dicom_lookup_dicomweb_transaction",
-    "dicom_lookup_sr_template",
-    "dicom_lookup_context_group",
-    "dicom_lookup_code_meaning",
     "dicom_element",
     "dicom_iod",
     "dicom_module",
+    "dicom_values",
+    "dicom_code",
     "dicom_search",
     "dicom_read",
 ]
 
 MCP_TOOL_NAMES: tuple[MCPToolName, ...] = (
     "dicom_lookup_uid",
-    "dicom_lookup_enumerated_values",
-    "dicom_lookup_defined_terms",
     "dicom_lookup_vr",
     "dicom_lookup_transfer_syntax",
     "dicom_explain_encoding_rule",
     "dicom_lookup_media_type",
     "dicom_lookup_dicomweb_transaction",
-    "dicom_lookup_sr_template",
-    "dicom_lookup_context_group",
-    "dicom_lookup_code_meaning",
     "dicom_element",
     "dicom_iod",
     "dicom_module",
+    "dicom_values",
+    "dicom_code",
     "dicom_search",
     "dicom_read",
 )
@@ -54,14 +48,6 @@ MCP_TOOL_SPECS: tuple[MCPToolSpec, ...] = (
     {
         "name": "dicom_lookup_uid",
         "description": "Look up a DICOM PS3.6 UID registry entry by UID or keyword.",
-    },
-    {
-        "name": "dicom_lookup_enumerated_values",
-        "description": "Look up parsed DICOM enumerated values for an attribute.",
-    },
-    {
-        "name": "dicom_lookup_defined_terms",
-        "description": "Look up parsed DICOM defined terms for an attribute.",
     },
     {
         "name": "dicom_lookup_vr",
@@ -87,20 +73,6 @@ MCP_TOOL_SPECS: tuple[MCPToolSpec, ...] = (
         "name": "dicom_lookup_dicomweb_transaction",
         "description": (
             "Look up a PS3.18 DICOMweb transaction by name or route template."
-        ),
-    },
-    {
-        "name": "dicom_lookup_sr_template",
-        "description": "Look up a DICOM PS3.16 SR template by TID or name.",
-    },
-    {
-        "name": "dicom_lookup_context_group",
-        "description": "Look up a DICOM PS3.16 context group by CID or name.",
-    },
-    {
-        "name": "dicom_lookup_code_meaning",
-        "description": (
-            "Look up a DICOM PS3.16 coded concept by code value and optional scheme."
         ),
     },
     {
@@ -130,6 +102,26 @@ MCP_TOOL_SPECS: tuple[MCPToolSpec, ...] = (
             "description. Takes a name ('General Series', 'Code Sequence "
             "Macro') or a table ('Table C.7-5a'). Long answers come in pages; "
             "pass page to continue."
+        ),
+    },
+    {
+        "name": "dicom_values",
+        "description": (
+            "What an attribute may hold: its enumerated values and defined "
+            "terms with their meanings, and for a code sequence the context "
+            "groups (BCID/DCID) each module names for it. Takes a tag, keyword "
+            "or name. Pass within (an IOD, module or macro, e.g. 'CT Image') "
+            "to keep only what applies there. Long answers come in pages."
+        ),
+    },
+    {
+        "name": "dicom_code",
+        "description": (
+            "PS3.16 terminology. 'CID 4031' lists a context group's codes with "
+            "included groups expanded; 'TID 1500' reads a template; a code "
+            "('121071', '(121071, DCM)' or code with scheme) gives its meaning, "
+            "DCM definition and the groups that list it. Group, template or "
+            "code meaning names work too. Long answers come in pages."
         ),
     },
     {

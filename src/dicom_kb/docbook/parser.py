@@ -87,7 +87,7 @@ def parse_docbook_root(
         part=part,
         sections=tuple(_parse_sections(root, renderer, tables)),
         tables=tables,
-        variablelists=tuple(parse_variablelists(root)),
+        variablelists=tuple(parse_variablelists(root, renderer)),
         xrefs=xrefs,
         warnings=warnings,
         # Cells render twice (parsed text and table markdown); log each once.

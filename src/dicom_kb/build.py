@@ -58,7 +58,7 @@ from dicom_kb.sources.manifest import (
     utc_now,
 )
 
-SCHEMA_VERSION = "10"
+SCHEMA_VERSION = "11"
 DOCBOOK_XML_FORMAT = "docbook_xml"
 
 
