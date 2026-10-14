@@ -6,11 +6,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from dicom_kb.db.repositories import (
-    AttributeValueTermRecord,
-)
 from dicom_kb.ir.models import (
-    DataElement,
     DocNode,
     SourceRef,
     UIDRegistryEntry,
@@ -111,68 +107,6 @@ class DicomMediaTypeResult(BaseModel):
     directions: list[str] = Field(default_factory=list)
 
 
-class SRTemplateRowResult(BaseModel):
-    """V2 payload row for a PS3.16 SR template."""
-
-    model_config = ConfigDict(frozen=True)
-
-    order: int
-    relationship_type: str | None = None
-    value_type: str | None = None
-    concept_name: str | None = None
-    cardinality: str | None = None
-    condition: str | None = None
-    include_tid: str | None = None
-
-
-class SRTemplateResult(BaseModel):
-    """V2 payload for PS3.16 SR template metadata and rows."""
-
-    model_config = ConfigDict(frozen=True)
-
-    tid: str
-    name: str
-    extensibility: str | None = None
-    rows: list[SRTemplateRowResult] = Field(default_factory=list)
-
-
-class ContextGroupRowResult(BaseModel):
-    """V2 payload row for a PS3.16 context group."""
-
-    model_config = ConfigDict(frozen=True)
-
-    order: int
-    coding_scheme_designator: str | None = None
-    coding_scheme_version: str | None = None
-    code_value: str | None = None
-    code_meaning: str | None = None
-    include_cid: str | None = None
-
-
-class ContextGroupResult(BaseModel):
-    """V2 payload for PS3.16 context-group metadata and rows."""
-
-    model_config = ConfigDict(frozen=True)
-
-    cid: str
-    name: str
-    extensibility: str | None = None
-    version: str | None = None
-    rows: list[ContextGroupRowResult] = Field(default_factory=list)
-
-
-class CodeMeaningResult(BaseModel):
-    """V2 payload for a coded concept lookup."""
-
-    model_config = ConfigDict(frozen=True)
-
-    code_value: str
-    coding_scheme_designator: str
-    coding_scheme_version: str | None = None
-    code_meaning: str
-    context_groups: list[str] = Field(default_factory=list)
-
-
 def tool_response(
     *,
     status: ResponseStatus,
@@ -187,18 +121,6 @@ def tool_response(
         refs=refs or [],
         warnings=warnings or [],
     )
-
-
-def data_element_result(element: DataElement) -> dict[str, Any]:
-    """Return the public result payload for a data element."""
-    return {
-        "tag": element.tag,
-        "name": element.name,
-        "keyword": element.keyword,
-        "vr": element.vr,
-        "vm": element.vm,
-        "retired": element.retired,
-    }
 
 
 def uid_result(uid: UIDRegistryEntry) -> dict[str, Any]:
@@ -317,58 +239,6 @@ def dicom_media_type_result(
     ).model_dump(mode="json")
 
 
-def sr_template_result(
-    *,
-    tid: str,
-    name: str,
-    extensibility: str | None = None,
-    rows: list[SRTemplateRowResult] | None = None,
-) -> dict[str, Any]:
-    """Return the public v2 result payload for an SR template."""
-    return SRTemplateResult(
-        tid=tid,
-        name=name,
-        extensibility=extensibility,
-        rows=rows or [],
-    ).model_dump(mode="json")
-
-
-def context_group_result(
-    *,
-    cid: str,
-    name: str,
-    extensibility: str | None = None,
-    version: str | None = None,
-    rows: list[ContextGroupRowResult] | None = None,
-) -> dict[str, Any]:
-    """Return the public v2 result payload for a context group."""
-    return ContextGroupResult(
-        cid=cid,
-        name=name,
-        extensibility=extensibility,
-        version=version,
-        rows=rows or [],
-    ).model_dump(mode="json")
-
-
-def code_meaning_result(
-    *,
-    code_value: str,
-    coding_scheme_designator: str,
-    code_meaning: str,
-    coding_scheme_version: str | None = None,
-    context_groups: list[str] | None = None,
-) -> dict[str, Any]:
-    """Return the public v2 result payload for a coded concept."""
-    return CodeMeaningResult(
-        code_value=code_value,
-        coding_scheme_designator=coding_scheme_designator,
-        coding_scheme_version=coding_scheme_version,
-        code_meaning=code_meaning,
-        context_groups=context_groups or [],
-    ).model_dump(mode="json")
-
-
 def standard_text_result(
     node: DocNode,
     tables: list[DocNode],
@@ -387,26 +257,6 @@ def standard_text_result(
                 "title": table.title,
             }
             for table in tables
-        ],
-    }
-
-
-def attribute_value_terms_result(
-    attribute: DataElement | None,
-    records: list[AttributeValueTermRecord],
-) -> dict[str, Any]:
-    """Return parsed enumerated values or defined terms for an attribute."""
-    return {
-        "attribute": data_element_result(attribute) if attribute is not None else None,
-        "terms": [
-            {
-                "value": record.term.value,
-                "meaning": record.term.meaning,
-                "term_kind": record.term.term_kind,
-                "context_label": record.term.context_label,
-                "attribute_use_id": record.term.attribute_use_id,
-            }
-            for record in records
         ],
     }
 
