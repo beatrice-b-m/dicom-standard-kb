@@ -86,6 +86,9 @@ PS33 = """\
           <th>Attribute Description</th></tr></thead>
         <tbody>
           <tr><td>Image Type</td><td>(0008,0008)</td><td>1</td><td>Type.</td></tr>
+          <tr><td>Purpose of Reference Code Sequence</td><td>(0040,A170)</td>
+              <td>1</td><td>Purpose.</td></tr>
+          <tr><td>&gt;Include <xref linkend="table_8.8-1"/></td><td/><td/><td/></tr>
         </tbody>
       </table>
     </section>
@@ -146,7 +149,9 @@ def _markdown(response: object) -> str:
 
 def test_module_expands_each_macro_once_and_keeps_headings(tmp_path: Path) -> None:
     text = _markdown(
-        module_attributes(_connection(tmp_path), name="Thing Series", edition="2026d")
+        module_attributes(
+            _connection(tmp_path), name="Thing Series", detail="full", edition="2026d"
+        )
     )
 
     assert text.startswith("**Thing Series Module** (C.1, Table C.1-1)")
@@ -209,7 +214,11 @@ def test_iod_follows_the_row_name_when_its_reference_points_elsewhere(
 def test_iod_checklist_lists_modules_then_functional_groups(tmp_path: Path) -> None:
     text = _markdown(
         iod_modules(
-            _connection(tmp_path), name="Thing IOD", expand=True, edition="2026d"
+            _connection(tmp_path),
+            name="Thing IOD",
+            expand=True,
+            usage="M,C,U",
+            edition="2026d",
         )
     )
 
@@ -217,10 +226,124 @@ def test_iod_checklist_lists_modules_then_functional_groups(tmp_path: Path) -> N
     assert (
         "### Enhanced Thing Module: C: Required if enhanced. (C.2, Table C.2-1)" in text
     )
-    # Only conditional attributes keep their description in the checklist.
+    # Only conditional attributes keep a description: their condition.
     assert "| Modality | (0008,0060) | CS | 1 | 1 |  |" in text
-    assert "| >CodeValue | (0008,0100) | SH | 1 | 1C | The code." in text
+    assert "| >CodeValue | (0008,0100) | SH | 1 | 1C | Required if short. |" in text
     assert text.index("## Functional group macros") > text.index("### Worklist")
+    assert "### Code Sequence Macro: M (Table 8.8-1)\n\nListed above." in text
+
+
+def test_module_outline_keeps_macros_as_one_line(tmp_path: Path) -> None:
+    connection = _connection(tmp_path)
+    text = _markdown(
+        module_attributes(connection, name="Thing Series", edition="2026d")
+    )
+    lines = text.splitlines()
+
+    assert (
+        '| >Include Table 8.8-1 DCID 4 "Anatomic Region" (Code Sequence Macro) '
+        "(2 attributes) |"
+    ) in lines
+    assert "CodeValue" not in text
+    assert lines[-3] == (
+        '2 macro includes not expanded; open one with dicom_module("<macro>"). '
+        "Descriptions cut to their first sentence and condition. Everything: "
+        'dicom_module("Thing Series", detail="full").'
+    )
+    macro = _markdown(
+        module_attributes(connection, name="Code Sequence Macro", edition="2026d")
+    )
+    assert (
+        "| CodeValue | (0008,0100) | SH | 1 | 1C | The code. Required if short. |"
+        in macro
+    )
+
+
+def test_module_type_filter_leaves_out_optional_sequences(tmp_path: Path) -> None:
+    text = _markdown(
+        module_attributes(
+            _connection(tmp_path), name="Thing Series", types="1,1C", edition="2026d"
+        )
+    )
+
+    assert "| Modality | (0008,0060) | CS | 1 | 1 | Kind. |" in text
+    assert "AnatomicRegionSequence" not in text.split("\n\n")[1]
+    assert (
+        "Kept Type 1/1C, in sequences of those Types. Not shown: 2 attributes of "
+        "other Types. 2 Type 1/1C attributes sit inside sequences of other Types: "
+        "Anatomic Region Sequence (1), Series Type Code Sequence (1)."
+    ) in text
+
+
+def test_module_type_filter_expands_macros_in_kept_sequences(
+    tmp_path: Path,
+) -> None:
+    text = _markdown(
+        module_attributes(
+            _connection(tmp_path),
+            name="Enhanced Thing",
+            types="required",
+            edition="2026d",
+        )
+    )
+    lines = text.splitlines()
+
+    assert (
+        "| Purpose of Reference Code Sequence | (0040,A170) |  |  | 1 | Purpose. |"
+        in lines
+    )
+    assert "| >Include Table 8.8-1 (Code Sequence Macro) |" in lines
+    assert (
+        "| >CodeValue | (0008,0100) | SH | 1 | 1C | The code. Required if short. |"
+        in lines
+    )
+    assert "EquivalentCodeSequence" not in text.split("\n\n")[1]
+
+
+def test_module_rejects_an_unknown_type(tmp_path: Path) -> None:
+    response = module_attributes(
+        _connection(tmp_path), name="Thing Series", types="1,4", edition="2026d"
+    )
+
+    assert response.status == "validation_error"
+
+
+def test_iod_checklist_leaves_out_u_modules_and_names_them(tmp_path: Path) -> None:
+    text = _markdown(
+        iod_modules(_connection(tmp_path), name="Thing", expand=True, edition="2026d")
+    )
+
+    assert "### Worklist" not in text
+    assert (
+        'Modules not shown: Worklist (U). Add them with usage="M,C,U", or name '
+        'one with module="<module>".'
+    ) in text
+
+
+def test_iod_module_filter_lists_only_that_module(tmp_path: Path) -> None:
+    text = _markdown(
+        iod_modules(
+            _connection(tmp_path), name="Thing", module="Worklist", edition="2026d"
+        )
+    )
+
+    assert "### Worklist Module: U (C.3, Table C.3-1)" in text
+    assert "### Thing Series" not in text
+    assert "Modules not shown" not in text
+
+
+def test_iod_type_filter_lists_a_macro_where_it_is_first_shown(
+    tmp_path: Path,
+) -> None:
+    # The Code Sequence Macro first sits in Thing Series' optional sequences,
+    # which the filter leaves out, so it is listed under Enhanced Thing.
+    text = _markdown(
+        iod_modules(_connection(tmp_path), name="Thing", types="1,1C", edition="2026d")
+    )
+
+    enhanced = text.index("### Enhanced Thing")
+    assert text.index("| >Include Table 8.8-1 (Code Sequence Macro) |") > enhanced
+    assert "(listed above)" not in text
     assert "### Code Sequence Macro: M (Table 8.8-1)\n\nListed above." in text
 
 
