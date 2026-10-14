@@ -7,19 +7,25 @@ from dataclasses import dataclass, field, replace
 
 from lxml import etree
 
+from dicom_kb.docbook.markdown import MarkdownRenderer, plain_text
 from dicom_kb.docbook.namespaces import NSMAP, xml_id_name
+from dicom_kb.docbook.targets import element_label
 from dicom_kb.docbook.text_chunks import normalize_text
 
 INCLUDE_TABLE_RE = re.compile(
     r"^Include\s+Table\s+(?P<table_ref>[A-Za-z0-9_.-]+)\s*(?P<title>.*)$",
     re.IGNORECASE,
 )
-INCLUDE_XREF_RE = re.compile(r"^(?P<depth>>*)\s*Include\s*$", re.IGNORECASE)
+# ">Include Table 10-1 …" once the reference in the cell is resolved.
+INCLUDE_XREF_RE = re.compile(
+    r"^(?P<depth>>*)\s*Include\s+(?:PS3\.\d+\s+)?(?:Table|Section|Annex)\s",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
 class ParsedCell:
-    """A normalized DocBook table cell."""
+    """A DocBook table cell; references in its text are resolved."""
 
     text: str
     row: int
@@ -51,6 +57,8 @@ class ParsedTable:
     warnings: tuple[str, ...] = ()
     parent_xml_id: str | None = None
     ordinal: int = 0
+    label: str | None = None
+    markdown: str = ""
 
 
 @dataclass
@@ -69,14 +77,18 @@ class _Occupancy:
                 self.used[(row + row_offset, column + column_offset)] = True
 
 
-def parse_tables(root: etree._Element) -> list[ParsedTable]:
+def parse_tables(
+    root: etree._Element, renderer: MarkdownRenderer | None = None
+) -> list[ParsedTable]:
     """Parse DocBook tables and informaltables from a document root."""
+    if renderer is None:
+        renderer = MarkdownRenderer.for_document(root, part="")
     tables: list[ParsedTable] = []
     for ordinal, table in enumerate(
         root.xpath(".//db:table | .//db:informaltable", namespaces=NSMAP)
     ):
         if isinstance(table, etree._Element):
-            parsed = parse_table(table)
+            parsed = parse_table(table, renderer)
             tables.append(
                 replace(
                     parsed,
@@ -87,8 +99,12 @@ def parse_tables(root: etree._Element) -> list[ParsedTable]:
     return tables
 
 
-def parse_table(table: etree._Element) -> ParsedTable:
+def parse_table(
+    table: etree._Element, renderer: MarkdownRenderer | None = None
+) -> ParsedTable:
     """Parse one DocBook table-like element."""
+    if renderer is None:
+        renderer = MarkdownRenderer.for_document(table.getroottree().getroot(), part="")
     title = _first_text(table, "db:title") or _first_text(table, "db:caption")
     warnings: list[str] = []
     rows: list[ParsedRow] = []
@@ -100,7 +116,7 @@ def parse_table(table: etree._Element) -> ParsedTable:
         for row in table.xpath(row_xpath, namespaces=NSMAP):
             if not isinstance(row, etree._Element):
                 continue
-            parsed_cells = _parse_row(row, row_index, occupancy, warnings)
+            parsed_cells = _parse_row(row, row_index, occupancy, warnings, renderer)
             rows.append(_classify_row(parsed_cells, row_index, section_name))
             row_index += 1
 
@@ -108,7 +124,7 @@ def parse_table(table: etree._Element) -> ParsedTable:
         for row in table.xpath(".//db:row | .//db:tr", namespaces=NSMAP):
             if not isinstance(row, etree._Element):
                 continue
-            parsed_cells = _parse_row(row, row_index, occupancy, warnings)
+            parsed_cells = _parse_row(row, row_index, occupancy, warnings, renderer)
             rows.append(_classify_row(parsed_cells, row_index, "tbody"))
             row_index += 1
 
@@ -117,6 +133,8 @@ def parse_table(table: etree._Element) -> ParsedTable:
         title=title,
         rows=tuple(rows),
         warnings=tuple(warnings),
+        label=element_label(table),
+        markdown=renderer.table(table),
     )
 
 
@@ -125,6 +143,7 @@ def _parse_row(
     row_index: int,
     occupancy: _Occupancy,
     warnings: list[str],
+    renderer: MarkdownRenderer,
 ) -> tuple[ParsedCell, ...]:
     cells: list[ParsedCell] = []
     column = 0
@@ -141,7 +160,7 @@ def _parse_row(
         occupancy.mark(row_index, column, rowspan, colspan)
         cells.append(
             ParsedCell(
-                text=normalize_text("".join(entry.itertext())),
+                text=plain_text(renderer.inline_text(entry)),
                 row=row_index,
                 column=column,
                 colspan=colspan,
@@ -156,6 +175,19 @@ def _parse_row(
 def _classify_row(
     cells: tuple[ParsedCell, ...], row_index: int, section_name: str
 ) -> ParsedRow:
+    # An include written as a reference names its table by id; prefer that
+    # over the label in the resolved text.
+    if cells:
+        first_cell = cells[0]
+        if INCLUDE_XREF_RE.match(first_cell.text) and first_cell.xrefs:
+            return ParsedRow(
+                cells=cells,
+                row_index=row_index,
+                section=section_name,
+                row_kind="include",
+                include_table_ref=first_cell.xrefs[0],
+                include_title=None,
+            )
     row_text = normalize_text(" ".join(cell.text for cell in cells))
     include_match = INCLUDE_TABLE_RE.match(row_text)
     if include_match:
@@ -168,17 +200,6 @@ def _classify_row(
             include_table_ref=include_match.group("table_ref"),
             include_title=include_title or None,
         )
-    if cells:
-        first_cell = cells[0]
-        if INCLUDE_XREF_RE.match(first_cell.text) and first_cell.xrefs:
-            return ParsedRow(
-                cells=cells,
-                row_index=row_index,
-                section=section_name,
-                row_kind="include",
-                include_table_ref=first_cell.xrefs[0],
-                include_title=None,
-            )
     return ParsedRow(cells=cells, row_index=row_index, section=section_name)
 
 

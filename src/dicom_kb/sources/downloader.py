@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import shutil
+import time
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path
@@ -22,17 +23,11 @@ from dicom_kb.sources.manifest import (
 DEFAULT_CACHE_DIR = Path.home() / ".cache" / "dicom-standard-kb"
 DEFAULT_DICOM_CURRENT_BASE_URL = "https://dicom.nema.org/medical/dicom/current/"
 DOCBOOK_XML_FORMAT = "docbook_xml"
-DEFAULT_DOCBOOK_PARTS = (
-    "PS3.3",
-    "PS3.4",
-    "PS3.5",
-    "PS3.6",
-    "PS3.7",
-    "PS3.8",
-    "PS3.10",
-    "PS3.16",
-    "PS3.18",
+# Every part published in the current edition; PS3.9 and PS3.13 are retired.
+DEFAULT_DOCBOOK_PARTS = tuple(
+    f"PS3.{number}" for number in (*range(1, 9), 10, 11, 12, *range(14, 23))
 )
+DOWNLOAD_ATTEMPTS = 4
 EDITION_RE = re.compile(r"^20\d{2}[a-z]$")
 OFFICIAL_EDITION_RE = re.compile(r"DocBookDICOM(20\d{2}[a-z])_release_docbook_")
 RELEASE_NOTES_EDITION_RE = re.compile(r"releasenotes_(20\d{2}[a-z])\.xml")
@@ -182,9 +177,29 @@ def download_artifact(url: str, destination: Path, *, force: bool = False) -> Pa
     if destination.exists() and not force:
         raise ArtifactExistsError(f"artifact already exists: {destination}")
     destination.parent.mkdir(parents=True, exist_ok=True)
-    with urlopen(url, timeout=60) as response, destination.open("wb") as handle:
-        shutil.copyfileobj(response, handle)
-    return destination
+    partial = destination.with_name(f"{destination.name}.part")
+    # NEMA connections sometimes reset or close early without an error; a
+    # short file would otherwise fail much later as malformed XML.
+    problem = ""
+    for attempt in range(DOWNLOAD_ATTEMPTS):
+        if attempt:
+            time.sleep(2**attempt)
+        try:
+            with urlopen(url, timeout=60) as response, partial.open("wb") as handle:
+                shutil.copyfileobj(response, handle)
+                expected = response.headers.get("Content-Length")
+        except OSError as exc:
+            problem = str(exc)
+            continue
+        received = partial.stat().st_size
+        if expected is None or int(expected) == received:
+            partial.replace(destination)
+            return destination
+        problem = f"stopped at {received} of {expected} bytes"
+    partial.unlink(missing_ok=True)
+    raise OfficialFetchError(
+        f"download of {url} failed after {DOWNLOAD_ATTEMPTS} attempts: {problem}"
+    )
 
 
 class _HrefParser(HTMLParser):

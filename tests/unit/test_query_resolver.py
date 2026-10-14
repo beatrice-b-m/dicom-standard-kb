@@ -50,9 +50,9 @@ from dicom_kb.query.resolver import (
     lookup_transfer_syntax,
     lookup_uid,
     lookup_vr,
+    read_standard,
     resolve_attribute_context,
-    retrieve_standard_text,
-    search_standard_text,
+    search_standard,
 )
 from tests.fixtures_synthetic import (
     PS33_CT_IMAGE_DOCBOOK,
@@ -625,13 +625,12 @@ def test_v1_tool_responses_render_markdown_with_source(tmp_path: Path) -> None:
             iod_name="CT Image",
             edition="2026b",
         ),
-        retrieve_standard_text(
+        read_standard(
             document_connection,
-            part="PS3.3",
-            section_or_anchor="sect_A.3",
+            reference="PS3.3 A.3",
             edition="2026b",
         ),
-        search_standard_text(
+        search_standard(
             document_connection,
             query="Patient",
             edition="2026b",
@@ -1510,7 +1509,7 @@ def test_part16_resolvers_return_official_shape_fixture_rows(
                 "order": 1,
                 "relationship_type": None,
                 "value_type": "CONTAINER",
-                "concept_name": "CID 7021 Measurement Report Document Titles",
+                "concept_name": "DCID 7021",
                 "cardinality": "1",
                 "condition": None,
                 "include_tid": None,
@@ -1519,7 +1518,7 @@ def test_part16_resolvers_return_official_shape_fixture_rows(
                 "order": 2,
                 "relationship_type": "> HAS OBS CONTEXT",
                 "value_type": "INCLUDE",
-                "concept_name": "TID 1001 Observation Context",
+                "concept_name": "DTID 1001",
                 "cardinality": "1",
                 "condition": None,
                 "include_tid": "TID 1001",
@@ -1528,7 +1527,7 @@ def test_part16_resolvers_return_official_shape_fixture_rows(
                 "order": 3,
                 "relationship_type": "> CONTAINS",
                 "value_type": "INCLUDE",
-                "concept_name": "TID 1501 Measurement Group",
+                "concept_name": "DTID 1501",
                 "cardinality": "1-n",
                 "condition": None,
                 "include_tid": "TID 1501",
@@ -1664,191 +1663,6 @@ def test_lookup_code_meaning_validates_input_and_reports_not_found(
     assert empty_scheme.result == {"message": "scheme must not be empty when provided."}
     assert missing.status == "not_found"
     assert missing.result == {"message": "No PS3.16 coded concept matched the input."}
-
-
-def test_retrieve_standard_text_returns_capped_excerpt_and_tables(
-    tmp_path: Path,
-) -> None:
-    response = retrieve_standard_text(
-        _doc_connection(tmp_path),
-        part="PS3.3",
-        section_or_anchor="sect_A.3",
-        edition="2026b",
-        max_chars=80,
-    )
-
-    assert response.status == "ok"
-    assert response.result is not None
-    assert response.result["part"] == "PS3.3"
-    assert response.result["section"] == "sect_A.3"
-    assert response.result["title"] == "CT Image IOD"
-    assert len(str(response.result["text_excerpt"])) == 80
-    assert response.result["tables"] == [
-        {"table_id": "table_A.3-1", "title": "CT Image IOD Modules"}
-    ]
-    assert response.warnings == ["text excerpt truncated to 80 characters"]
-    assert [ref.part for ref in response.refs] == ["PS3.3", "PS3.3"]
-    assert response.refs[1].table == "CT Image IOD Modules"
-
-
-def test_retrieve_standard_text_returns_cited_ps37_service_behavior_fallback(
-    tmp_path: Path,
-) -> None:
-    response = retrieve_standard_text(
-        _part07_doc_connection(tmp_path),
-        part="PS3.7",
-        section_or_anchor="sect_7.1",
-        edition="2026b",
-        max_chars=240,
-    )
-
-    assert response.status == "ok"
-    assert response.result is not None
-    assert response.result["part"] == "PS3.7"
-    assert response.result["title"] == "DIMSE Services Overview"
-    assert "C-ECHO service behavior that verifi" in str(response.result["text_excerpt"])
-    assert response.result["tables"] == [
-        {"table_id": "table_7-1", "title": "Synthetic Message Services"},
-        {"table_id": "table_7-2", "title": "Synthetic Message Notes"},
-    ]
-    assert [(ref.part, ref.anchor) for ref in response.refs] == [
-        ("PS3.7", "sect_7.1"),
-        ("PS3.7", "table_7-1"),
-        ("PS3.7", "table_7-2"),
-    ]
-
-
-def test_retrieve_standard_text_returns_cited_ps38_network_fallback(
-    tmp_path: Path,
-) -> None:
-    response = retrieve_standard_text(
-        _part08_doc_connection(tmp_path),
-        part="PS3.8",
-        section_or_anchor="sect_9.3",
-        edition="2026b",
-        max_chars=280,
-    )
-
-    assert response.status == "ok"
-    assert response.result is not None
-    assert response.result["part"] == "PS3.8"
-    assert response.result["title"] == "PDU Fields Overview"
-    assert "A-ASSOCIATE-RQ PDU starts association establishment" in str(
-        response.result["text_excerpt"]
-    )
-    assert response.result["tables"] == [
-        {"table_id": "table_8-1", "title": "ASSOCIATE-RQ PDU Fields"},
-        {"table_id": "table_8-2", "title": "Synthetic Network Notes"},
-    ]
-    assert [(ref.part, ref.anchor) for ref in response.refs] == [
-        ("PS3.8", "sect_9.3"),
-        ("PS3.8", "table_8-1"),
-        ("PS3.8", "table_8-2"),
-    ]
-
-
-def test_retrieve_standard_text_validates_inputs(tmp_path: Path) -> None:
-    connection = _doc_connection(tmp_path)
-    response = retrieve_standard_text(
-        connection,
-        part="3.3",
-        section_or_anchor="sect_A.3",
-        edition="2026b",
-        max_chars=80,
-    )
-
-    assert response.status == "validation_error"
-    assert response.result is not None
-    assert "part must be" in str(response.result["message"])
-
-    response = retrieve_standard_text(
-        connection,
-        part="PS3.3",
-        section_or_anchor="sect_A.3",
-        edition="2026b",
-        max_chars=0,
-    )
-
-    assert response.status == "validation_error"
-    assert response.result is not None
-    assert "max_chars" in str(response.result["message"])
-
-
-def test_retrieve_standard_text_reports_not_found(tmp_path: Path) -> None:
-    response = retrieve_standard_text(
-        _doc_connection(tmp_path),
-        part="PS3.3",
-        section_or_anchor="missing",
-        edition="2026b",
-        max_chars=80,
-    )
-
-    assert response.status == "not_found"
-    assert response.result == {"message": "No standard text node matched the input."}
-    assert response.refs == []
-
-
-def test_search_standard_text_returns_cited_matches(tmp_path: Path) -> None:
-    response = search_standard_text(
-        _doc_connection(tmp_path),
-        query="Patient name",
-        edition="2026b",
-        part_filter="PS3.3",
-        limit=5,
-    )
-
-    assert response.status == "ok"
-    assert response.result is not None
-    matches = response.result["matches"]
-    assert matches[0]["part"] == "PS3.3"
-    assert matches[0]["title"] in {"Patient Module", "Patient Module Attributes"}
-    assert "Patient" in matches[0]["snippet"]
-    assert {ref.part for ref in response.refs} == {"PS3.3"}
-
-
-def test_search_standard_text_validates_inputs(tmp_path: Path) -> None:
-    connection = _doc_connection(tmp_path)
-
-    response = search_standard_text(
-        connection,
-        query="   ",
-        edition="2026b",
-    )
-    assert response.status == "validation_error"
-    assert response.result is not None
-    assert "query must not be empty" in str(response.result["message"])
-
-    response = search_standard_text(
-        connection,
-        query="Patient",
-        edition="2026b",
-        part_filter="3.3",
-    )
-    assert response.status == "validation_error"
-    assert response.result is not None
-    assert "part_filter" in str(response.result["message"])
-
-    response = search_standard_text(
-        connection,
-        query="Patient",
-        edition="2026b",
-        limit=0,
-    )
-    assert response.status == "validation_error"
-    assert response.result is not None
-    assert "limit" in str(response.result["message"])
-
-
-def test_search_standard_text_reports_not_found(tmp_path: Path) -> None:
-    response = search_standard_text(
-        _doc_connection(tmp_path),
-        query="ultrasound elastography",
-        edition="2026b",
-    )
-
-    assert response.status == "not_found"
-    assert response.result == {"message": "No standard text matched the query."}
-    assert response.refs == []
 
 
 def test_lookup_iod_returns_ps33_iod(tmp_path: Path) -> None:

@@ -77,6 +77,8 @@ def _doc_node_from_row(row: sqlite3.Row) -> DocNode:
         title=row["title"],
         ordinal=int(row["ordinal"]),
         plain_text=row["plain_text"],
+        markdown=row["markdown"],
+        informative=bool(row["informative"]),
         source_ref=_source_ref_from_row(row),
     )
 

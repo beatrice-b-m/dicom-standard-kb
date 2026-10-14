@@ -398,6 +398,8 @@ class DocNode(BaseModel):
     title: str | None = None
     ordinal: int
     plain_text: str | None = None
+    markdown: str | None = None
+    informative: bool = False
     source_ref: SourceRef
 
 
@@ -415,22 +417,6 @@ class Xref(BaseModel):
     resolved: bool
     resolution_warning: str | None = None
     text: str | None = None
-
-
-class RawTableIR(BaseModel):
-    """Persisted JSON snapshot of parsed raw table IR."""
-
-    model_config = ConfigDict(frozen=True)
-
-    id: str
-    edition_id: str
-    part: str
-    table_id: str | None = None
-    title: str | None = None
-    ordinal: int
-    source_ref: SourceRef
-    ir_json: str
-    ir_sha256: str
 
 
 class ParserWarning(BaseModel):
