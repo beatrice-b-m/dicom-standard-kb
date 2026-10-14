@@ -46,12 +46,17 @@ def dispatch_mcp_tool(
             name=str(arguments["name"]),
             edition=edition,
             expand=bool(arguments.get("expand", False)),
+            types=_optional_string(arguments.get("type")),
+            usage=_optional_string(arguments.get("usage")),
+            module=_optional_string(arguments.get("module")),
             page=int(arguments.get("page", 1)),
         ),
         "dicom_module": lambda: module_attributes(
             connection,
             name=str(arguments["name"]),
             edition=edition,
+            detail=_optional_string(arguments.get("detail")) or "outline",
+            types=_optional_string(arguments.get("type")),
             page=int(arguments.get("page", 1)),
         ),
         "dicom_values": lambda: attribute_values(
@@ -97,16 +102,39 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
         elif spec["name"] == "dicom_iod":
 
             @_tool(server, name=spec["name"], description=spec["description"])
-            def dicom_iod(name: str, expand: bool = False, page: int = 1) -> str:
+            def dicom_iod(
+                name: str,
+                expand: bool = False,
+                type: str | None = None,
+                usage: str | None = None,
+                module: str | None = None,
+                page: int = 1,
+            ) -> str:
                 return executor(
-                    "dicom_iod", {"name": name, "expand": expand, "page": page}
+                    "dicom_iod",
+                    {
+                        "name": name,
+                        "expand": expand,
+                        "type": type,
+                        "usage": usage,
+                        "module": module,
+                        "page": page,
+                    },
                 )
 
         elif spec["name"] == "dicom_module":
 
             @_tool(server, name=spec["name"], description=spec["description"])
-            def dicom_module(name: str, page: int = 1) -> str:
-                return executor("dicom_module", {"name": name, "page": page})
+            def dicom_module(
+                name: str,
+                detail: str = "outline",
+                type: str | None = None,
+                page: int = 1,
+            ) -> str:
+                return executor(
+                    "dicom_module",
+                    {"name": name, "detail": detail, "type": type, "page": page},
+                )
 
         elif spec["name"] == "dicom_values":
 
