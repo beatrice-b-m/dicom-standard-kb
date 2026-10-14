@@ -44,12 +44,12 @@ def test_cli_config_supplies_query_defaults(tmp_path: Path) -> None:
 
     lookup_result = CliRunner().invoke(
         app,
-        ["--config", str(config_path), "lookup", "tag", "Modality"],
+        ["--config", str(config_path), "element", "Modality"],
     )
 
     assert lookup_result.exit_code == 0, lookup_result.output
     assert lookup_result.output.rstrip().endswith("(2026c)")
-    assert "Keyword `Modality`" in lookup_result.output
+    assert "`Modality` · VR CS" in lookup_result.output
 
 
 def test_cli_flags_override_config_defaults(tmp_path: Path) -> None:

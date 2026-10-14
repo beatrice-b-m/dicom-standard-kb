@@ -51,24 +51,25 @@ def test_mcp_stdio_protocol_with_official_client(tmp_path: Path) -> None:
                 assert schema["properties"]
 
             element_result = await session.call_tool(
-                "dicom_lookup_data_element",
-                {"tag_or_keyword": "Modality"},
+                "dicom_element",
+                {"name": "Modality"},
             )
             assert element_result.structuredContent is None
             assert _tool_text(element_result) == (
-                "**(0008,0060) Modality**\n"
-                "Keyword `Modality` · VR CS · VM 1\n"
+                "**(0008,0060) Modality** `Modality` · VR CS · VM 1\n"
+                "\n"
+                "No PS3.3 module or macro lists it.\n"
                 "\n"
                 "Source: PS3.6 Table 6-1 (2026b)\n"
             )
 
             modules_result = await session.call_tool(
-                "dicom_list_modules_for_iod",
-                {"iod_name": "CT Image"},
+                "dicom_iod",
+                {"name": "CT Image"},
             )
             modules_text = _tool_text(modules_result)
-            assert modules_text.startswith("**CT Image IOD** modules")
-            assert "| Patient | Patient | M |" in modules_text
+            assert modules_text.startswith("**CT Image IOD**")
+            assert "| Patient | Patient | C.7.1.1, Table C.7-1 | M |" in modules_text
 
             code_meaning_result = await session.call_tool(
                 "dicom_lookup_code_meaning",
