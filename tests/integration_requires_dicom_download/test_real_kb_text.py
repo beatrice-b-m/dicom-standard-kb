@@ -40,7 +40,9 @@ def test_real_kb_text_keeps_reference_targets(
     assert holes == 0
 
     series = render_markdown(
-        module_attributes(connection, name="General Series", edition=edition)
+        module_attributes(
+            connection, name="General Series", detail="full", edition=edition
+        )
     )
     assert re.search(r"See Section C\.[\d.]+ for Defined Terms\.", series)
 
