@@ -65,3 +65,48 @@ def test_normalize_tag_rejects_malformed_input() -> None:
         assert "malformed DICOM tag" in str(exc)
     else:
         raise AssertionError("expected malformed tag to fail")
+
+
+def _registry(last_header: str, *rows: tuple[str, str, str, str]) -> str:
+    body = "".join(
+        f"<row><entry>{tag}</entry><entry>{name}</entry><entry>{keyword}</entry>"
+        f"<entry>CS</entry><entry>1</entry><entry>{status}</entry></row>"
+        for tag, name, keyword, status in rows
+    )
+    return f"""<book xmlns="http://docbook.org/ns/docbook"><chapter>
+      <table xml:id="table_6-1"><title>Registry</title><tgroup cols="6">
+        <thead><row><entry>Tag</entry><entry>Name</entry><entry>Keyword</entry>
+          <entry>VR</entry><entry>VM</entry><entry>{last_header}</entry></row></thead>
+        <tbody>{body}</tbody>
+      </tgroup></table></chapter></book>"""
+
+
+def test_parse_part06_keeps_the_first_of_a_repeated_tag() -> None:
+    xml = _registry(
+        "",
+        ("(0008,0060)", "Modality", "Modality", ""),
+        ("(0008,0060)", "Modality Again", "ModalityAgain", ""),
+    )
+
+    result = parse_part06(parse_docbook_xml(xml, part="PS3.6"), edition=EDITION)
+
+    assert [element.name for element in result.data_elements] == ["Modality"]
+    assert any("duplicate" in warning.message for warning in result.warnings)
+
+
+def test_parse_part06_finds_the_retired_column_whatever_its_header() -> None:
+    xml = _registry(
+        "Status",
+        ("(0008,0001)", "Length to End", "LengthToEnd", "RET"),
+        ("(0008,0060)", "RETINA Scan", "RETINAScan", ""),
+    )
+
+    result = parse_part06(parse_docbook_xml(xml, part="PS3.6"), edition=EDITION)
+
+    retired, current = result.data_elements
+    assert retired.retired is True
+    assert (current.retired, current.name, current.keyword) == (
+        False,
+        "RETINA Scan",
+        "RETINAScan",
+    )
