@@ -11,10 +11,9 @@ from pathlib import Path
 import typer
 from pydantic import BaseModel
 
-from dicom_kb.build import default_db_path, latest_edition
+from dicom_kb.build import default_db_path, latest_edition, stale_database_message
 from dicom_kb.config import (
     DicomKBConfig,
-    int_env,
     path_env,
     sqlite_url_path,
     str_env,
@@ -97,23 +96,15 @@ def resolve_db_path(ctx: typer.Context, cli_value: Path | None) -> Path | None:
     return None
 
 
-def resolve_max_text_chars(
-    ctx: typer.Context, cli_value: int | None, *, default: int
-) -> int:
-    return value_with_precedence(
-        cli_value=cli_value,
-        env_value=int_env(os.environ, "DICOM_KB_MAX_TEXT_EXCERPT_CHARS"),
-        config_value=_active_config(ctx).max_text_excerpt_chars,
-        default=default,
-    )
-
-
 def connect_query_db(
     path: Path | None, *, cache_dir: Path, edition: str
 ) -> AbstractContextManager[sqlite3.Connection]:
     resolved = path if path is not None else default_db_path(cache_dir, edition)
     if not resolved.is_file():
         raise typer.BadParameter(f"SQLite KB does not exist: {resolved}")
+    stale = stale_database_message(resolved)
+    if stale is not None:
+        raise typer.BadParameter(stale)
     return read_sqlite(resolved)
 
 

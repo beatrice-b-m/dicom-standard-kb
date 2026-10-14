@@ -24,9 +24,9 @@ from dicom_kb.query.resolver import (
     lookup_transfer_syntax,
     lookup_uid,
     lookup_vr,
+    read_standard,
     resolve_attribute_context,
-    retrieve_standard_text,
-    search_standard_text,
+    search_standard,
 )
 
 from .schemas import MCP_TOOL_SPECS, MCPToolName
@@ -136,19 +136,18 @@ def dispatch_mcp_tool(
             iod_name=_optional_string(arguments.get("iod_name")),
             sop_class=_optional_string(arguments.get("sop_class")),
         ),
-        "dicom_retrieve_standard_text": lambda: retrieve_standard_text(
-            connection,
-            part=str(arguments["part"]),
-            section_or_anchor=str(arguments["section_or_anchor"]),
-            edition=edition,
-            max_chars=int(arguments.get("max_chars", 800)),
-        ),
-        "dicom_search_standard_text": lambda: search_standard_text(
+        "dicom_search": lambda: search_standard(
             connection,
             query=str(arguments["query"]),
             edition=edition,
-            part_filter=_optional_string(arguments.get("part_filter")),
+            part=_optional_string(arguments.get("part")),
             limit=int(arguments.get("limit", 10)),
+        ),
+        "dicom_read": lambda: read_standard(
+            connection,
+            reference=str(arguments["ref"]),
+            edition=edition,
+            page=int(arguments.get("page", 1)),
         ),
     }
     return handlers[tool_name]()
@@ -324,39 +323,24 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
                     },
                 )
 
-        elif spec["name"] == "dicom_retrieve_standard_text":
+        elif spec["name"] == "dicom_search":
 
             @_tool(server, name=spec["name"], description=spec["description"])
-            def dicom_retrieve_standard_text(
-                part: str,
-                section_or_anchor: str,
-                max_chars: int = 800,
-            ) -> str:
-                return executor(
-                    "dicom_retrieve_standard_text",
-                    {
-                        "part": part,
-                        "section_or_anchor": section_or_anchor,
-                        "max_chars": max_chars,
-                    },
-                )
-
-        elif spec["name"] == "dicom_search_standard_text":
-
-            @_tool(server, name=spec["name"], description=spec["description"])
-            def dicom_search_standard_text(
+            def dicom_search(
                 query: str,
-                part_filter: str | None = None,
+                part: str | None = None,
                 limit: int = 10,
             ) -> str:
                 return executor(
-                    "dicom_search_standard_text",
-                    {
-                        "query": query,
-                        "part_filter": part_filter,
-                        "limit": limit,
-                    },
+                    "dicom_search",
+                    {"query": query, "part": part, "limit": limit},
                 )
+
+        elif spec["name"] == "dicom_read":
+
+            @_tool(server, name=spec["name"], description=spec["description"])
+            def dicom_read(ref: str, page: int = 1) -> str:
+                return executor("dicom_read", {"ref": ref, "page": page})
 
 
 def _optional_string(value: Any) -> str | None:

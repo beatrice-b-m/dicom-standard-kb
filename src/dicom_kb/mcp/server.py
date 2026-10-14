@@ -7,7 +7,7 @@ from importlib import import_module
 from pathlib import Path
 from typing import Any
 
-from dicom_kb.build import default_db_path
+from dicom_kb.build import default_db_path, stale_database_message
 from dicom_kb.db.models import read_sqlite
 from dicom_kb.mcp.schemas import MCP_TOOL_NAMES
 from dicom_kb.mcp.tools import dispatch_mcp_tool, register_mcp_tools
@@ -37,6 +37,9 @@ def validate_mcp_database(config: MCPServerConfig) -> None:
     """Fail early with an actionable message when the configured KB is missing."""
     path = config.resolved_db_path
     if path.exists():
+        stale = stale_database_message(path)
+        if stale is not None:
+            raise RuntimeError(stale)
         return
     raise FileNotFoundError(
         f"SQLite KB does not exist: {path}. Build one locally with "

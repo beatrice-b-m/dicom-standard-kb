@@ -9,7 +9,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from dicom_kb.db.repositories import (
     AttributeUseRecord,
     AttributeValueTermRecord,
-    DocumentSearchResult,
     IODModuleUseRecord,
     SOPClassIODRecord,
 )
@@ -39,6 +38,8 @@ class StandardRef(BaseModel):
     table: str | None = None
     anchor: str | None = None
     edition: str
+    # How the source line names it, when the id alone would read badly.
+    label: str | None = None
 
 
 class ToolResponse(BaseModel):
@@ -487,7 +488,7 @@ def standard_text_result(
     """Return the public result payload for a short standard text excerpt."""
     return {
         "part": node.part,
-        "section": node.number or node.xml_id,
+        "section": node.xml_id or node.number,
         "title": node.title,
         "text_excerpt": text_excerpt,
         "tables": [
@@ -497,23 +498,6 @@ def standard_text_result(
             }
             for table in tables
         ],
-    }
-
-
-def standard_text_search_result(records: list[DocumentSearchResult]) -> dict[str, Any]:
-    """Return the public result payload for standard text search."""
-    return {
-        "matches": [
-            {
-                "part": record.node.part,
-                "section": record.node.number or record.node.xml_id,
-                "anchor": record.node.anchor,
-                "node_type": record.node.node_type,
-                "title": record.node.title,
-                "snippet": record.snippet,
-            }
-            for record in records
-        ]
     }
 
 

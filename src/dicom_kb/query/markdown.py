@@ -69,6 +69,8 @@ def source_line(refs: Iterable[StandardRef]) -> str:
 
 def ref_label(ref: StandardRef) -> str:
     """Return a readable locator such as `PS3.3 Table C.7-9` or `PS3.16 CID 29`."""
+    if ref.label:
+        return ref.label
     for candidate in (ref.anchor, ref.section):
         if candidate:
             label = _locator(candidate)
@@ -232,18 +234,6 @@ def _render_standard_text(result: dict[str, Any]) -> list[str]:
     return lines
 
 
-def _render_search(result: dict[str, Any]) -> list[str]:
-    rows = [
-        {
-            "Where": f"{match['part']} {_section(match['section'])}",
-            "Title": match.get("title"),
-            "Context": match.get("snippet"),
-        }
-        for match in result["matches"]
-    ]
-    return _table(rows)
-
-
 def _render_context_group(result: dict[str, Any]) -> list[str]:
     heading = f"**{_prefixed('CID', result['cid'])} {result['name']}**"
     facts = [
@@ -309,13 +299,23 @@ def _render_generic(result: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _render_standard_markdown(result: dict[str, Any]) -> list[str]:
+    return [str(result["markdown"])]
+
+
+def _render_hits(result: dict[str, Any]) -> list[str]:
+    note = [str(result["note"]), ""] if result.get("note") else []
+    return [*note, *_table(result["hits"])]
+
+
 _RENDERERS: tuple[tuple[frozenset[str], Renderer], ...] = (
+    (frozenset({"markdown"}), _render_standard_markdown),
+    (frozenset({"hits"}), _render_hits),
     (frozenset({"iod", "modules"}), _render_iod_modules),
     (frozenset({"module", "attributes"}), _render_module_attributes),
     (frozenset({"sop_class", "iods"}), _render_sop_class),
     (frozenset({"attribute", "uses"}), _render_attribute_context),
     (frozenset({"attribute", "terms"}), _render_value_terms),
-    (frozenset({"matches"}), _render_search),
     (frozenset({"text_excerpt", "tables", "part"}), _render_standard_text),
     (frozenset({"cid", "rows"}), _render_context_group),
     (frozenset({"tid", "rows"}), _render_sr_template),
