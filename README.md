@@ -11,10 +11,12 @@ Standard, official source artifacts, or a prebuilt knowledge base.
 
 ## Status
 
-The parser surface covers PS3.3, PS3.4, PS3.5, PS3.6, PS3.10, PS3.16, and
-PS3.18. Selected PS3.7 and PS3.8 prose is available through cited text retrieval.
-Structured coverage is bounded; a warning appears only when an answer is
-missing something the source has.
+Every section and table of all 20 published parts can be searched and read
+as markdown, with each cross reference kept as its target (`See Section
+C.7.3.1.1.1`, `BCID 7010`). Structured lookups (data elements, UIDs, IODs,
+modules, SOP Classes, context groups) cover PS3.3, PS3.4, PS3.5, PS3.6, PS3.10,
+PS3.16, and PS3.18. A warning appears only when an answer is missing something
+the source has.
 
 ## Install
 
@@ -52,14 +54,19 @@ The fixture demonstrates API behavior; it is not official DICOM content.
 
 ## Build from official sources
 
-`fetch` downloads the current edition's DocBook from dicom.nema.org (about
-100 MB); everything after that works offline:
+`fetch` downloads the current edition's DocBook for every part from
+dicom.nema.org (about 125 MB); everything after that works offline:
 
 ```bash
 uv run dicom-kb fetch
 uv run dicom-kb build
 uv run dicom-kb lookup tag Modality
+uv run dicom-kb search "undefined length sequence delimitation"
+uv run dicom-kb read "PS3.5 7.5.2"
 ```
+
+`read` takes a section, table, annex, CID or TID (`PS3.3 Table C.7-5a`,
+`Annex A`, `CID 7010`) and pages long answers at about 4k tokens.
 
 Files go under `~/.cache/dicom-standard-kb/`, with the database at
 `db/<edition>.sqlite`. Commands use the newest fetched or built edition unless
@@ -73,6 +80,9 @@ For an MCP client, add the stdio server as one config entry:
 ```bash
 uv run --extra mcp dicom-kb mcp serve
 ```
+
+Its `dicom_search` and `dicom_read` tools do the same as `search` and
+`read`.
 
 The [documentation website](https://dicom-standard-kb-docs.beatricebm.workers.dev/)
 describes the earlier JSON tools and is out of date until the rebuild finishes.

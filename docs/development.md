@@ -41,14 +41,14 @@ Paths below are relative to `src/dicom_kb/`.
 | Area | Responsibility |
 | --- | --- |
 | `sources/` | Fetch the current DocBook release from NEMA or register local copies; write the manifest. |
-| `docbook/` | Parse generic XML structure, tables, variable lists, cross references, and text. |
+| `docbook/` | Parse generic XML structure and tables; `targets.py` indexes every labelled target across parts and `markdown.py` renders DocBook as markdown with each reference resolved to its label. |
 | `parsers/part*.py` | Interpret a specific part's structures as canonical records. |
 | `ir/models.py`, `ir/validators.py` | Canonical record types and identifier rules. |
 | `db/models.py`, `db/migrations/` | SQLite connections and ordered, idempotent schema scripts. |
 | `db/importers/` | Persist records in domain transactions; extract attribute value terms. |
 | `db/repositories/` | Edition-filtered SQL lookups, joined records, and row conversion. |
 | `build.py` | Run each part's parse and import as a step, log gaps, publish a completed database. |
-| `query/resolver/` | Domain query responses behind the stable Python import surface. |
+| `query/resolver/` | Domain query responses behind the stable Python import surface; `standard.py` reads and searches the stored sections and tables. |
 | `query/graph.py`, `query/conditions.py` | Context traversal, macro expansion, and bounded condition reasoning. |
 | `query/answer_contracts.py`, `query/citations.py` | Resolver result shapes and source refs. |
 | `query/markdown.py` | Render every answer as compact markdown with one source line. |
@@ -60,6 +60,21 @@ The public imports `dicom_kb.query.resolver`, `dicom_kb.db.repositories`, and
 specific siblings rather than their own package facade to avoid cycles.
 Keep SQL in storage modules and domain reasoning in query modules; CLI and MCP
 adapt arguments and print the markdown from `query/markdown.py`.
+
+## Standard text
+
+The build parses every part twice: once to index every labelled target
+(section, table, figure, CID, TID, bibliography and glossary entry) across all
+parts, then again to render each section and table as markdown against that
+index, so `<xref>` and `<olink>` read as `Section C.7.3.1.1.1` or `PS3.5
+Section 7.5.2` instead of nothing. A reference whose target no part defines is
+logged as a gap. Each section's markdown holds a `[[table:<id>]]` placeholder
+where its tables go; `dicom_read` swaps the table markdown in, renders a
+subtree whole when it fits in a page and otherwise lists its subsections.
+Parsers read cell text as the plain-text form of the same markdown, so
+attribute descriptions keep their references too. `doc_node_fts` indexes
+titles and own text (tables separately) for `dicom_search`, which ranks
+normative nodes before informative annexes and examples.
 
 ## Invariants and extension workflow
 
