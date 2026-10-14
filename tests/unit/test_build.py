@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sqlite3
 from pathlib import Path
 
@@ -13,8 +14,9 @@ from dicom_kb.build import (
     build_sqlite_database,
     default_db_path,
     gap_log_path,
+    stale_database_message,
 )
-from dicom_kb.db.importers import ImportSummary
+from dicom_kb.db.importers import ImportConflictError, ImportSummary
 from dicom_kb.query.resolver import (
     attribute_values,
     code_lookup,
@@ -249,14 +251,13 @@ def test_failed_import_step_is_logged_and_build_continues(
     _register_synthetic_parts(cache_dir)
 
     def fail_import(*args: object, **kwargs: object) -> None:
-        raise ImportError("injected import failure")
+        raise ImportConflictError("injected import failure")
 
     monkeypatch.setattr(build, "import_transfer_syntax_details", fail_import)
     summary = build_sqlite_database(edition=EDITION, cache_dir=cache_dir)
 
-    assert (
-        "PS3.5 transfer syntax import skipped: injected import failure"
-        in summary.warnings
+    assert summary.skipped_steps == (
+        "PS3.5 transfer syntax import skipped: injected import failure",
     )
     assert summary.metrics.parse_warnings_by_part is not None
     assert summary.metrics.parse_warnings_by_part["PS3.5"] >= 1
@@ -266,6 +267,23 @@ def test_failed_import_step_is_logged_and_build_continues(
         assert element.result is not None
     finally:
         connection.close()
+
+
+def test_programming_errors_abort_the_build(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from dicom_kb import build
+
+    cache_dir = tmp_path / "cache"
+    _register_synthetic_parts(cache_dir)
+
+    def buggy_import(*args: object, **kwargs: object) -> None:
+        raise AttributeError("a bug, not a gap in the source")
+
+    monkeypatch.setattr(build, "import_transfer_syntax_details", buggy_import)
+    with pytest.raises(AttributeError):
+        build_sqlite_database(edition=EDITION, cache_dir=cache_dir)
+    assert not default_db_path(cache_dir, EDITION).exists()
 
 
 def test_sop_classes_import_without_links_when_ps33_is_missing(
@@ -309,3 +327,23 @@ def test_successful_force_build_replaces_previous_database(tmp_path: Path) -> No
     finally:
         connection.close()
     assert list(tmp_path.glob(".kb.sqlite-*")) == []
+
+
+def test_stale_database_message_accepts_only_a_current_build(
+    tmp_path: Path, fixture_db: Path
+) -> None:
+    assert stale_database_message(fixture_db) is None
+
+    not_sqlite = tmp_path / "notes.sqlite"
+    not_sqlite.write_text("not a database", encoding="utf-8")
+    assert "not a KB built by dicom-kb" in (stale_database_message(not_sqlite) or "")
+
+    old = tmp_path / "old.sqlite"
+    shutil.copy(fixture_db, old)
+    with sqlite3.connect(old) as connection:
+        connection.execute("UPDATE build_metadata SET schema_version = '0'")
+    assert "built with schema 0" in (stale_database_message(old) or "")
+
+    with sqlite3.connect(old) as connection:
+        connection.execute("DELETE FROM build_metadata")
+    assert "no build record" in (stale_database_message(old) or "")

@@ -217,6 +217,8 @@ def _echo_summary(summary: BuildSummary) -> None:
         + (f" ({counts})" if counts else "")
         + f": {gap_log_path(summary.db_path)}"
     )
+    for step in summary.skipped_steps:
+        typer.echo(f"Not in this KB: {step}", err=True)
 
 
 def _run_sqlite_build(

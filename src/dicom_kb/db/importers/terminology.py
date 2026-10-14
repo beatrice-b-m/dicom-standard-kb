@@ -6,6 +6,7 @@ import sqlite3
 from collections.abc import Iterable
 
 from dicom_kb.db.importers._shared import (
+    ImportConflictError,
     ImportSummary,
     _insert_source_ref,
     _unique_source_refs,
@@ -43,7 +44,7 @@ def import_sr_templates(
             for row in row_records:
                 _insert_sr_template_row(connection, row)
     except sqlite3.IntegrityError as exc:
-        raise ImportError(
+        raise ImportConflictError(
             f"failed to import PS3.16 SR templates for {edition}"
         ) from exc
 
@@ -79,7 +80,7 @@ def import_context_groups(
             for row in row_records:
                 _insert_context_group_row(connection, row)
     except sqlite3.IntegrityError as exc:
-        raise ImportError(
+        raise ImportConflictError(
             f"failed to import PS3.16 context groups for {edition}"
         ) from exc
 
@@ -108,7 +109,7 @@ def import_coded_concepts(
             for record in records:
                 _insert_coded_concept(connection, record)
     except sqlite3.IntegrityError as exc:
-        raise ImportError(
+        raise ImportConflictError(
             f"failed to import PS3.16 coded concepts for {edition}"
         ) from exc
 

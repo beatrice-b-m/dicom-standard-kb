@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from dicom_kb.db.importers import (
+    ImportConflictError,
     import_attribute_value_terms,
     import_docbook_structure,
     import_part03,
@@ -195,7 +196,7 @@ def test_import_rolls_back_on_duplicate_tags(tmp_path: Path) -> None:
     )
     duplicate = parsed.data_elements[0].model_copy(update={"id": "duplicate"})
 
-    with pytest.raises(ImportError):
+    with pytest.raises(ImportConflictError):
         import_part06(
             connection,
             edition=EDITION,
@@ -426,7 +427,7 @@ def test_import_part03_rolls_back_on_duplicate_iods(tmp_path: Path) -> None:
     )
     duplicate = parsed.iods[0].model_copy(update={"id": "duplicate"})
 
-    with pytest.raises(ImportError):
+    with pytest.raises(ImportConflictError):
         import_part03(
             connection,
             edition=EDITION,
@@ -506,7 +507,7 @@ def test_import_part04_rolls_back_without_referenced_iods(tmp_path: Path) -> Non
         iod_id_by_ref=IOD_REFS,
     )
 
-    with pytest.raises(ImportError):
+    with pytest.raises(ImportConflictError):
         import_part04(
             connection,
             edition=EDITION,

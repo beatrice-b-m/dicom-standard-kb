@@ -12,6 +12,14 @@ from dicom_kb.ir.models import (
 from dicom_kb.sources.official_urls import official_standard_ref_url
 
 
+class ImportConflictError(Exception):
+    """Records conflict with each other (a duplicate id or a broken link).
+
+    The importer rolled its transaction back, so none of that step's records
+    are in the database.
+    """
+
+
 @dataclass(frozen=True)
 class ImportSummary:
     """Counts emitted after an import transaction."""

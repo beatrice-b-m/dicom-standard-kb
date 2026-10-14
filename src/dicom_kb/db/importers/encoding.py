@@ -6,7 +6,7 @@ import json
 import sqlite3
 from collections.abc import Iterable
 
-from dicom_kb.db.importers._shared import ImportSummary
+from dicom_kb.db.importers._shared import ImportConflictError, ImportSummary
 from dicom_kb.ir.models import TransferSyntaxDetail
 
 
@@ -43,7 +43,7 @@ def import_transfer_syntax_details(
                 ],
             )
     except sqlite3.IntegrityError as exc:
-        raise ImportError(
+        raise ImportConflictError(
             f"failed to import transfer syntax details for {edition}"
         ) from exc
     return ImportSummary(

@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 import sqlite3
 
-from dicom_kb.db.importers._shared import ImportSummary
+from dicom_kb.db.importers._shared import ImportConflictError, ImportSummary
 from dicom_kb.docbook.parser import ParsedDocument
 from dicom_kb.docbook.text_chunks import normalize_text
 from dicom_kb.docbook.variablelists import ParsedVariableList
@@ -60,7 +60,7 @@ def import_attribute_value_terms(
                 ],
             )
     except sqlite3.IntegrityError as exc:
-        raise ImportError(
+        raise ImportConflictError(
             f"failed to import attribute value terms for {edition} {document.part}"
         ) from exc
     return ImportSummary(

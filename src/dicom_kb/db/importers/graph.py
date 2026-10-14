@@ -6,6 +6,7 @@ import sqlite3
 from collections.abc import Iterable
 
 from dicom_kb.db.importers._shared import (
+    ImportConflictError,
     ImportSummary,
     _insert_source_ref,
     _unique_source_refs,
@@ -76,7 +77,9 @@ def import_part03(
             for attribute_use in attribute_use_records:
                 _insert_attribute_use(connection, attribute_use)
     except sqlite3.IntegrityError as exc:
-        raise ImportError(f"failed to import PS3.3 records for {edition}") from exc
+        raise ImportConflictError(
+            f"failed to import PS3.3 records for {edition}"
+        ) from exc
 
     return ImportSummary(
         edition=edition,
@@ -129,7 +132,9 @@ def import_part04(
             for sop_class_iod in sop_class_iod_records:
                 _insert_sop_class_iod(connection, sop_class_iod)
     except sqlite3.IntegrityError as exc:
-        raise ImportError(f"failed to import PS3.4 records for {edition}") from exc
+        raise ImportConflictError(
+            f"failed to import PS3.4 records for {edition}"
+        ) from exc
 
     return ImportSummary(
         edition=edition,

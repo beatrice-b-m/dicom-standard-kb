@@ -12,6 +12,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from dicom_kb.db.importers import (
+    ImportConflictError,
     ImportSummary,
     import_attribute_value_terms,
     import_build_metadata,
@@ -149,6 +150,9 @@ class BuildSummary:
     import_summaries: tuple[ImportSummary, ...]
     warnings: tuple[str, ...]
     metrics: BuildMetrics
+    # Steps whose records are missing from the KB, e.g. a whole PS3.6 import
+    # rolled back on one conflicting row. Also listed in warnings.
+    skipped_steps: tuple[str, ...] = ()
 
     def as_jsonable(self) -> dict[str, object]:
         """Return a JSON-serializable representation for CLI output."""
@@ -181,21 +185,23 @@ def gap_log_path(db_path: Path) -> Path:
 
 
 def stale_database_message(db_path: Path) -> str | None:
-    """Explain how to rebuild a KB made by an older schema, or return None."""
+    """Explain how to rebuild a KB this version can't read, or return None."""
+    rebuild = "Rebuild it with `dicom-kb build --force`."
     try:
         with read_sqlite(db_path) as connection:
             row = connection.execute(
                 "SELECT schema_version FROM build_metadata LIMIT 1"
             ).fetchone()
     except sqlite3.Error:
-        return None
-    # A database without build metadata was assembled by hand (tests do).
-    found = str(row["schema_version"]) if row is not None else SCHEMA_VERSION
+        return f"{db_path} is not a KB built by dicom-kb. {rebuild}"
+    if row is None:
+        return f"SQLite KB {db_path} has no build record. {rebuild}"
+    found = str(row["schema_version"])
     if found == SCHEMA_VERSION:
         return None
     return (
         f"SQLite KB {db_path} was built with schema {found}; this version reads "
-        f"schema {SCHEMA_VERSION}. Rebuild it with `dicom-kb build --force`."
+        f"schema {SCHEMA_VERSION}. {rebuild}"
     )
 
 
@@ -257,14 +263,12 @@ def build_sqlite_database(
 
 
 # Data-shaped failures from one part's parser or importer. The build logs the
-# gap and keeps going; storage and I/O errors still abort it.
+# gap and keeps going. Storage and I/O errors abort it, and so do programming
+# errors (AttributeError, KeyError, ...): those are bugs, not gaps in the
+# source, and logging them as gaps hid them.
 _RECOVERABLE_ERRORS = (
-    ImportError,
+    ImportConflictError,
     sqlite3.IntegrityError,
-    AttributeError,
-    IndexError,
-    KeyError,
-    TypeError,
     ValueError,
 )
 
@@ -275,6 +279,7 @@ class _BuildLog:
     def __init__(self) -> None:
         self.messages: list[str] = []
         self.by_part: dict[str, int] = {}
+        self.skipped: list[str] = []
 
     def add(self, part: str, message: str) -> None:
         self.messages.append(f"{part} {message}")
@@ -293,6 +298,7 @@ class _BuildLog:
         except _RECOVERABLE_ERRORS as exc:
             cause = f" ({exc.__cause__})" if exc.__cause__ is not None else ""
             self.add(part, f"{label} skipped: {exc}{cause}")
+            self.skipped.append(self.messages[-1])
             return None
 
 
@@ -381,7 +387,7 @@ def _build_staged_database(
             repository_commit=_repository_commit(),
             metrics=metrics.as_jsonable(),
         )
-    except (sqlite3.Error, ImportError, OSError) as exc:
+    except (sqlite3.Error, ImportConflictError, OSError) as exc:
         raise BuildError(f"failed to build SQLite KB for {edition}") from exc
     finally:
         connection.close()
@@ -393,6 +399,7 @@ def _build_staged_database(
         import_summaries=tuple(summaries),
         warnings=tuple(log.messages),
         metrics=metrics,
+        skipped_steps=tuple(log.skipped),
     )
 
 
