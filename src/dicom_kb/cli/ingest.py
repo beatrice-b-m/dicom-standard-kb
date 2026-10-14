@@ -86,8 +86,8 @@ def fetch_command(
         list[str] | None,
         typer.Option(
             "--part",
-            help="DICOM part to download, e.g. PS3.3; repeatable. Defaults to the "
-            "parts the build reads.",
+            help="DICOM part to download, e.g. PS3.3; repeatable. Defaults to every "
+            "published part.",
         ),
     ] = None,
     docbook_xml: Annotated[
