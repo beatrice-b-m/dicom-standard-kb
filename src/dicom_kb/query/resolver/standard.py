@@ -8,9 +8,15 @@ from dataclasses import dataclass
 
 from dicom_kb.db.repositories import DocumentRepository
 from dicom_kb.docbook.markdown import TABLE_PLACEHOLDER_RE
-from dicom_kb.docbook.targets import Target
 from dicom_kb.ir.models import DocNode
-from dicom_kb.query.answer_contracts import StandardRef, ToolResponse, tool_response
+from dicom_kb.query.answer_contracts import ToolResponse, tool_response
+from dicom_kb.query.resolver._refs import (
+    _has_canonical_id,
+    _reference,
+    _target,
+    node_ref,
+)
+from dicom_kb.query.resolver.identifiers import read_identifier, read_uid
 from dicom_kb.query.search import build_fts_query
 
 # About 4k tokens at the usual four characters per token.
@@ -45,7 +51,13 @@ def read_standard(
     edition: str,
     page: int = 1,
 ) -> ToolResponse:
-    """Return one section or table as markdown, in pages of about 4k tokens."""
+    """Return one section or table as markdown, in pages of about 4k tokens.
+
+    A UID, UID keyword or VR code reads as its registry or VR table row.
+    """
+    identified = read_identifier(connection, reference=reference, edition=edition)
+    if identified is not None:
+        return identified
     parsed = _parse_reference(reference)
     if parsed is None:
         return tool_response(
@@ -62,7 +74,8 @@ def read_standard(
     repository = DocumentRepository(connection)
     nodes = _find_nodes(repository, parsed, edition=edition)
     if not nodes:
-        return _not_found(repository, parsed, edition=edition)
+        named = read_uid(connection, reference=reference, edition=edition)
+        return named or _not_found(repository, parsed, edition=edition)
     if len(nodes) > 1:
         return tool_response(
             status="not_found",
@@ -93,7 +106,7 @@ def read_standard(
     return tool_response(
         status="ok",
         result={"markdown": body},
-        refs=[_standard_ref(node, edition)],
+        refs=[node_ref(node, edition)],
     )
 
 
@@ -156,7 +169,7 @@ def search_standard(
     return tool_response(
         status="ok",
         result={"hits": hits, **({"note": note} if note else {})},
-        refs=[_standard_ref(record.node, edition) for record in records],
+        refs=[node_ref(record.node, edition) for record in records],
     )
 
 
@@ -423,53 +436,8 @@ def _part_label(value: str) -> str | None:
     return f"PS3.{int(match.group(1) or match.group(2))}"
 
 
-def _target(node: DocNode) -> Target:
-    return Target(
-        part=node.part,
-        xml_id=node.xml_id or node.id,
-        kind=node.node_type,
-        label=node.number,
-        title=node.title,
-    )
-
-
-def _reference(node: DocNode) -> str:
-    """The text a caller passes back to `dicom_read` for this node."""
-    target = _target(node)
-    if node.number and (_has_canonical_id(node) or node.xml_id is None):
-        if target.globally_unique:
-            return target.name
-        return f"{node.part} {target.name}"
-    # A label that disagrees with the id may be shared with another node
-    # (TID 300 and its parameter table), so the id is the safe handle.
-    return f"{node.part} {node.xml_id or node.title or ''}".strip()
-
-
-_ID_PREFIXES = {"chapter": "chapter_", "section": "sect_", "table": "table_"}
-
-
-def _has_canonical_id(node: DocNode) -> bool:
-    prefix = _ID_PREFIXES.get(node.node_type)
-    if prefix is None or node.number is None or node.xml_id is None:
-        return True
-    label = node.number.replace(" ", "_")
-    return node.xml_id in {prefix + label, f"{prefix}{node.part}_{label}"}
-
-
 def _candidate(node: DocNode) -> dict[str, str]:
     return {"Ref": _reference(node), "Title": node.title or ""}
-
-
-def _standard_ref(node: DocNode, edition: str) -> StandardRef:
-    label = _reference(node)
-    return StandardRef(
-        label=label if label.startswith(node.part) else f"{node.part} {label}",
-        part=node.part,
-        section=node.xml_id,
-        table=node.xml_id if node.node_type == "table" else None,
-        anchor=node.xml_id,
-        edition=edition,
-    )
 
 
 def _one_line(text: str) -> str:

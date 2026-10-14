@@ -48,8 +48,8 @@ Paths below are relative to `src/dicom_kb/`.
 | `db/importers/` | Persist records in domain transactions; extract attribute value terms. |
 | `db/repositories/` | Edition-filtered SQL lookups, joined records, and row conversion. |
 | `build.py` | Run each part's parse and import as a step, log gaps, publish a completed database. |
-| `query/resolver/` | Domain query responses behind the stable Python import surface; `standard.py` reads and searches the stored sections and tables; `objects.py` answers `dicom_element`, `dicom_iod` and `dicom_module`, expanding each macro once; `values.py` answers `dicom_values` and `codes.py` answers `dicom_code`. |
-| `query/answer_contracts.py`, `query/citations.py` | Resolver result shapes and source refs. |
+| `query/resolver/` | Domain query responses behind the stable Python import surface; `standard.py` reads and searches the stored sections and tables; `identifiers.py` lets `dicom_read` answer a UID or VR; `objects.py` answers `dicom_element`, `dicom_iod` and `dicom_module`, expanding each macro once; `values.py` answers `dicom_values` and `codes.py` answers `dicom_code`. |
+| `query/answer_contracts.py` | The resolver response and its source refs. |
 | `query/markdown.py` | Render every answer as compact markdown with one source line. |
 | `cli/` | Command modules, shared options, and invocation-scoped configuration. |
 | `mcp/` | Tool names, dispatch, registration, and stdio adapter. |
@@ -74,6 +74,20 @@ Parsers read cell text as the plain-text form of the same markdown, so
 attribute descriptions keep their references too. `doc_node_fts` indexes
 titles and own text (tables separately) for `dicom_search`, which ranks
 normative nodes before informative annexes and examples.
+
+## Transfer syntaxes and VRs
+
+`parsers/part05_encoding.py` reads each transfer syntax from the PS3.5 Annex A
+section that names its UID (notes excluded). That section states the Data
+Set's VR style and byte order, or takes them from the section it says to
+encode by first (A.5 from A.2) or from its parent (A.4.1 from A.4). Pixel Data
+is Encapsulated when the rules say "shall be Encapsulated Format", referenced
+when they replace it with the Pixel Data Provider URL, and Native otherwise.
+The DICOM-RTV syntaxes take their metadata encoding from PS3.22 7.1. A current
+UID with no Annex A section is logged as a gap; a retired one is answered as no
+longer specified. VRs are not parsed into a table: `dicom_read` takes the row
+from Table 6.2-1's stored markdown and the header layout from the titles of
+Tables 7.1-1 and 7.1-2.
 
 ## Invariants and extension workflow
 

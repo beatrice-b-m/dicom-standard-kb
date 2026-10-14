@@ -11,30 +11,12 @@ PS34_SOP_CLASSES_DOCBOOK = (
 PS35_ENCODING_DOCBOOK = (
     FIXTURE_DIR / "synthetic_ps3_5_encoding_docbook.xml"
 ).read_text(encoding="utf-8")
-PS35_OFFICIAL_SHAPE_DOCBOOK = (
-    FIXTURE_DIR / "synthetic_ps3_5_official_shape_docbook.xml"
-).read_text(encoding="utf-8")
 PS36_REGISTRY_DOCBOOK = (
     FIXTURE_DIR / "synthetic_ps3_6_registry_docbook.xml"
-).read_text(encoding="utf-8")
-PS37_MESSAGES_DOCBOOK = (
-    FIXTURE_DIR / "synthetic_ps3_7_messages_docbook.xml"
-).read_text(encoding="utf-8")
-PS38_NETWORK_DOCBOOK = (FIXTURE_DIR / "synthetic_ps3_8_network_docbook.xml").read_text(
-    encoding="utf-8"
-)
-PS310_MEDIA_STORAGE_DOCBOOK = (
-    FIXTURE_DIR / "synthetic_ps3_10_media_storage_docbook.xml"
 ).read_text(encoding="utf-8")
 PS316_CONTENT_MAPPING_DOCBOOK = (
     FIXTURE_DIR / "synthetic_ps3_16_content_mapping_docbook.xml"
 ).read_text(encoding="utf-8")
 PS316_OFFICIAL_SHAPE_DOCBOOK = (
     FIXTURE_DIR / "synthetic_ps3_16_official_shape_docbook.xml"
-).read_text(encoding="utf-8")
-PS318_WEB_SERVICES_DOCBOOK = (
-    FIXTURE_DIR / "synthetic_ps3_18_web_services_docbook.xml"
-).read_text(encoding="utf-8")
-PS318_OFFICIAL_SHAPE_DOCBOOK = (
-    FIXTURE_DIR / "synthetic_ps3_18_official_shape_docbook.xml"
 ).read_text(encoding="utf-8")

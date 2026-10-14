@@ -5,12 +5,6 @@ from __future__ import annotations
 from typing import Literal, TypedDict
 
 MCPToolName = Literal[
-    "dicom_lookup_uid",
-    "dicom_lookup_vr",
-    "dicom_lookup_transfer_syntax",
-    "dicom_explain_encoding_rule",
-    "dicom_lookup_media_type",
-    "dicom_lookup_dicomweb_transaction",
     "dicom_element",
     "dicom_iod",
     "dicom_module",
@@ -21,12 +15,6 @@ MCPToolName = Literal[
 ]
 
 MCP_TOOL_NAMES: tuple[MCPToolName, ...] = (
-    "dicom_lookup_uid",
-    "dicom_lookup_vr",
-    "dicom_lookup_transfer_syntax",
-    "dicom_explain_encoding_rule",
-    "dicom_lookup_media_type",
-    "dicom_lookup_dicomweb_transaction",
     "dicom_element",
     "dicom_iod",
     "dicom_module",
@@ -45,36 +33,6 @@ class MCPToolSpec(TypedDict):
 
 
 MCP_TOOL_SPECS: tuple[MCPToolSpec, ...] = (
-    {
-        "name": "dicom_lookup_uid",
-        "description": "Look up a DICOM PS3.6 UID registry entry by UID or keyword.",
-    },
-    {
-        "name": "dicom_lookup_vr",
-        "description": "Look up a DICOM PS3.5 Value Representation definition.",
-    },
-    {
-        "name": "dicom_lookup_transfer_syntax",
-        "description": (
-            "Look up a DICOM transfer syntax UID with PS3.5 encoding details."
-        ),
-    },
-    {
-        "name": "dicom_explain_encoding_rule",
-        "description": "Explain a DICOM PS3.5 encoding rule with citations.",
-    },
-    {
-        "name": "dicom_lookup_media_type",
-        "description": (
-            "Look up PS3.10 DICOM media-type constraints by media type or context."
-        ),
-    },
-    {
-        "name": "dicom_lookup_dicomweb_transaction",
-        "description": (
-            "Look up a PS3.18 DICOMweb transaction by name or route template."
-        ),
-    },
     {
         "name": "dicom_element",
         "description": (
@@ -137,8 +95,11 @@ MCP_TOOL_SPECS: tuple[MCPToolSpec, ...] = (
         "description": (
             "Read a section or table of the DICOM standard as markdown with "
             "every reference resolved, e.g. 'PS3.5 7.5.2', 'Table C.7-5a', "
-            "'PS3.3 Annex A', 'CID 7010'. Long nodes come in pages; pass page "
-            "to continue."
+            "'PS3.3 Annex A', 'CID 7010'. Also reads a UID or UID keyword from "
+            "the PS3.6 registry (a transfer syntax adds its VR, byte order, "
+            "Pixel Data encoding and the PS3.5 section with its rules) and a "
+            "VR code such as 'OB' (its PS3.5 definition and header layout). "
+            "Long nodes come in pages; pass page to continue."
         ),
     },
 )

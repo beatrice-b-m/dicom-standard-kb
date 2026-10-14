@@ -73,6 +73,26 @@ class DocumentRepository:
         ).fetchall()
         return [_doc_node_from_row(row) for row in rows]
 
+    def nodes_by_title_prefix(
+        self, *, prefix: str, node_types: tuple[str, ...], edition: str, part: str
+    ) -> list[DocNode]:
+        """Return one part's sections or tables whose title starts with prefix."""
+        placeholders = ", ".join("?" for _ in node_types)
+        rows = self.connection.execute(
+            f"""
+            SELECT {_NODE_COLUMNS}
+            FROM doc_node dn
+            JOIN source_ref sr ON sr.id = dn.source_ref_id
+            WHERE dn.edition_id = ?
+              AND dn.title LIKE ? ESCAPE '\\'
+              AND dn.node_type IN ({placeholders})
+              AND dn.part = ?
+            ORDER BY dn.ordinal
+            """,
+            (edition, _like_prefix(prefix), *node_types, part),
+        ).fetchall()
+        return [_doc_node_from_row(row) for row in rows]
+
     def node_by_id(self, node_id: str) -> DocNode | None:
         """Return one node by its database id."""
         row = self.connection.execute(

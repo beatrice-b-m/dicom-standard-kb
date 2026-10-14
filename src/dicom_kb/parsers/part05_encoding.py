@@ -1,395 +1,270 @@
-"""Parser scaffold for PS3.5 encoding tables."""
+"""Transfer syntax encoding facts read from PS3.5 Annex A.
+
+Each transfer syntax UID is defined by the Annex A section that names it. That
+section, the section it says to encode by first (A.5 on A.2), or its parent
+(A.4.1 on A.4) states the VR style and byte order of the Data Set and how Pixel
+Data is carried. Nothing is guessed from the UID's name.
+"""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import re
+from collections.abc import Iterable
+from dataclasses import dataclass, replace
 
-from dicom_kb.docbook.parser import ParsedDocument
-from dicom_kb.docbook.tables import ParsedRow, ParsedTable
-from dicom_kb.docbook.text_chunks import normalize_text
-from dicom_kb.ir.models import (
-    ParserWarning,
-    SourceRef,
-    TransferSyntaxDetail,
-    UIDRegistryEntry,
-    VRDefinition,
+from dicom_kb.docbook.parser import ParsedDocument, ParsedSection
+from dicom_kb.ir.models import ParserWarning, TransferSyntaxDetail
+
+_UID_RE = re.compile(r"(?<![\d.])1\.2\.840\.10008(?:\.\d+)+(?!\d)")
+_VR_RE = re.compile(r"encoded with (Implicit|Explicit) VR\b")
+_BYTE_ORDER_RE = re.compile(
+    r"Data Set structure \([^)]*\) shall be in (Little|Big) Endian"
+)
+_BASE_RE = re.compile(
+    r"first encoded according to the rules specified in Section (A(?:\.\d+)+)"
+)
+_ENCAPSULATED_RE = re.compile(r"shall be Encapsulated Format")
+_REFERENCED_RE = re.compile(
+    r"shall not be present, but rather (?:integer )?Pixel Data shall be "
+    r"referenced via (?:Data Element )?\(0028,7FE0\)"
+)
+_RTV_RE = re.compile(r"used in a DICOM-RTV Metadata Flow")
+_DEFLATE_DATA_SET_RE = re.compile(
+    r"entire byte stream is then compressed using the \W?Deflate", re.I
+)
+_DEFLATE_FRAME_RE = re.compile(
+    r"each frame is separately compressed using the Deflate", re.I
+)
+# PS3.22 7.1: the RTV transfer syntaxes describe the video or audio Flow; the
+# metadata itself always uses one fixed transfer syntax.
+_RTV_METADATA_RE = re.compile(
+    r"RTV Metadata which is encoded using the (Implicit|Explicit) VR "
+    r"(Little|Big) Endian Transfer Syntax"
 )
 
-
-@dataclass(frozen=True)
-class Part05TableSummary:
-    """A recognized PS3.5 table with bounded parser diagnostics."""
-
-    table_id: str | None
-    title: str | None
-    table_kind: str
-    source_ref: SourceRef
+NATIVE = "Native"
+ENCAPSULATED = "Encapsulated"
+REFERENCED = "Not in the Data Set: referenced by Pixel Data Provider URL (0028,7FE0)"
+RTV_FLOW = "Not in the Data Set: sent as a separate DICOM-RTV Flow"
+DEFLATE_DATA_SET = "Whole Data Set"
+DEFLATE_FRAMES = "Each frame"
 
 
 @dataclass(frozen=True)
-class Part05ParseResult:
-    """Parsed PS3.5 scaffold metadata and parser gap warnings."""
+class TransferSyntaxUID:
+    """A transfer syntax UID from the PS3.6 registry."""
 
-    recognized_tables: tuple[Part05TableSummary, ...]
-    vr_definitions: tuple[VRDefinition, ...]
+    uid: str
+    retired: bool
+
+
+@dataclass(frozen=True)
+class TransferSyntaxParseResult:
+    """Encoding facts per transfer syntax and the UIDs left without them."""
+
+    details: tuple[TransferSyntaxDetail, ...]
     warnings: tuple[ParserWarning, ...]
 
 
-def parse_part05(document: ParsedDocument, *, edition: str) -> Part05ParseResult:
-    """Parse deterministic PS3.5 value representation definitions."""
-    recognized: list[Part05TableSummary] = []
-    vr_definitions: list[VRDefinition] = []
-    warnings: list[ParserWarning] = []
-
-    for table in document.tables:
-        headers = _headers(table)
-        if _is_vr_behavior_table(headers):
-            recognized.append(
-                Part05TableSummary(
-                    table_id=table.xml_id,
-                    title=table.title,
-                    table_kind="vr_behavior",
-                    source_ref=_source_ref(edition, table),
-                )
-            )
-            vr_definitions.extend(
-                _parse_vr_definition_table(table, headers, edition, warnings)
-            )
-        else:
-            warnings.append(
-                ParserWarning(
-                    part="PS3.5",
-                    table_id=table.xml_id,
-                    row_index=None,
-                    message="unsupported PS3.5 table shape",
-                )
-            )
-
-    return Part05ParseResult(
-        recognized_tables=tuple(recognized),
-        vr_definitions=tuple(vr_definitions),
-        warnings=tuple(warnings),
-    )
+@dataclass(frozen=True)
+class _Facts:
+    vr_encoding: str | None = None
+    byte_order: str | None = None
+    pixel_data: str | None = None
+    deflate: str | None = None
 
 
-def transfer_syntax_details_from_uid_registry(
+def parse_transfer_syntaxes(
+    document: ParsedDocument,
     *,
     edition: str,
-    uid_registry_entries: tuple[UIDRegistryEntry, ...],
-) -> tuple[TransferSyntaxDetail, ...]:
-    """Derive deterministic transfer syntax encoding details from UID rows."""
-    records: list[TransferSyntaxDetail] = []
-    for entry in uid_registry_entries:
-        if _key(entry.uid_type) != "transfer syntax":
-            continue
-        details = _transfer_syntax_encoding(entry)
-        records.append(
-            TransferSyntaxDetail(
-                id=f"{edition}.transfer_syntax.{entry.uid_value}",
-                edition_id=edition,
-                uid_registry_entry_id=entry.id,
-                uid_value=entry.uid_value,
-                explicit_vr=details.explicit_vr,
-                endian=details.endian,
-                encapsulated=details.encapsulated,
-                compression_family=details.compression_family,
-                encoding_notes=details.encoding_notes,
-                source_ref=entry.source_ref,
-            )
-        )
-    return tuple(records)
+    transfer_syntaxes: Iterable[TransferSyntaxUID],
+    rtv_document: ParsedDocument | None = None,
+) -> TransferSyntaxParseResult:
+    """Read each transfer syntax's encoding facts from PS3.5 Annex A.
 
-
-@dataclass(frozen=True)
-class _TransferSyntaxEncoding:
-    explicit_vr: bool | None = None
-    endian: str | None = None
-    encapsulated: bool | None = None
-    compression_family: str | None = None
-    encoding_notes: tuple[str, ...] = ()
-
-
-def _transfer_syntax_encoding(entry: UIDRegistryEntry) -> _TransferSyntaxEncoding:
-    name = _key(entry.uid_name)
-    keyword = _key(entry.uid_keyword or "")
-    combined = f"{name} {keyword}"
-
-    explicit_vr = _explicit_vr(combined)
-    endian = _endian(combined)
-    compression_family = _compression_family(combined)
-    encapsulated = _encapsulated(entry.uid_value, combined, compression_family)
-    encoding_notes = _encoding_notes(compression_family, encapsulated)
-
-    return _TransferSyntaxEncoding(
-        explicit_vr=explicit_vr,
-        endian=endian,
-        encapsulated=encapsulated,
-        compression_family=compression_family,
-        encoding_notes=encoding_notes,
-    )
-
-
-def _explicit_vr(value: str) -> bool | None:
-    if "implicit vr" in value:
-        return False
-    if "explicit vr" in value:
-        return True
-    return None
-
-
-def _endian(value: str) -> str | None:
-    if "big endian" in value:
-        return "big"
-    if "little endian" in value:
-        return "little"
-    return None
-
-
-def _compression_family(value: str) -> str | None:
-    if "deflated" in value:
-        return "deflated"
-    if "rle" in value or "run length" in value:
-        return "rle"
-    if "jpeg-ls" in value or "jpegls" in value:
-        return "jpeg-ls"
-    if "jpeg 2000" in value or "jpeg2000" in value or "htj2k" in value:
-        return "jpeg-2000"
-    if "jpip" in value:
-        return "jpip"
-    if "mpeg" in value:
-        return "mpeg"
-    if "hevc" in value or "h.265" in value or "h265" in value:
-        return "hevc"
-    if "avc" in value or "h.264" in value or "h264" in value:
-        return "avc"
-    if "jpeg xl" in value or "jpegxl" in value:
-        return "jpeg-xl"
-    if "jpeg" in value:
-        return "jpeg"
-    return None
-
-
-def _encapsulated(
-    uid_value: str, value: str, compression_family: str | None
-) -> bool | None:
-    if uid_value in {
-        "1.2.840.10008.1.2",
-        "1.2.840.10008.1.2.1",
-        "1.2.840.10008.1.2.1.99",
-        "1.2.840.10008.1.2.2",
-    }:
-        return False
-    if compression_family is None:
-        return None
-    return "deflated" not in value
-
-
-def _encoding_notes(
-    compression_family: str | None, encapsulated: bool | None
-) -> tuple[str, ...]:
-    notes: list[str] = []
-    if compression_family == "deflated":
-        notes.append("deflated dataset encoding")
-    elif compression_family is not None:
-        notes.append(f"{compression_family} compressed transfer syntax")
-    if encapsulated is True:
-        notes.append("encapsulated pixel data")
-    return tuple(notes)
-
-
-def _headers(table: ParsedTable) -> dict[str, int]:
-    for row in table.rows:
-        if row.section == "thead":
-            return {_key(cell.text): cell.column for cell in row.cells}
-    if not table.rows:
-        return {}
-    return {_key(cell.text): cell.column for cell in table.rows[0].cells}
-
-
-def _is_vr_behavior_table(headers: dict[str, int]) -> bool:
-    if "vr name" in headers and {
-        "definition",
-        "character repertoire",
-        "length of value",
-    } <= set(headers):
-        return True
-    return "vr" in headers and bool(
-        headers.keys() & {"behavior", "description", "name", "value representation"}
-    )
-
-
-def _parse_vr_definition_table(
-    table: ParsedTable,
-    headers: dict[str, int],
-    edition: str,
-    warnings: list[ParserWarning],
-) -> list[VRDefinition]:
-    records: list[VRDefinition] = []
-    vr_column = _first_header(headers, "vr", "vr name")
-    if vr_column is None:
-        return records
-    for row in _data_rows(table):
-        vr_cell = _optional_cell(row, vr_column) or ""
-        vr, official_name = _vr_and_name(vr_cell)
-        if not _is_vr_code(vr):
-            warnings.append(_warning(table, row, "skipped malformed VR row"))
-            continue
-
-        definition = _optional_cell(row, headers.get("definition"))
-        character_repertoire = _optional_cell(row, headers.get("character repertoire"))
-        name = (
-            _optional_cell(row, _first_header(headers, "name", "value representation"))
-            or official_name
-            or _optional_cell(row, headers.get("description"))
-            or vr
-        )
-        behavior_text = " ".join(
-            value
-            for value in (
-                _optional_cell(
-                    row, _first_header(headers, "binary or text", "behavior")
-                ),
-                definition,
-                character_repertoire,
-            )
-            if value
-        )
-        records.append(
-            VRDefinition(
-                id=f"{edition}.PS3.5.vr.{vr}",
-                edition_id=edition,
-                vr=vr,
-                name=name,
-                value_representation_class=_optional_cell(
-                    row, _first_header(headers, "value representation class", "class")
-                ),
-                length_notes=_optional_cells(
-                    row,
-                    _first_header(
-                        headers,
-                        "length notes",
-                        "length",
-                        "length of value",
-                    ),
-                ),
-                padding_behavior=_optional_cell(
-                    row, _first_header(headers, "padding behavior", "padding")
-                ),
-                character_repertoire_notes=(
-                    (character_repertoire,)
-                    if character_repertoire is not None
-                    else _optional_cells(
-                        row,
-                        _first_header(
-                            headers,
-                            "character repertoire notes",
-                            "character repertoire",
-                        ),
-                    )
-                ),
-                binary_or_text=_binary_or_text(behavior_text),
-                source_ref=_source_ref(edition, table),
-            )
-        )
-    warnings.extend(_duplicate_warnings(records))
-    return records
-
-
-def _data_rows(table: ParsedTable) -> list[ParsedRow]:
-    return [
-        row for row in table.rows if row.section != "thead" and row.row_kind == "data"
-    ]
-
-
-def _cell(row: ParsedRow, column: int) -> str:
-    for cell in row.cells:
-        if cell.column == column:
-            return cell.text
-    return ""
-
-
-def _optional_cell(row: ParsedRow, column: int | None) -> str | None:
-    if column is None:
-        return None
-    value = normalize_text(_cell(row, column))
-    return value or None
-
-
-def _optional_cells(row: ParsedRow, column: int | None) -> tuple[str, ...]:
-    value = _optional_cell(row, column)
-    return (value,) if value is not None else ()
-
-
-def _first_header(headers: dict[str, int], *names: str) -> int | None:
-    for name in names:
-        column = headers.get(name)
-        if column is not None:
-            return column
-    return None
-
-
-def _vr_and_name(value: str) -> tuple[str, str | None]:
-    normalized = normalize_text(value)
-    if len(normalized) < 2:
-        return normalized.upper(), None
-    vr = normalized[:2].upper()
-    name = normalize_text(normalized[2:])
-    return vr, name or None
-
-
-def _key(value: str) -> str:
-    return normalize_text(value).lower()
-
-
-def _is_vr_code(value: str) -> bool:
-    return len(value) == 2 and value.isalpha() and value.isupper()
-
-
-def _binary_or_text(value: str | None) -> str | None:
-    if value is None:
-        return None
-    normalized = value.lower()
-    if "binary" in normalized:
-        return "binary"
-    if "text" in normalized or "character" in normalized or "string" in normalized:
-        return "text"
-    return None
-
-
-def _source_ref(edition: str, table: ParsedTable) -> SourceRef:
-    table_id = table.xml_id or "unknown"
-    return SourceRef(
-        id=f"{edition}.PS3.5.{table_id}",
-        edition_id=edition,
-        part="PS3.5",
-        section=table.parent_xml_id,
-        table_id=table_id,
-        xml_id=table.xml_id,
-        title=table.title,
-    )
-
-
-def _warning(table: ParsedTable, row: ParsedRow, message: str) -> ParserWarning:
-    return ParserWarning(
-        part="PS3.5",
-        table_id=table.xml_id,
-        row_index=row.row_index,
-        message=message,
-    )
-
-
-def _duplicate_warnings(records: list[VRDefinition]) -> list[ParserWarning]:
-    seen: set[str] = set()
+    Pass PS3.22 as `rtv_document` so the DICOM-RTV transfer syntaxes get the
+    encoding of the metadata that carries them.
+    """
+    reader = _AnnexReader(document, rtv_document)
+    details: list[TransferSyntaxDetail] = []
     warnings: list[ParserWarning] = []
-    for record in records:
-        if record.vr in seen:
+    for entry in transfer_syntaxes:
+        sections = reader.defining_sections(entry.uid)
+        if not sections:
+            if not entry.retired:
+                warnings.append(_warning(f"no Annex A section defines {entry.uid}"))
+            continue
+        section = sections[0]
+        if len(sections) > 1:
+            others = ", ".join(s.number or "" for s in sections[1:])
             warnings.append(
-                ParserWarning(
-                    part="PS3.5",
-                    table_id=record.source_ref.table_id,
-                    row_index=None,
-                    message=f"duplicate VR definition for {record.vr}",
+                _warning(
+                    f"{entry.uid} is also named in Annex A {others}; "
+                    f"using {section.number}"
                 )
             )
-        seen.add(record.vr)
-    return warnings
+        facts = reader.facts(section)
+        vr, order, pixel_data = facts.vr_encoding, facts.byte_order, facts.pixel_data
+        if vr is None or order is None or pixel_data is None:
+            missing = [
+                name
+                for name, value in (
+                    ("VR", vr),
+                    ("byte order", order),
+                    ("Pixel Data encoding", pixel_data),
+                )
+                if value is None
+            ]
+            warnings.append(
+                _warning(
+                    f"Section {section.number} gives no {', '.join(missing)} "
+                    f"for {entry.uid}"
+                )
+            )
+            continue
+        details.append(
+            TransferSyntaxDetail(
+                id=f"{edition}.transfer_syntax.{entry.uid}",
+                edition_id=edition,
+                uid_value=entry.uid,
+                vr_encoding=vr,
+                byte_order=order,
+                pixel_data=pixel_data,
+                deflate=facts.deflate,
+                section_xml_id=section.xml_id or "",
+                see_also=reader.mentions(entry.uid, exclude=section.xml_id),
+            )
+        )
+    return TransferSyntaxParseResult(details=tuple(details), warnings=tuple(warnings))
+
+
+class _AnnexReader:
+    def __init__(
+        self, document: ParsedDocument, rtv_document: ParsedDocument | None
+    ) -> None:
+        self.sections = {s.xml_id: s for s in document.sections if s.xml_id}
+        self.annex = [s for s in document.sections if _in_annex_a(s)]
+        self.by_number = {s.number: s for s in self.annex if s.number}
+        tables_by_parent: dict[str, list[str]] = {}
+        for table in document.tables:
+            if table.parent_xml_id:
+                tables_by_parent.setdefault(table.parent_xml_id, []).append(
+                    table.markdown
+                )
+        # Rules are read without notes: notes restate other sections' UIDs.
+        self.rules = {
+            s.xml_id: _without_notes(
+                "\n".join([s.markdown, *tables_by_parent.get(s.xml_id or "", [])])
+            )
+            for s in self.annex
+            if s.xml_id
+        }
+        self.texts: list[tuple[str, str]] = [
+            (s.xml_id, s.markdown) for s in document.sections if s.xml_id
+        ] + [(t.xml_id, t.markdown) for t in document.tables if t.xml_id]
+        self.rtv = _rtv_metadata(rtv_document)
+        self._facts: dict[str, _Facts] = {}
+
+    def defining_sections(self, uid: str) -> list[ParsedSection]:
+        return [
+            section
+            for section in self.annex
+            if uid in _UID_RE.findall(self.rules.get(section.xml_id or "", ""))
+        ]
+
+    def mentions(self, uid: str, *, exclude: str | None) -> tuple[str, ...]:
+        """Other PS3.5 sections and tables that name the UID, in document order."""
+        return tuple(
+            xml_id
+            for xml_id, text in self.texts
+            if xml_id != exclude and uid in _UID_RE.findall(text)
+        )
+
+    def facts(self, section: ParsedSection) -> _Facts:
+        key = section.xml_id or ""
+        if key not in self._facts:
+            self._facts[key] = self._read_facts(section)
+        return self._facts[key]
+
+    def _read_facts(self, section: ParsedSection) -> _Facts:
+        text = self.rules.get(section.xml_id or "", "")
+        vr = _VR_RE.search(text)
+        order = _BYTE_ORDER_RE.search(text)
+        facts = _Facts(
+            vr_encoding=f"{vr.group(1)} VR" if vr else None,
+            byte_order=f"{order.group(1)} Endian" if order else None,
+            pixel_data=_pixel_data(text),
+            deflate=(
+                DEFLATE_DATA_SET
+                if _DEFLATE_DATA_SET_RE.search(text)
+                else DEFLATE_FRAMES
+                if _DEFLATE_FRAME_RE.search(text)
+                else None
+            ),
+        )
+        if _RTV_RE.search(text) and self.rtv is not None:
+            facts = replace(
+                facts,
+                vr_encoding=facts.vr_encoding or self.rtv.vr_encoding,
+                byte_order=facts.byte_order or self.rtv.byte_order,
+            )
+        base = _BASE_RE.search(text)
+        if base and base.group(1) in self.by_number:
+            facts = _fill(facts, self.facts(self.by_number[base.group(1)]))
+        parent = self.sections.get(section.parent_xml_id or "")
+        if parent is not None and _in_annex_a(parent):
+            facts = _fill(facts, self.facts(parent))
+        if facts.pixel_data is None and vr is not None:
+            # A section that sets the Data Set's own VR rules and says nothing
+            # else about Pixel Data keeps it in Native Format.
+            facts = replace(facts, pixel_data=NATIVE)
+        return facts
+
+
+def _fill(facts: _Facts, inherited: _Facts) -> _Facts:
+    """Take what this section leaves unsaid from the section it builds on."""
+    return replace(
+        facts,
+        vr_encoding=facts.vr_encoding or inherited.vr_encoding,
+        byte_order=facts.byte_order or inherited.byte_order,
+        pixel_data=facts.pixel_data or inherited.pixel_data,
+    )
+
+
+def _pixel_data(text: str) -> str | None:
+    if _REFERENCED_RE.search(text):
+        return REFERENCED
+    if _ENCAPSULATED_RE.search(text):
+        return ENCAPSULATED
+    if _RTV_RE.search(text):
+        return RTV_FLOW
+    return None
+
+
+def _rtv_metadata(document: ParsedDocument | None) -> _Facts | None:
+    if document is None:
+        return None
+    for section in document.sections:
+        match = _RTV_METADATA_RE.search(section.plain_text)
+        if match:
+            return _Facts(
+                vr_encoding=f"{match.group(1)} VR",
+                byte_order=f"{match.group(2)} Endian",
+            )
+    return None
+
+
+def _in_annex_a(section: ParsedSection) -> bool:
+    number = section.number or ""
+    return number == "A" or number.startswith("A.")
+
+
+def _without_notes(markdown: str) -> str:
+    return "\n".join(
+        line for line in markdown.splitlines() if not line.lstrip().startswith(">")
+    )
+
+
+def _warning(message: str) -> ParserWarning:
+    return ParserWarning(part="PS3.5", table_id=None, row_index=None, message=message)

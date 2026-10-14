@@ -19,7 +19,7 @@ from dicom_kb.mcp.server import (
     execute_mcp_tool,
     serve_mcp_stdio,
 )
-from tests.unit.test_cli_lookup import _fixture_db
+from tests.unit.test_cli_queries import _fixture_db
 
 _RICH_BOX_CHARS = str.maketrans("", "", "\u256d\u2500\u256e\u2502\u2570\u256f")
 
@@ -65,12 +65,6 @@ class _FakeFastMCP:
 
 def test_mcp_tool_names_match_supported_spec() -> None:
     assert MCP_TOOL_NAMES == (
-        "dicom_lookup_uid",
-        "dicom_lookup_vr",
-        "dicom_lookup_transfer_syntax",
-        "dicom_explain_encoding_rule",
-        "dicom_lookup_media_type",
-        "dicom_lookup_dicomweb_transaction",
         "dicom_element",
         "dicom_iod",
         "dicom_module",
@@ -170,34 +164,18 @@ def test_execute_mcp_tool_returns_compact_markdown(tmp_path: Path) -> None:
             ["In the CT Image IOD:", "| Patient Module | M | 2 |"],
         ),
         (
-            "dicom_lookup_vr",
-            {"vr": "ob"},
-            ["**Vr:** OB", "**Binary or text:** binary", "Source: PS3.5"],
+            "dicom_read",
+            {"ref": "VR ob"},
+            ["**OB** Other Byte", "**Explicit VR header:**", "Source: PS3.5"],
         ),
         (
-            "dicom_lookup_transfer_syntax",
-            {"uid_or_keyword": "ImplicitVRLittleEndian"},
-            ["1.2.840.10008.1.2", "**Explicit vr:** no", "**Endian:** little"],
-        ),
-        (
-            "dicom_explain_encoding_rule",
-            {"topic": "PN"},
-            ["PN is the Person Name VR.", "value representation class"],
-        ),
-        (
-            "dicom_lookup_media_type",
-            {"media_type_or_context": "file"},
-            ["**Media type:** application/dicom", "Source: PS3.10"],
-        ),
-        (
-            "dicom_lookup_media_type",
-            {"media_type_or_context": "STOW-RS request"},
-            ["**Media type:** multipart/related", "Source: PS3.18"],
-        ),
-        (
-            "dicom_lookup_dicomweb_transaction",
-            {"name_or_route": "RetrieveStudy"},
-            ["**Route template:** /studies/{studyInstanceUID}", "- 404"],
+            "dicom_read",
+            {"ref": "ImplicitVRLittleEndian"},
+            [
+                "1.2.840.10008.1.2",
+                "| Implicit VR | Little Endian | Native | No |",
+                "Rules: PS3.5 Section A.1",
+            ],
         ),
         (
             "dicom_code",
@@ -253,8 +231,8 @@ def test_execute_mcp_tool_not_found_is_one_line(tmp_path: Path) -> None:
 def test_execute_mcp_tool_reports_missing_db(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError, match="SQLite KB does not exist"):
         execute_mcp_tool(
-            "dicom_lookup_uid",
-            {"uid_or_keyword": "ExplicitVRLittleEndian"},
+            "dicom_read",
+            {"ref": "ExplicitVRLittleEndian"},
             config=MCPServerConfig(
                 edition="2026b",
                 db_path=tmp_path / "missing.sqlite",

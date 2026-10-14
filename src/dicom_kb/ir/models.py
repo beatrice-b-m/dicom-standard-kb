@@ -178,85 +178,20 @@ class AttributeValueTerm(BaseModel):
     meaning: str | None = None
 
 
-class VRDefinition(BaseModel):
-    """PS3.5 value representation behavior row."""
-
-    model_config = ConfigDict(frozen=True)
-
-    id: str
-    edition_id: str
-    vr: str
-    name: str
-    value_representation_class: str | None = None
-    length_notes: tuple[str, ...] = ()
-    padding_behavior: str | None = None
-    character_repertoire_notes: tuple[str, ...] = ()
-    binary_or_text: str | None = None
-    source_ref: SourceRef
-
-
 class TransferSyntaxDetail(BaseModel):
-    """Deterministic encoding details for a PS3.6 transfer syntax UID."""
+    """How a transfer syntax encodes the Data Set, as PS3.5 Annex A states it."""
 
     model_config = ConfigDict(frozen=True)
 
     id: str
     edition_id: str
-    uid_registry_entry_id: str
     uid_value: str
-    explicit_vr: bool | None = None
-    endian: str | None = None
-    encapsulated: bool | None = None
-    compression_family: str | None = None
-    encoding_notes: tuple[str, ...] = ()
-    source_ref: SourceRef
-
-
-class FileMetaRequirement(BaseModel):
-    """PS3.10 file meta information attribute requirement row."""
-
-    model_config = ConfigDict(frozen=True)
-
-    id: str
-    edition_id: str
-    data_element_id: str | None = None
-    attribute_tag: str
-    attribute_keyword: str | None = None
-    type_designation: str
-    rule_context: str | None = None
-    source_ref: SourceRef
-
-
-class DicomMediaType(BaseModel):
-    """DICOM media type rule row from PS3.10 or PS3.18."""
-
-    model_config = ConfigDict(frozen=True)
-
-    id: str
-    edition_id: str
-    media_type: str
-    service_context: str | None = None
-    transfer_syntax_constraints: tuple[str, ...] = ()
-    directions: tuple[str, ...] = ()
-    source_ref: SourceRef
-
-
-class DicomwebTransaction(BaseModel):
-    """DICOMweb transaction row parsed from PS3.18."""
-
-    model_config = ConfigDict(frozen=True)
-
-    id: str
-    edition_id: str
-    transaction_name: str
-    resource_category: str | None = None
-    http_method: str
-    route_template: str
-    request_constraints: tuple[str, ...] = ()
-    response_constraints: tuple[str, ...] = ()
-    status_codes: tuple[str, ...] = ()
-    media_type_refs: tuple[str, ...] = ()
-    source_ref: SourceRef
+    vr_encoding: str
+    byte_order: str
+    pixel_data: str
+    deflate: str | None = None
+    section_xml_id: str
+    see_also: tuple[str, ...] = ()
 
 
 class SRTemplate(BaseModel):

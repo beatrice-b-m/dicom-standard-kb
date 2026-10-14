@@ -1,88 +1,20 @@
 PRAGMA foreign_keys = ON;
 
-CREATE TABLE IF NOT EXISTS vr_definition (
-  id TEXT PRIMARY KEY,
-  edition_id TEXT NOT NULL,
-  vr TEXT NOT NULL,
-  name TEXT NOT NULL,
-  value_representation_class TEXT,
-  length_notes_json TEXT NOT NULL DEFAULT '[]',
-  padding_behavior TEXT,
-  character_repertoire_notes_json TEXT NOT NULL DEFAULT '[]',
-  binary_or_text TEXT,
-  source_ref_id TEXT NOT NULL REFERENCES source_ref(id),
-  UNIQUE (edition_id, vr)
-);
-
-CREATE INDEX IF NOT EXISTS idx_vr_definition_vr
-  ON vr_definition (edition_id, vr);
-
+-- One row per transfer syntax that PS3.5 Annex A defines in this edition.
+-- section_xml_id is the defining PS3.5 section; see_also_json lists the other
+-- PS3.5 sections and tables that name the UID.
 CREATE TABLE IF NOT EXISTS transfer_syntax_detail (
   id TEXT PRIMARY KEY,
   edition_id TEXT NOT NULL,
-  uid_registry_entry_id TEXT NOT NULL REFERENCES uid_registry_entry(id),
   uid_value TEXT NOT NULL,
-  explicit_vr INTEGER,
-  endian TEXT,
-  encapsulated INTEGER,
-  compression_family TEXT,
-  encoding_notes_json TEXT NOT NULL DEFAULT '[]',
-  source_ref_id TEXT NOT NULL REFERENCES source_ref(id),
+  vr_encoding TEXT NOT NULL,
+  byte_order TEXT NOT NULL,
+  pixel_data TEXT NOT NULL,
+  deflate TEXT,
+  section_xml_id TEXT NOT NULL,
+  see_also_json TEXT NOT NULL DEFAULT '[]',
   UNIQUE (edition_id, uid_value)
 );
-
-CREATE INDEX IF NOT EXISTS idx_transfer_syntax_detail_uid
-  ON transfer_syntax_detail (edition_id, uid_value);
-
-CREATE TABLE IF NOT EXISTS file_meta_requirement (
-  id TEXT PRIMARY KEY,
-  edition_id TEXT NOT NULL,
-  data_element_id TEXT REFERENCES data_element(id),
-  attribute_tag TEXT NOT NULL,
-  attribute_keyword TEXT,
-  type_designation TEXT NOT NULL,
-  rule_context TEXT,
-  source_ref_id TEXT NOT NULL REFERENCES source_ref(id),
-  UNIQUE (edition_id, attribute_tag, rule_context)
-);
-
-CREATE INDEX IF NOT EXISTS idx_file_meta_requirement_tag
-  ON file_meta_requirement (edition_id, attribute_tag);
-
-CREATE TABLE IF NOT EXISTS dicom_media_type (
-  id TEXT PRIMARY KEY,
-  edition_id TEXT NOT NULL,
-  media_type TEXT NOT NULL,
-  service_context TEXT,
-  transfer_syntax_constraints_json TEXT NOT NULL DEFAULT '[]',
-  directions_json TEXT NOT NULL DEFAULT '[]',
-  source_ref_id TEXT NOT NULL REFERENCES source_ref(id),
-  UNIQUE (edition_id, media_type, service_context)
-);
-
-CREATE INDEX IF NOT EXISTS idx_dicom_media_type_media_type
-  ON dicom_media_type (edition_id, media_type);
-
-CREATE TABLE IF NOT EXISTS dicomweb_transaction (
-  id TEXT PRIMARY KEY,
-  edition_id TEXT NOT NULL,
-  transaction_name TEXT NOT NULL,
-  resource_category TEXT,
-  http_method TEXT NOT NULL,
-  route_template TEXT NOT NULL,
-  request_constraints_json TEXT NOT NULL DEFAULT '[]',
-  response_constraints_json TEXT NOT NULL DEFAULT '[]',
-  status_codes_json TEXT NOT NULL DEFAULT '[]',
-  media_type_refs_json TEXT NOT NULL DEFAULT '[]',
-  source_ref_id TEXT NOT NULL REFERENCES source_ref(id),
-  UNIQUE (edition_id, transaction_name, http_method, route_template)
-);
-
-CREATE INDEX IF NOT EXISTS idx_dicomweb_transaction_name
-  ON dicomweb_transaction (edition_id, transaction_name);
-
-CREATE INDEX IF NOT EXISTS idx_dicomweb_transaction_route
-  ON dicomweb_transaction (edition_id, route_template);
 
 CREATE TABLE IF NOT EXISTS sr_template (
   id TEXT PRIMARY KEY,
