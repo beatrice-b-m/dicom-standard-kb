@@ -14,9 +14,9 @@ from dicom_kb.build import (
 )
 from dicom_kb.db.importers import ImportSummary
 from dicom_kb.query.resolver import (
+    attribute_values,
     element_usage,
     iod_modules,
-    lookup_defined_terms,
     lookup_vr,
 )
 from dicom_kb.sources.downloader import (
@@ -185,10 +185,8 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
     with _connect(summary.db_path) as connection:
         tag_response = element_usage(connection, name="Modality", edition="2026b")
         sop_response = iod_modules(connection, name="CT Image Storage", edition="2026b")
-        terms_response = lookup_defined_terms(
-            connection,
-            attribute="PatientName",
-            edition="2026b",
+        terms_response = attribute_values(
+            connection, name="PatientName", edition="2026b"
         )
         metadata = connection.execute(
             "SELECT metadata_json, schema_version FROM build_metadata "
@@ -294,8 +292,8 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
     assert sop_response.status == "ok"
     assert terms_response.status == "ok"
     assert terms_response.result is not None
-    assert len(terms_response.result["terms"]) == 2
-    assert metadata["schema_version"] == "10"
+    assert "| ALPHA | Alphabetic representation. |" in terms_response.result["markdown"]
+    assert metadata["schema_version"] == "11"
     payload = json.loads(metadata["metadata_json"])
     assert payload["edition"] == "2026b"
     assert {row["part"] for row in v2_parts} == {
