@@ -14,9 +14,9 @@ from dicom_kb.build import (
 )
 from dicom_kb.db.importers import ImportSummary
 from dicom_kb.query.resolver import (
-    lookup_data_element,
+    element_usage,
+    iod_modules,
     lookup_defined_terms,
-    lookup_sop_class,
     lookup_vr,
 )
 from dicom_kb.sources.downloader import (
@@ -166,8 +166,10 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
     assert metrics["parts_loaded"] == sorted(SYNTHETIC_PARTS)
     assert metrics["parse_warnings"] == len(summary.warnings)
     assert metrics["parse_warnings_by_part"] == {
-        "PS3.3": 0,
-        "PS3.4": 1,
+        # The fixture lists two modules it gives no table for, and a SOP
+        # Class with no IOD reference.
+        "PS3.3": 2,
+        "PS3.4": 2,
         "PS3.5": 1,
         "PS3.6": 2,
         "PS3.7": 1,
@@ -181,14 +183,8 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
     assert metrics["xrefs_total"] >= metrics["xrefs_unresolved"]
 
     with _connect(summary.db_path) as connection:
-        tag_response = lookup_data_element(
-            connection, tag_or_keyword="Modality", edition="2026b"
-        )
-        sop_response = lookup_sop_class(
-            connection,
-            uid_or_name_or_keyword="CT Image Storage",
-            edition="2026b",
-        )
+        tag_response = element_usage(connection, name="Modality", edition="2026b")
+        sop_response = iod_modules(connection, name="CT Image Storage", edition="2026b")
         terms_response = lookup_defined_terms(
             connection,
             attribute="PatientName",
@@ -299,7 +295,7 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
     assert terms_response.status == "ok"
     assert terms_response.result is not None
     assert len(terms_response.result["terms"]) == 2
-    assert metadata["schema_version"] == "9"
+    assert metadata["schema_version"] == "10"
     payload = json.loads(metadata["metadata_json"])
     assert payload["edition"] == "2026b"
     assert {row["part"] for row in v2_parts} == {
@@ -887,15 +883,15 @@ def test_failed_import_step_is_logged_and_build_continues(
     assert summary.metrics.parse_warnings_by_part["PS3.5"] >= 1
     connection = _connect(summary.db_path)
     try:
-        element = lookup_data_element(
-            connection, tag_or_keyword="Modality", edition="2026b"
-        )
+        element = element_usage(connection, name="Modality", edition="2026b")
         assert element.result is not None
     finally:
         connection.close()
 
 
-def test_sop_class_link_to_missing_iod_is_dropped_not_fatal(tmp_path: Path) -> None:
+def test_sop_classes_import_without_links_when_ps33_is_missing(
+    tmp_path: Path,
+) -> None:
     cache_dir = tmp_path / "cache"
     _register_synthetic_parts(
         cache_dir,
@@ -907,10 +903,10 @@ def test_sop_class_link_to_missing_iod_is_dropped_not_fatal(tmp_path: Path) -> N
 
     summary = build_sqlite_database(edition="2026b", cache_dir=cache_dir)
 
-    dropped = [message for message in summary.warnings if "link dropped" in message]
-    assert dropped
-    assert "'CT Image Storage' links to IOD '2026b.iod.ct_image'" in dropped[0]
     assert summary.metrics.sop_classes == 2
+    with _connect(summary.db_path) as connection:
+        links = connection.execute("SELECT count(*) FROM sop_class_iod").fetchone()
+    assert links[0] == 0
 
 
 def test_successful_force_build_replaces_previous_database(tmp_path: Path) -> None:
@@ -928,9 +924,7 @@ def test_successful_force_build_replaces_previous_database(tmp_path: Path) -> No
     connection = _connect(target)
     try:
         assert (
-            lookup_data_element(
-                connection, tag_or_keyword="Modality", edition="2026b"
-            ).result
+            element_usage(connection, name="Modality", edition="2026b").result
             is not None
         )
     finally:

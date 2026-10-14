@@ -21,8 +21,6 @@ from dicom_kb.ir.validators import IdentifierValidationError, normalize_uid
 SERVICE_CLASS_TITLE_RE = re.compile(
     r"^(?P<name>.+?\bService\s+Class)\b.*(?:SOP\s+Classes|IODs)", re.I
 )
-REFERENCE_SUFFIX_RE = re.compile(r"\s*\((?:PS3\.\d+ )?(?:Section|Annex|Table) [^)]*\)$")
-BARE_REFERENCE_RE = re.compile(r"^(?:PS3\.\d+ )?(?:Section|Annex|Table) \S+$")
 
 
 @dataclass(frozen=True)
@@ -63,7 +61,8 @@ def parse_part04(
         )
         for sop_class, edge in rows:
             sop_classes.setdefault(sop_class.id, sop_class)
-            sop_class_iods.setdefault(edge.id, edge)
+            if edge is not None:
+                sop_class_iods.setdefault(edge.id, edge)
 
     return Part04ParseResult(
         service_classes=tuple(service_classes.values()),
@@ -98,32 +97,31 @@ def _parse_sop_class_table(
     service_class: ServiceClass,
     iod_id_by_ref: Mapping[str, str],
     warnings: list[ParserWarning],
-) -> list[tuple[SOPClass, SOPClassIOD]]:
+) -> list[tuple[SOPClass, SOPClassIOD | None]]:
     iod_column = _iod_column(headers)
     sop_name_column = _sop_name_column(headers)
     sop_uid_column = _sop_uid_column(headers)
     if iod_column is None or sop_name_column is None or sop_uid_column is None:
         return []
 
-    rows: list[tuple[SOPClass, SOPClassIOD]] = []
+    rows: list[tuple[SOPClass, SOPClassIOD | None]] = []
     source_ref = _source_ref(edition, table)
     for order, row in enumerate(_data_rows(table)):
         sop_name = _cell(row, sop_name_column)
-        iod_id = _iod_id_from_ref(row, iod_column, iod_id_by_ref)
-        resolution = "parsed"
-        resolution_warning: str | None = None
-        if iod_id is None:
-            # No xref resolved to a parsed IOD, so the link is a name guess.
-            # The build drops it if PS3.3 has no IOD with that id.
-            iod_name = _iod_name(_cell(row, iod_column)) or _iod_name_from_sop_name(
-                sop_name
-            )
-            iod_id = _id(edition, "iod", iod_name) if iod_name else None
-            resolution = "inferred_from_name"
-            resolution_warning = f"IOD matched by name {iod_name!r}"
-        if iod_id is None or not sop_name:
+        if not sop_name:
             warnings.append(_warning(table, row, "skipped SOP Class row missing name"))
             continue
+        # The IOD cell references the IOD's section; a name is never guessed.
+        iod_id = _iod_id_from_ref(row, iod_column, iod_id_by_ref)
+        if iod_id is None and iod_id_by_ref:
+            warnings.append(
+                _warning(
+                    table,
+                    row,
+                    f"SOP Class {sop_name!r} references no PS3.3 IOD: "
+                    f"{_cell(row, iod_column)!r}",
+                )
+            )
         try:
             uid_value = normalize_uid(_cell(row, sop_uid_column))
         except IdentifierValidationError as exc:
@@ -140,14 +138,17 @@ def _parse_sop_class_table(
             service_class_id=service_class.id,
             source_ref=source_ref,
         )
-        edge = SOPClassIOD(
-            id=f"{sop_class.id}.iod.{order}",
-            edition_id=edition,
-            sop_class_id=sop_class.id,
-            iod_id=iod_id,
-            resolution=resolution,
-            resolution_warning=resolution_warning,
-            source_ref=source_ref,
+        edge = (
+            SOPClassIOD(
+                id=f"{sop_class.id}.iod.{order}",
+                edition_id=edition,
+                sop_class_id=sop_class.id,
+                iod_id=iod_id,
+                resolution="parsed",
+                source_ref=source_ref,
+            )
+            if iod_id is not None
+            else None
         )
         rows.append((sop_class, edge))
     return rows
@@ -215,20 +216,6 @@ def _iod_id_from_ref(
             if iod_id is not None:
                 return iod_id
     return None
-
-
-def _iod_name(value: str) -> str:
-    # Resolved references read "CT Image IOD (PS3.3 Section A.3)", or just
-    # "PS3.3 Section A.3" when PS3.3 was not built; neither part is a name.
-    normalized = REFERENCE_SUFFIX_RE.sub("", normalize_text(value))
-    if BARE_REFERENCE_RE.match(normalized):
-        return ""
-    return re.sub(r"\s+IOD$", "", normalized, flags=re.I)
-
-
-def _iod_name_from_sop_name(value: str) -> str:
-    normalized = normalize_text(value)
-    return re.sub(r"\s+Storage$", "", normalized, flags=re.I)
 
 
 def _key(value: str) -> str:

@@ -58,7 +58,7 @@ from dicom_kb.sources.manifest import (
     utc_now,
 )
 
-SCHEMA_VERSION = "9"
+SCHEMA_VERSION = "10"
 DOCBOOK_XML_FORMAT = "docbook_xml"
 
 
@@ -516,24 +516,6 @@ def _build_part04(
     if parsed is None:
         return
     log.parser_warnings(parsed.warnings)
-    known_iods = {
-        str(row["id"])
-        for row in connection.execute(
-            "SELECT id FROM iod WHERE edition_id = ?", (edition,)
-        )
-    }
-    sop_names = {sop_class.id: sop_class.name for sop_class in parsed.sop_classes}
-    edges = []
-    for edge in parsed.sop_class_iods:
-        if edge.iod_id in known_iods:
-            edges.append(edge)
-            continue
-        log.add(
-            "PS3.4",
-            f"{edge.source_ref.table_id}: SOP Class "
-            f"{sop_names.get(edge.sop_class_id, edge.sop_class_id)!r} links to "
-            f"IOD {edge.iod_id!r}, which PS3.3 does not define; link dropped",
-        )
     record(
         log.step(
             "PS3.4",
@@ -543,7 +525,7 @@ def _build_part04(
                 edition=edition,
                 service_classes=parsed.service_classes,
                 sop_classes=parsed.sop_classes,
-                sop_class_iods=edges,
+                sop_class_iods=parsed.sop_class_iods,
             ),
         )
     )
