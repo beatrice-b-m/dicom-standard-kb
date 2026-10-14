@@ -29,8 +29,13 @@ from dicom_kb.db.importers import (
     import_transfer_syntax_details,
     import_vr_definitions,
 )
-from dicom_kb.db.models import apply_migrations, connect_sqlite
-from dicom_kb.docbook.parser import ParsedDocument, parse_docbook_file
+from dicom_kb.db.models import apply_migrations, connect_sqlite, read_sqlite
+from dicom_kb.docbook.parser import (
+    ParsedDocument,
+    parse_docbook_file,
+    read_docbook_root,
+)
+from dicom_kb.docbook.targets import TargetIndex
 from dicom_kb.ir.models import IOD, ParserWarning
 from dicom_kb.metadata import __version__
 from dicom_kb.parsers.part03_iods import parse_part03
@@ -53,7 +58,7 @@ from dicom_kb.sources.manifest import (
     utc_now,
 )
 
-SCHEMA_VERSION = "8"
+SCHEMA_VERSION = "9"
 DOCBOOK_XML_FORMAT = "docbook_xml"
 
 
@@ -183,6 +188,25 @@ def gap_log_path(db_path: Path) -> Path:
     return db_path.with_name(f"{db_path.stem}.gaps.txt")
 
 
+def stale_database_message(db_path: Path) -> str | None:
+    """Explain how to rebuild a KB made by an older schema, or return None."""
+    try:
+        with read_sqlite(db_path) as connection:
+            row = connection.execute(
+                "SELECT schema_version FROM build_metadata LIMIT 1"
+            ).fetchone()
+    except sqlite3.Error:
+        return None
+    # A database without build metadata was assembled by hand (tests do).
+    found = str(row["schema_version"]) if row is not None else SCHEMA_VERSION
+    if found == SCHEMA_VERSION:
+        return None
+    return (
+        f"SQLite KB {db_path} was built with schema {found}; this version reads "
+        f"schema {SCHEMA_VERSION}. Rebuild it with `dicom-kb build --force`."
+    )
+
+
 def latest_edition(cache_dir: Path, *, built: bool) -> str | None:
     """Return the newest edition in the cache: built KBs, or fetched sources."""
     if built:
@@ -302,6 +326,8 @@ def _build_staged_database(
         apply_migrations(connection)
         import_manifest(connection, manifest)
         for part, document in documents.items():
+            for reference in document.unresolved_references:
+                log.add(part, f"reference to {reference} has no target")
             record(
                 log.step(
                     part,
@@ -666,13 +692,20 @@ def _build_part18(
 def _load_docbook_documents(
     *, cache_dir: Path, manifest: SourceManifest
 ) -> dict[str, ParsedDocument]:
-    documents: dict[str, ParsedDocument] = {}
-    for artifact in manifest.artifacts:
-        if artifact.format != DOCBOOK_XML_FORMAT:
-            continue
-        path = cache_dir / artifact.local_path
-        documents[artifact.part] = parse_docbook_file(path, part=artifact.part)
-    return documents
+    paths = {
+        artifact.part: cache_dir / artifact.local_path
+        for artifact in manifest.artifacts
+        if artifact.format == DOCBOOK_XML_FORMAT
+    }
+    # References cross parts, so every part's targets are indexed before any
+    # part is rendered. Parsing twice keeps only one XML tree in memory.
+    targets = TargetIndex()
+    for part, path in paths.items():
+        targets.add_document(read_docbook_root(path), part=part)
+    return {
+        part: parse_docbook_file(path, part=part, targets=targets)
+        for part, path in paths.items()
+    }
 
 
 def _source_ref_count(connection: sqlite3.Connection) -> int:

@@ -21,6 +21,8 @@ from dicom_kb.ir.validators import IdentifierValidationError, normalize_uid
 SERVICE_CLASS_TITLE_RE = re.compile(
     r"^(?P<name>.+?\bService\s+Class)\b.*(?:SOP\s+Classes|IODs)", re.I
 )
+REFERENCE_SUFFIX_RE = re.compile(r"\s*\((?:PS3\.\d+ )?(?:Section|Annex|Table) [^)]*\)$")
+BARE_REFERENCE_RE = re.compile(r"^(?:PS3\.\d+ )?(?:Section|Annex|Table) \S+$")
 
 
 @dataclass(frozen=True)
@@ -216,7 +218,11 @@ def _iod_id_from_ref(
 
 
 def _iod_name(value: str) -> str:
-    normalized = normalize_text(value)
+    # Resolved references read "CT Image IOD (PS3.3 Section A.3)", or just
+    # "PS3.3 Section A.3" when PS3.3 was not built; neither part is a name.
+    normalized = REFERENCE_SUFFIX_RE.sub("", normalize_text(value))
+    if BARE_REFERENCE_RE.match(normalized):
+        return ""
     return re.sub(r"\s+IOD$", "", normalized, flags=re.I)
 
 

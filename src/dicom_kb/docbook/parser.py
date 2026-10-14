@@ -7,8 +7,14 @@ from pathlib import Path
 
 from lxml import etree
 
+from dicom_kb.docbook.markdown import (
+    TABLE_PLACEHOLDER_RE,
+    MarkdownRenderer,
+    plain_text,
+)
 from dicom_kb.docbook.namespaces import NSMAP, xml_id_name
 from dicom_kb.docbook.tables import ParsedTable, parse_tables
+from dicom_kb.docbook.targets import TargetIndex, element_label
 from dicom_kb.docbook.text_chunks import normalize_text
 from dicom_kb.docbook.variablelists import ParsedVariableList, parse_variablelists
 from dicom_kb.docbook.xrefs import ParsedXref, extract_xrefs
@@ -26,6 +32,8 @@ class ParsedSection:
     node_type: str = "section"
     parent_xml_id: str | None = None
     ordinal: int = 0
+    markdown: str = ""
+    informative: bool = False
 
 
 @dataclass(frozen=True)
@@ -38,56 +46,109 @@ class ParsedDocument:
     variablelists: tuple[ParsedVariableList, ...]
     xrefs: tuple[ParsedXref, ...]
     warnings: tuple[str, ...]
+    unresolved_references: tuple[str, ...] = ()
 
 
-def parse_docbook_file(path: Path, *, part: str) -> ParsedDocument:
-    """Parse a DocBook XML file from disk."""
+def read_docbook_root(path: Path) -> etree._Element:
+    """Read a DocBook XML file without resolving entities."""
     parser = etree.XMLParser(remove_blank_text=False, resolve_entities=False)
-    root = etree.parse(str(path), parser).getroot()
-    return parse_docbook_root(root, part=part)
+    return etree.parse(str(path), parser).getroot()
 
 
-def parse_docbook_xml(xml: str | bytes, *, part: str) -> ParsedDocument:
+def parse_docbook_file(
+    path: Path, *, part: str, targets: TargetIndex | None = None
+) -> ParsedDocument:
+    """Parse a DocBook XML file from disk.
+
+    Pass the index of every part being built so references into other parts
+    resolve to their labels; without it only this part's targets resolve.
+    """
+    return parse_docbook_root(read_docbook_root(path), part=part, targets=targets)
+
+
+def parse_docbook_xml(
+    xml: str | bytes, *, part: str, targets: TargetIndex | None = None
+) -> ParsedDocument:
     """Parse a DocBook XML string."""
     parser = etree.XMLParser(remove_blank_text=False, resolve_entities=False)
     root = etree.fromstring(xml, parser=parser)
-    return parse_docbook_root(root, part=part)
+    return parse_docbook_root(root, part=part, targets=targets)
 
 
-def parse_docbook_root(root: etree._Element, *, part: str) -> ParsedDocument:
+def parse_docbook_root(
+    root: etree._Element, *, part: str, targets: TargetIndex | None = None
+) -> ParsedDocument:
     """Parse section, table, and xref structures from a DocBook root."""
+    renderer = MarkdownRenderer.for_document(root, part=part, targets=targets)
     xrefs = tuple(extract_xrefs(root))
     warnings = tuple(xref.warning for xref in xrefs if xref.warning is not None)
+    tables = tuple(parse_tables(root, renderer))
     return ParsedDocument(
         part=part,
-        sections=tuple(_parse_sections(root)),
-        tables=tuple(parse_tables(root)),
+        sections=tuple(_parse_sections(root, renderer, tables)),
+        tables=tables,
         variablelists=tuple(parse_variablelists(root)),
         xrefs=xrefs,
         warnings=warnings,
+        # Cells render twice (parsed text and table markdown); log each once.
+        unresolved_references=tuple(dict.fromkeys(renderer.log.unresolved)),
     )
 
 
-def _parse_sections(root: etree._Element) -> list[ParsedSection]:
+def _parse_sections(
+    root: etree._Element,
+    renderer: MarkdownRenderer,
+    tables: tuple[ParsedTable, ...],
+) -> list[ParsedSection]:
+    table_markdown = {table.xml_id: table.markdown for table in tables}
     sections: list[ParsedSection] = []
     for ordinal, section in enumerate(
         root.xpath(".//db:chapter | .//db:section", namespaces=NSMAP)
     ):
         if not isinstance(section, etree._Element):
             continue
+        markdown = renderer.section_body(section)
+        title = renderer.title(section)
         sections.append(
             ParsedSection(
                 xml_id=section.get(xml_id_name()),
-                title=_first_child_text(section, "title"),
-                number=_first_child_text(section, "label"),
+                title=title,
+                number=element_label(section),
                 depth=_section_depth(section),
-                plain_text=normalize_text(_section_body_text(section)),
+                # Parsers read a section's words with its tables in place.
+                plain_text=plain_text(
+                    TABLE_PLACEHOLDER_RE.sub(
+                        lambda match: table_markdown.get(match["xml_id"], ""),
+                        markdown,
+                    )
+                ),
                 node_type=etree.QName(section).localname,
                 parent_xml_id=_parent_section_xml_id(section),
                 ordinal=ordinal,
+                markdown=markdown,
+                informative=_is_informative(section),
             )
         )
     return sections
+
+
+def is_informative_title(title: str | None) -> bool:
+    """Informative annexes say so in their title; examples are informative."""
+    text = (title or "").lower()
+    return "(informative)" in text or text.startswith("example")
+
+
+def _is_informative(section: etree._Element) -> bool:
+    """Report whether a section is, or sits inside, informative text."""
+    current: etree._Element | None = section
+    while current is not None:
+        if etree.QName(current).localname in {
+            "chapter",
+            "section",
+        } and is_informative_title(_first_child_text(current, "title")):
+            return True
+        current = current.getparent()
+    return False
 
 
 def _section_depth(section: etree._Element) -> int:
@@ -120,14 +181,3 @@ def _first_child_text(element: etree._Element, local_name: str) -> str | None:
         return None
     text = normalize_text("".join(first.itertext()))
     return text or None
-
-
-def _section_body_text(section: etree._Element) -> str:
-    parts: list[str] = []
-    for child in section:
-        if not isinstance(child, etree._Element) or not isinstance(child.tag, str):
-            continue
-        if etree.QName(child).localname in {"title", "label", "section"}:
-            continue
-        parts.append("".join(child.itertext()))
-    return " ".join(parts)

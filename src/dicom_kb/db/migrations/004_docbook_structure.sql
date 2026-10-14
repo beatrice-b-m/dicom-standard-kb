@@ -12,6 +12,10 @@ CREATE TABLE IF NOT EXISTS doc_node (
   title TEXT,
   ordinal INTEGER NOT NULL,
   plain_text TEXT,
+  -- The node's own content as markdown with references resolved. A section
+  -- keeps a [[table:<xml id>]] line where each of its tables sits.
+  markdown TEXT,
+  informative INTEGER NOT NULL DEFAULT 0,
   source_ref_id TEXT NOT NULL REFERENCES source_ref(id),
   UNIQUE (edition_id, part, xml_id)
 );
@@ -21,6 +25,12 @@ CREATE INDEX IF NOT EXISTS idx_doc_node_part_xml
 
 CREATE INDEX IF NOT EXISTS idx_doc_node_part_number
   ON doc_node (edition_id, part, number);
+
+CREATE INDEX IF NOT EXISTS idx_doc_node_number
+  ON doc_node (edition_id, number);
+
+CREATE INDEX IF NOT EXISTS idx_doc_node_parent
+  ON doc_node (parent_id, ordinal);
 
 CREATE TABLE IF NOT EXISTS xref (
   id TEXT PRIMARY KEY,
@@ -36,19 +46,3 @@ CREATE TABLE IF NOT EXISTS xref (
 
 CREATE INDEX IF NOT EXISTS idx_xref_source
   ON xref (edition_id, source_node_id);
-
-CREATE TABLE IF NOT EXISTS raw_table_ir (
-  id TEXT PRIMARY KEY,
-  edition_id TEXT NOT NULL,
-  part TEXT NOT NULL,
-  table_id TEXT,
-  title TEXT,
-  ordinal INTEGER NOT NULL,
-  source_ref_id TEXT NOT NULL REFERENCES source_ref(id),
-  ir_json TEXT NOT NULL,
-  ir_sha256 TEXT NOT NULL,
-  UNIQUE (edition_id, part, table_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_raw_table_ir_part_table
-  ON raw_table_ir (edition_id, part, table_id);

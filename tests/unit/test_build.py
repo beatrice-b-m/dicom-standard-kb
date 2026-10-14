@@ -20,7 +20,6 @@ from dicom_kb.query.resolver import (
     lookup_vr,
 )
 from dicom_kb.sources.downloader import (
-    DEFAULT_DOCBOOK_PARTS,
     DOCBOOK_XML_FORMAT,
     ArtifactRequest,
     official_artifact_destination,
@@ -28,19 +27,20 @@ from dicom_kb.sources.downloader import (
 )
 from tests.fixtures_synthetic import FIXTURE_DIR
 
+SYNTHETIC_PARTS = {
+    "PS3.3": "synthetic_ps3_3_ct_image_docbook.xml",
+    "PS3.4": "synthetic_ps3_4_sop_classes_docbook.xml",
+    "PS3.5": "synthetic_ps3_5_encoding_docbook.xml",
+    "PS3.6": "synthetic_ps3_6_registry_docbook.xml",
+    "PS3.7": "synthetic_ps3_7_messages_docbook.xml",
+    "PS3.8": "synthetic_ps3_8_network_docbook.xml",
+    "PS3.10": "synthetic_ps3_10_media_storage_docbook.xml",
+    "PS3.16": "synthetic_ps3_16_content_mapping_docbook.xml",
+    "PS3.18": "synthetic_ps3_18_web_services_docbook.xml",
+}
+
 
 def _register_synthetic_artifacts(cache_dir: Path) -> None:
-    fixtures = {
-        "PS3.3": "synthetic_ps3_3_ct_image_docbook.xml",
-        "PS3.4": "synthetic_ps3_4_sop_classes_docbook.xml",
-        "PS3.5": "synthetic_ps3_5_encoding_docbook.xml",
-        "PS3.6": "synthetic_ps3_6_registry_docbook.xml",
-        "PS3.7": "synthetic_ps3_7_messages_docbook.xml",
-        "PS3.8": "synthetic_ps3_8_network_docbook.xml",
-        "PS3.10": "synthetic_ps3_10_media_storage_docbook.xml",
-        "PS3.16": "synthetic_ps3_16_content_mapping_docbook.xml",
-        "PS3.18": "synthetic_ps3_18_web_services_docbook.xml",
-    }
     register_local_artifacts(
         edition="2026b",
         cache_dir=cache_dir,
@@ -55,7 +55,7 @@ def _register_synthetic_artifacts(cache_dir: Path) -> None:
                     artifact_format=DOCBOOK_XML_FORMAT,
                 ),
             )
-            for part, filename in fixtures.items()
+            for part, filename in SYNTHETIC_PARTS.items()
         ],
     )
 
@@ -163,7 +163,7 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
         "source_refs",
     }
     assert metrics["edition"] == "2026b"
-    assert metrics["parts_loaded"] == sorted(DEFAULT_DOCBOOK_PARTS)
+    assert metrics["parts_loaded"] == sorted(SYNTHETIC_PARTS)
     assert metrics["parse_warnings"] == len(summary.warnings)
     assert metrics["parse_warnings_by_part"] == {
         "PS3.3": 0,
@@ -206,9 +206,10 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
             ("2026b",),
         ).fetchall()
         v2_tables = connection.execute(
-            "SELECT part, table_id FROM raw_table_ir "
-            "WHERE edition_id = ? AND part NOT IN ('PS3.3', 'PS3.4', 'PS3.6') "
-            "ORDER BY part, table_id",
+            "SELECT part, xml_id, markdown FROM doc_node "
+            "WHERE edition_id = ? AND node_type = 'table' "
+            "AND part NOT IN ('PS3.3', 'PS3.4', 'PS3.6') "
+            "ORDER BY part, xml_id",
             ("2026b",),
         ).fetchall()
         vr_rows = connection.execute(
@@ -298,7 +299,7 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
     assert terms_response.status == "ok"
     assert terms_response.result is not None
     assert len(terms_response.result["terms"]) == 2
-    assert metadata["schema_version"] == "8"
+    assert metadata["schema_version"] == "9"
     payload = json.loads(metadata["metadata_json"])
     assert payload["edition"] == "2026b"
     assert {row["part"] for row in v2_parts} == {
@@ -310,6 +311,7 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
         "PS3.18",
     }
     assert len(v2_tables) == 15
+    assert all(row["markdown"].startswith("**") for row in v2_tables)
     assert [dict(row) for row in vr_rows] == [
         {"vr": "OB", "name": "Other Byte", "binary_or_text": "binary"},
         {"vr": "PN", "name": "Person Name", "binary_or_text": "text"},
@@ -540,7 +542,7 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
             part=part,
             artifact_format=DOCBOOK_XML_FORMAT,
         )
-        for part in DEFAULT_DOCBOOK_PARTS
+        for part in SYNTHETIC_PARTS
     }
     assert payload["metrics"] == metrics
 
@@ -616,7 +618,8 @@ def test_build_sqlite_database_imports_official_shape_part16_rows(
     summary = build_sqlite_database(edition="2026b", cache_dir=cache_dir)
 
     assert summary.metrics.parts_loaded == ("PS3.16",)
-    assert summary.warnings == ()
+    # The fixture includes CID 34 without defining it; the gap is logged once.
+    assert summary.warnings == ("PS3.16 reference to PS3.16 sect_CID_34 has no target",)
     assert any(
         import_summary.sr_templates == 1 and import_summary.sr_template_rows == 4
         for import_summary in summary.import_summaries
@@ -680,7 +683,7 @@ def test_build_sqlite_database_imports_official_shape_part16_rows(
             "row_order": 1,
             "relationship_type": None,
             "value_type": "CONTAINER",
-            "concept_name": "CID 7021 Measurement Report Document Titles",
+            "concept_name": "DCID 7021",
             "cardinality": "1",
             "condition_text": None,
             "include_tid": None,
@@ -695,7 +698,7 @@ def test_build_sqlite_database_imports_official_shape_part16_rows(
             "row_order": 2,
             "relationship_type": "> HAS OBS CONTEXT",
             "value_type": "INCLUDE",
-            "concept_name": "TID 1001 Observation Context",
+            "concept_name": "DTID 1001",
             "cardinality": "1",
             "condition_text": None,
             "include_tid": "TID 1001",
@@ -710,7 +713,7 @@ def test_build_sqlite_database_imports_official_shape_part16_rows(
             "row_order": 3,
             "relationship_type": "> CONTAINS",
             "value_type": "INCLUDE",
-            "concept_name": "TID 1501 Measurement Group",
+            "concept_name": "DTID 1501",
             "cardinality": "1-n",
             "condition_text": None,
             "include_tid": "TID 1501",

@@ -53,6 +53,8 @@ _RICH_BOX_CHARS = str.maketrans("", "", "\u256d\u2500\u256e\u2502\u2570\u256f")
 
 
 class _FakeResponse(BytesIO):
+    headers: dict[str, str] = {}
+
     def __enter__(self) -> _FakeResponse:
         return self
 
@@ -268,17 +270,14 @@ def _invoke(tmp_path: Path, *args: str) -> str:
             id="defined terms",
         ),
         pytest.param(
-            ["retrieve-text", "PS3.3", "sect_A.3", "--max-chars", "60"],
-            [
-                "**PS3.3 A.3 CT Image IOD**",
-                "Warning: text excerpt truncated to 60 characters",
-            ],
-            id="retrieve text",
+            ["read", "PS3.3 A.3"],
+            ["## Section A.3 CT Image IOD", "**Table A.3-1: CT Image IOD Modules**"],
+            id="read",
         ),
         pytest.param(
-            ["search-text", "Patient name", "--part", "PS3.3", "--limit", "3"],
+            ["search", "Patient name", "--part", "PS3.3", "--limit", "3"],
             ["| PS3.3 Table C.7-1 | Patient Module Attributes |"],
-            id="search text",
+            id="search",
         ),
         pytest.param(
             ["lookup", "iod", "CT Image"], ["**CT Image IOD** (Table A.3-1)"], id="iod"

@@ -5,5 +5,6 @@ CREATE VIRTUAL TABLE IF NOT EXISTS doc_node_fts USING fts5(
   edition_id UNINDEXED,
   part UNINDEXED,
   title,
-  plain_text
+  plain_text,
+  tokenize = 'porter unicode61'
 );

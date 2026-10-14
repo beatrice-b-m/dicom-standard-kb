@@ -179,7 +179,7 @@ def test_import_dicom_media_types_persists_ps310_rows_with_source_refs(
     }
 
 
-def test_part10_docbook_structure_persists_nodes_refs_and_raw_table_ir(
+def test_part10_docbook_structure_persists_nodes_refs_and_table_markdown(
     tmp_path: Path,
 ) -> None:
     connection = _connection(tmp_path)
@@ -192,7 +192,6 @@ def test_part10_docbook_structure_persists_nodes_refs_and_raw_table_ir(
     )
 
     assert summary.doc_nodes == 6
-    assert summary.raw_table_irs == 3
     section = connection.execute(
         """
         SELECT node.title, ref.part, ref.xml_id
@@ -208,20 +207,19 @@ def test_part10_docbook_structure_persists_nodes_refs_and_raw_table_ir(
         "xml_id": "sect_10_1",
     }
 
-    raw_table = connection.execute(
+    table = connection.execute(
         """
-        SELECT ir.ir_json, ir.ir_sha256, ref.part, ref.table_id
-        FROM raw_table_ir ir
-        JOIN source_ref ref ON ref.id = ir.source_ref_id
-        WHERE ir.table_id = ?
+        SELECT node.markdown, ref.part, ref.table_id
+        FROM doc_node node
+        JOIN source_ref ref ON ref.id = node.source_ref_id
+        WHERE node.xml_id = ? AND node.node_type = 'table'
         """,
         ("table_10-1",),
     ).fetchone()
-    payload = json.loads(raw_table["ir_json"])
-    assert payload["title"] == "Synthetic File Meta Items"
-    assert payload["rows"][1]["cells"][0]["text"] == (
-        "File Meta Information Group Length"
-    )
-    assert len(raw_table["ir_sha256"]) == 64
-    assert raw_table["part"] == "PS3.10"
-    assert raw_table["table_id"] == "table_10-1"
+    assert table["markdown"].startswith("**Table 10-1: Synthetic File Meta Items**\n")
+    assert (
+        "| File Meta Information Group Length | (0002,0000) | 1"
+        " | Length of the File Meta Information. |"
+    ) in table["markdown"]
+    assert table["part"] == "PS3.10"
+    assert table["table_id"] == "table_10-1"
