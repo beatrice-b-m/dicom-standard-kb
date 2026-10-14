@@ -14,7 +14,7 @@ Standard, official source artifacts, or a prebuilt knowledge base.
 Every section and table of all 20 published parts can be searched and read
 as markdown, with each cross reference kept as its target (`See Section
 C.7.3.1.1.1`, `BCID 7010`). Structured lookups (data elements, UIDs, IODs,
-modules, SOP Classes, context groups) cover PS3.3, PS3.4, PS3.5, PS3.6, PS3.10,
+modules, SOP Classes, attribute values, context groups and codes) cover PS3.3, PS3.4, PS3.5, PS3.6, PS3.10,
 PS3.16, and PS3.18. A warning appears only when an answer is missing something
 the source has.
 
@@ -63,6 +63,8 @@ uv run dicom-kb build
 uv run dicom-kb element Modality
 uv run dicom-kb iod "CT Image" --expand
 uv run dicom-kb module "General Series"
+uv run dicom-kb values "Photometric Interpretation" --within "CT Image"
+uv run dicom-kb code "CID 4031"
 uv run dicom-kb search "undefined length sequence delimitation"
 uv run dicom-kb read "PS3.5 7.5.2"
 ```
@@ -72,6 +74,14 @@ where it sits in one IOD). `iod` takes an IOD name or SOP Class name or UID and
 lists its modules; `--expand` turns that into the full attribute checklist.
 `module` takes a module or macro name or table (`Table 10-2`). Each macro is
 expanded the first time it appears and marked "listed above" after that.
+
+`values` gives an attribute's Enumerated Values and Defined Terms, whether the
+standard lists them in a table cell or in a section, and names the Baseline or
+Defined context group of each place a Code Sequence is used. `--within` takes
+an IOD, module or macro and keeps only the lists that apply there. `code`
+takes a CID (its codes, with included groups expanded once), a TID, or a code
+(`121071`, `DCM 121071`, `(121071, DCM, "Finding")`) and returns its meaning,
+its PS3.16 Annex D definition when it has one, and the groups that list it.
 
 `read` takes a section, table, annex, CID or TID (`PS3.3 Table C.7-5a`,
 `Annex A`, `CID 7010`) and pages long answers at about 4k tokens.
@@ -89,8 +99,9 @@ For an MCP client, add the stdio server as one config entry:
 uv run --extra mcp dicom-kb mcp serve
 ```
 
-Its `dicom_element`, `dicom_iod`, `dicom_module`, `dicom_search` and
-`dicom_read` tools do the same as the matching commands.
+Its `dicom_element`, `dicom_iod`, `dicom_module`, `dicom_values`,
+`dicom_code`, `dicom_search` and `dicom_read` tools do the same as the matching
+commands.
 
 The [documentation website](https://dicom-standard-kb-docs.beatricebm.workers.dev/)
 describes the earlier JSON tools and is out of date until the rebuild finishes.
