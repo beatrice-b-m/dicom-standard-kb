@@ -10,6 +10,7 @@ from dicom_kb.sources.downloader import (
     ArtifactRequest,
     OfficialFetchError,
     discover_official_current_edition,
+    download_artifact,
     fetch_current_docbook,
     official_artifact_destination,
     official_docbook_xml_url,
@@ -24,6 +25,12 @@ from dicom_kb.sources.manifest import (
 
 
 class _FakeResponse(BytesIO):
+    def __init__(self, data: bytes, *, content_length: int | None = None) -> None:
+        super().__init__(data)
+        self.headers: dict[str, str] = (
+            {} if content_length is None else {"Content-Length": str(content_length)}
+        )
+
     def __enter__(self) -> "_FakeResponse":
         return self
 
@@ -172,7 +179,7 @@ def test_fetch_official_docbook_artifacts_writes_manifest(
     )
 
 
-def test_fetch_official_docbook_artifacts_defaults_to_v2_parts(
+def test_fetch_official_docbook_artifacts_defaults_to_every_part(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     base_url = "https://dicom.example/current/"
@@ -203,6 +210,8 @@ def test_fetch_official_docbook_artifacts_defaults_to_v2_parts(
     assert tuple(artifact.part for artifact in manifest.artifacts) == (
         DEFAULT_DOCBOOK_PARTS
     )
+    assert len(DEFAULT_DOCBOOK_PARTS) == 20
+    assert "PS3.9" not in DEFAULT_DOCBOOK_PARTS
     assert tuple(artifact.local_path for artifact in manifest.artifacts) == tuple(
         official_artifact_destination(
             "2026b",
@@ -233,3 +242,42 @@ def test_discover_current_edition_refuses_ambiguous_listing(
 
     with pytest.raises(OfficialFetchError, match="single DICOM edition"):
         discover_official_current_edition("https://dicom.example/current/")
+
+
+def test_download_retries_a_truncated_or_reset_transfer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    body = b"<book>complete</book>"
+    attempts: list[str] = []
+
+    def fake_urlopen(url: str, timeout: int) -> _FakeResponse:
+        attempts.append(url)
+        if len(attempts) == 1:
+            raise ConnectionResetError("Connection reset by peer")
+        if len(attempts) == 2:
+            return _FakeResponse(body[:5], content_length=len(body))
+        return _FakeResponse(body, content_length=len(body))
+
+    monkeypatch.setattr("dicom_kb.sources.downloader.urlopen", fake_urlopen)
+    monkeypatch.setattr("dicom_kb.sources.downloader.time.sleep", lambda _s: None)
+
+    destination = download_artifact("https://dicom.example/p.xml", tmp_path / "p.xml")
+
+    assert destination.read_bytes() == body
+    assert len(attempts) == 3
+    assert not (tmp_path / "p.xml.part").exists()
+
+
+def test_download_gives_up_on_a_transfer_that_keeps_stopping_short(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_urlopen(url: str, timeout: int) -> _FakeResponse:
+        return _FakeResponse(b"<bo", content_length=100)
+
+    monkeypatch.setattr("dicom_kb.sources.downloader.urlopen", fake_urlopen)
+    monkeypatch.setattr("dicom_kb.sources.downloader.time.sleep", lambda _s: None)
+
+    with pytest.raises(OfficialFetchError, match="stopped at 3 of 100 bytes"):
+        download_artifact("https://dicom.example/p.xml", tmp_path / "p.xml")
+    assert not (tmp_path / "p.xml").exists()
+    assert not (tmp_path / "p.xml.part").exists()

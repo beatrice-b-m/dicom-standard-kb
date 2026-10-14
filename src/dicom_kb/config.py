@@ -7,7 +7,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class ConfigError(ValueError):
@@ -22,7 +22,6 @@ class DicomKBConfig(BaseModel):
     edition: str | None = None
     artifact_dir: Path | None = None
     database_url: str | None = None
-    max_text_excerpt_chars: int | None = Field(default=None, ge=1)
 
     @field_validator("database_url")
     @classmethod
@@ -102,14 +101,3 @@ def path_env(environ: Mapping[str, str], name: str) -> Path | None:
 def str_env(environ: Mapping[str, str], name: str) -> str | None:
     """Read an optional string environment variable."""
     return environ.get(name) or None
-
-
-def int_env(environ: Mapping[str, str], name: str) -> int | None:
-    """Read an optional integer environment variable."""
-    value = environ.get(name)
-    if value is None or value == "":
-        return None
-    try:
-        return int(value)
-    except ValueError as exc:
-        raise ConfigError(f"{name} must be an integer") from exc

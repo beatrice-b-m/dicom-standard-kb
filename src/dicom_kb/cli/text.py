@@ -1,4 +1,4 @@
-"""Cited text retrieval and encoding explanation commands."""
+"""Read and search the standard's text, and explain encoding rules."""
 
 from __future__ import annotations
 
@@ -11,78 +11,64 @@ from dicom_kb.cli.context import (
     echo_response,
     resolve_cache_dir,
     resolve_db_path,
-    resolve_max_text_chars,
     resolve_query_edition,
 )
 from dicom_kb.cli.options import CacheDirectoryOption, DatabaseOption, EditionOption
 from dicom_kb.query.resolver import (
     explain_encoding_rule,
-    retrieve_standard_text,
-    search_standard_text,
+    read_standard,
+    search_standard,
 )
 
 app = typer.Typer()
 explain_app = typer.Typer(help="Explain cited DICOM rules from a local KB.")
 
 
-@app.command("retrieve-text")
-def retrieve_text_command(
+@app.command("read")
+def read_command(
     ctx: typer.Context,
-    part: Annotated[
+    ref: Annotated[
         str,
-        typer.Argument(help="DICOM part label, for example PS3.3."),
+        typer.Argument(
+            help="Section or table, e.g. 'PS3.5 7.5.2', 'Table C.7-5a', 'CID 7010'."
+        ),
     ],
-    section_or_anchor: Annotated[
-        str,
-        typer.Argument(help="DocBook xml:id, HTML anchor, or section number."),
-    ],
+    page: Annotated[int, typer.Option("--page", help="Page to read.")] = 1,
     edition: EditionOption = None,
     db: DatabaseOption = None,
     cache_dir: CacheDirectoryOption = None,
-    max_chars: Annotated[
-        int | None,
-        typer.Option("--max-chars", help="Maximum excerpt characters to return."),
-    ] = None,
 ) -> None:
-    """Retrieve a capped excerpt from persisted standard text."""
+    """Read a section or table of the standard as markdown."""
     resolved_edition = resolve_query_edition(ctx, edition, db=db, cache_dir=cache_dir)
-    resolved_max_chars = resolve_max_text_chars(ctx, max_chars, default=800)
     with connect_query_db(
         resolve_db_path(ctx, db),
         cache_dir=resolve_cache_dir(ctx, cache_dir),
         edition=resolved_edition,
     ) as connection:
         echo_response(
-            retrieve_standard_text(
-                connection,
-                part=part,
-                section_or_anchor=section_or_anchor,
-                edition=resolved_edition,
-                max_chars=resolved_max_chars,
+            read_standard(
+                connection, reference=ref, edition=resolved_edition, page=page
             )
         )
 
 
-@app.command("search-text")
-def search_text_command(
+@app.command("search")
+def search_command(
     ctx: typer.Context,
-    query: Annotated[
-        str,
-        typer.Argument(help="Full-text query over persisted DocBook text."),
-    ],
+    query: Annotated[str, typer.Argument(help="Words to find in the standard.")],
     edition: EditionOption = None,
     db: DatabaseOption = None,
     cache_dir: CacheDirectoryOption = None,
-    part_filter: Annotated[
+    part: Annotated[
         str | None,
-        typer.Option("--part", help="Optional DICOM part label, for example PS3.3."),
+        typer.Option("--part", help="Only search one part, e.g. PS3.5."),
     ] = None,
     limit: Annotated[
         int,
         typer.Option("--limit", help="Maximum number of matches to return."),
     ] = 10,
 ) -> None:
-    """Search persisted standard text with SQLite FTS5."""
+    """Search every section and table of the standard."""
     resolved_edition = resolve_query_edition(ctx, edition, db=db, cache_dir=cache_dir)
     with connect_query_db(
         resolve_db_path(ctx, db),
@@ -90,11 +76,11 @@ def search_text_command(
         edition=resolved_edition,
     ) as connection:
         echo_response(
-            search_standard_text(
+            search_standard(
                 connection,
                 query=query,
                 edition=resolved_edition,
-                part_filter=part_filter,
+                part=part,
                 limit=limit,
             )
         )

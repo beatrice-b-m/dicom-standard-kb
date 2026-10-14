@@ -33,7 +33,6 @@ class ImportSummary:
     doc_nodes: int = 0
     xrefs: int = 0
     xrefs_unresolved: int = 0
-    raw_table_irs: int = 0
     attribute_value_terms: int = 0
     vr_definitions: int = 0
     transfer_syntax_details: int = 0

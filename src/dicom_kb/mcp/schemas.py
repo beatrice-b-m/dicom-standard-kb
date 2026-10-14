@@ -22,8 +22,8 @@ MCPToolName = Literal[
     "dicom_list_modules_for_iod",
     "dicom_list_attributes_for_module",
     "dicom_resolve_attribute_context",
-    "dicom_retrieve_standard_text",
-    "dicom_search_standard_text",
+    "dicom_search",
+    "dicom_read",
 ]
 
 MCP_TOOL_NAMES: tuple[MCPToolName, ...] = (
@@ -44,8 +44,8 @@ MCP_TOOL_NAMES: tuple[MCPToolName, ...] = (
     "dicom_list_modules_for_iod",
     "dicom_list_attributes_for_module",
     "dicom_resolve_attribute_context",
-    "dicom_retrieve_standard_text",
-    "dicom_search_standard_text",
+    "dicom_search",
+    "dicom_read",
 )
 
 
@@ -136,11 +136,20 @@ MCP_TOOL_SPECS: tuple[MCPToolSpec, ...] = (
         "description": "Resolve a DICOM attribute's effective PS3.3 type in context.",
     },
     {
-        "name": "dicom_retrieve_standard_text",
-        "description": "Retrieve a capped excerpt from persisted DICOM standard text.",
+        "name": "dicom_search",
+        "description": (
+            "Search every part of the DICOM standard. Returns ranked sections "
+            "and tables, normative text first, each with a ref to pass to "
+            "dicom_read. Optional part narrows it, e.g. PS3.5."
+        ),
     },
     {
-        "name": "dicom_search_standard_text",
-        "description": "Search persisted DICOM standard text.",
+        "name": "dicom_read",
+        "description": (
+            "Read a section or table of the DICOM standard as markdown with "
+            "every reference resolved, e.g. 'PS3.5 7.5.2', 'Table C.7-5a', "
+            "'PS3.3 Annex A', 'CID 7010'. Long nodes come in pages; pass page "
+            "to continue."
+        ),
     },
 )

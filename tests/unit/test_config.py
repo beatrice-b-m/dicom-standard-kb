@@ -6,7 +6,6 @@ import pytest
 
 from dicom_kb.config import (
     ConfigError,
-    int_env,
     load_config_profile,
     path_env,
     sqlite_url_path,
@@ -23,7 +22,6 @@ def test_load_config_profile_accepts_section17_shape(tmp_path: Path) -> None:
           edition: "2026b"
           artifact_dir: "~/dicom/artifacts"
           database_url: "sqlite:///~/dicom/db/2026b.sqlite"
-          max_text_excerpt_chars: 1200
         """,
         encoding="utf-8",
     )
@@ -33,7 +31,6 @@ def test_load_config_profile_accepts_section17_shape(tmp_path: Path) -> None:
     assert config.edition == "2026b"
     assert config.artifact_dir == Path("~/dicom/artifacts")
     assert config.database_url == "sqlite:///~/dicom/db/2026b.sqlite"
-    assert config.max_text_excerpt_chars == 1200
 
 
 def test_load_config_profile_rejects_unknown_keys(tmp_path: Path) -> None:
@@ -124,11 +121,7 @@ def test_environment_helpers_parse_values() -> None:
     environ = {
         "DICOM_KB_CACHE_DIR": "/tmp/cache",
         "DICOM_KB_EDITION": "2026b",
-        "DICOM_KB_MAX_CHARS": "800",
     }
 
     assert path_env(environ, "DICOM_KB_CACHE_DIR") == Path("/tmp/cache")
     assert str_env(environ, "DICOM_KB_EDITION") == "2026b"
-    assert int_env(environ, "DICOM_KB_MAX_CHARS") == 800
-    with pytest.raises(ConfigError, match="integer"):
-        int_env({"COUNT": "many"}, "COUNT")

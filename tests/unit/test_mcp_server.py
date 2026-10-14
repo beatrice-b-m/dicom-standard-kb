@@ -82,8 +82,8 @@ def test_mcp_tool_names_match_supported_spec() -> None:
         "dicom_list_modules_for_iod",
         "dicom_list_attributes_for_module",
         "dicom_resolve_attribute_context",
-        "dicom_retrieve_standard_text",
-        "dicom_search_standard_text",
+        "dicom_search",
+        "dicom_read",
     )
 
 
@@ -103,13 +103,13 @@ def test_create_mcp_server_registers_all_supported_tools(
     assert tuple(fake_server.tools) == MCP_TOOL_NAMES
     assert all(tool.description for tool in fake_server.tools.values())
 
-    payload = fake_server.tools["dicom_search_standard_text"].function(
+    payload = fake_server.tools["dicom_search"].function(
         "Patient name",
-        part_filter="PS3.3",
+        part="PS3.3",
         limit=2,
     )
 
-    assert payload.startswith("| Where | Title | Context |")
+    assert payload.startswith("| Ref | Title | Context |")
     assert len([line for line in payload.splitlines() if "| PS3.3 " in line]) <= 2
 
 
