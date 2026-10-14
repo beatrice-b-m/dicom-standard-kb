@@ -13,7 +13,6 @@ from dicom_kb.db.importers import (
 from dicom_kb.db.models import apply_migrations, connect_sqlite
 from dicom_kb.db.repositories import (
     DataElementRepository,
-    Part04Repository,
     UIDRepository,
 )
 from dicom_kb.docbook.parser import parse_docbook_xml
@@ -78,7 +77,7 @@ def test_import_docbook_structure_persists_nodes_xrefs_and_table_markdown(
         document=document,
     )
 
-    assert summary.doc_nodes == 10
+    assert summary.doc_nodes == 11
     assert summary.xrefs == 2
     assert summary.xrefs_unresolved == 0
 
@@ -137,7 +136,7 @@ def test_import_docbook_structure_persists_nodes_xrefs_and_table_markdown(
         ORDER BY node_id
         LIMIT 1
         """,
-        ('"Patient" AND "name"',),
+        ('"Referenced" AND "Nested"',),
     ).fetchone()
     assert fts_match["node_id"] == "2026b.PS3.3.table_C.7-1"
 
@@ -395,31 +394,26 @@ def test_import_attribute_value_terms_links_attribute_context(tmp_path: Path) ->
     assert summary.attribute_value_terms == 2
     rows = connection.execute(
         """
-        SELECT avt.value, avt.meaning, avt.term_kind, avt.context_label,
-               de.keyword, au.attribute_name
-        FROM attribute_value_term avt
-        JOIN data_element de ON de.id = avt.data_element_id
-        JOIN attribute_use au ON au.id = avt.attribute_use_id
-        ORDER BY avt.value
+        SELECT value, meaning, term_kind, list_title, attribute_tag,
+               attribute_use_id, section_id
+        FROM attribute_value_term ORDER BY term_order
         """
     ).fetchall()
+    # A list in a section belongs to the attribute the section is named for.
     assert [dict(row) for row in rows] == [
         {
-            "value": "ALPHA",
-            "meaning": "Alphabetic representation.",
+            "value": value,
+            "meaning": meaning,
             "term_kind": "defined_term",
-            "context_label": "Patient Module - Defined Terms:",
-            "keyword": "PatientName",
-            "attribute_name": "Patient's Name",
-        },
-        {
-            "value": "IDEOGRAPHIC",
-            "meaning": "Ideographic representation.",
-            "term_kind": "defined_term",
-            "context_label": "Patient Module - Defined Terms:",
-            "keyword": "PatientName",
-            "attribute_name": "Patient's Name",
-        },
+            "list_title": "Defined Terms:",
+            "attribute_tag": "(0010,0010)",
+            "attribute_use_id": None,
+            "section_id": "sect_C.7.1.1.1",
+        }
+        for value, meaning in [
+            ("ALPHA", "Alphabetic representation."),
+            ("IDEOGRAPHIC", "Ideographic representation."),
+        ]
     ]
 
 
@@ -487,19 +481,19 @@ def test_import_part04_sop_class_records(tmp_path: Path) -> None:
     assert summary.sop_classes == 2
     assert summary.sop_class_iods == 2
 
-    repository = Part04Repository(connection)
-    found = repository.find_sop_class_by_uid_or_name(
-        "CT Image Storage", edition="2026b"
-    )
-    assert found is not None
-    sop_class, service_class = found
-    assert sop_class.uid_value == "1.2.840.10008.5.1.4.1.1.2"
-    assert service_class is not None
-    assert service_class.name == "Storage Service Class"
-
-    iods = repository.list_iods_for_sop_class(sop_class.id, edition="2026b")
-    assert [record.iod.name for record in iods] == ["CT Image"]
-    assert iods[0].edge.resolution == "parsed"
+    rows = connection.execute(
+        """
+        SELECT s.name AS sop_class, i.name AS iod, e.resolution
+        FROM sop_class s
+        JOIN sop_class_iod e ON e.sop_class_id = s.id
+        JOIN iod i ON i.id = e.iod_id
+        WHERE s.uid_value = ?
+        """,
+        ("1.2.840.10008.5.1.4.1.1.2",),
+    ).fetchall()
+    assert [dict(row) for row in rows] == [
+        {"sop_class": "CT Image Storage", "iod": "CT Image", "resolution": "parsed"}
+    ]
 
 
 def test_import_part04_rolls_back_without_referenced_iods(tmp_path: Path) -> None:

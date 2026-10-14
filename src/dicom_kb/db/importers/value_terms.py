@@ -1,23 +1,21 @@
-"""Attribute value term extraction and persistence."""
+"""Enumerated value and defined term extraction and persistence."""
 
 from __future__ import annotations
 
 import re
 import sqlite3
-from typing import cast
 
-from dicom_kb.db.importers._shared import (
-    ImportSummary,
-    _insert_source_ref,
-    _unique_source_refs,
-)
+from dicom_kb.db.importers._shared import ImportSummary
 from dicom_kb.docbook.parser import ParsedDocument
 from dicom_kb.docbook.text_chunks import normalize_text
 from dicom_kb.docbook.variablelists import ParsedVariableList
-from dicom_kb.ir.models import (
-    AttributeValueTerm,
-    SourceRef,
-)
+from dicom_kb.ir.models import AttributeValueTerm
+from dicom_kb.ir.validators import IdentifierValidationError, normalize_tag
+
+_TAG_IN_TEXT_RE = re.compile(r"\([0-9A-Fa-fxX]{4},[0-9A-Fa-fxX]{4}\)")
+# "Enumerated Values for X (gggg,eeee) when Y (gggg,eeee) is ..." is about X.
+_QUALIFIER_RE = re.compile(r"\s(?:when|if|where|for Value)\s", re.IGNORECASE)
+_NAME_SPLIT_RE = re.compile(r",\s*(?:and\s+)?|\s+and\s+")
 
 
 def import_attribute_value_terms(
@@ -26,279 +24,173 @@ def import_attribute_value_terms(
     edition: str,
     document: ParsedDocument,
 ) -> ImportSummary:
-    """Import parsed enumerated values and defined terms from DocBook lists."""
-    term_records = _attribute_value_terms_from_document(connection, edition, document)
-    source_refs = _unique_source_refs(record.source_ref for record in term_records)
+    """Import the enumerated values and defined terms of a part's lists.
 
+    A list in a table cell belongs to the attribute of its row. A list in a
+    section belongs to the attribute the list title names, else the one the
+    section title names.
+    """
+    terms = _value_terms(connection, edition, document)
     try:
         with connection:
-            for source_ref in source_refs:
-                _insert_source_ref(connection, source_ref)
-            for term in term_records:
-                _insert_attribute_value_term(connection, term)
+            connection.executemany(
+                """
+                INSERT INTO attribute_value_term (
+                  id, edition_id, attribute_tag, attribute_use_id, table_id,
+                  section_id, list_index, list_title, term_kind, term_order,
+                  value, meaning
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        term.id,
+                        term.edition_id,
+                        term.attribute_tag,
+                        term.attribute_use_id,
+                        term.table_id,
+                        term.section_id,
+                        term.list_index,
+                        term.list_title,
+                        term.term_kind,
+                        term.term_order,
+                        term.value,
+                        term.meaning,
+                    )
+                    for term in terms
+                ],
+            )
     except sqlite3.IntegrityError as exc:
         raise ImportError(
             f"failed to import attribute value terms for {edition} {document.part}"
         ) from exc
-
     return ImportSummary(
-        edition=edition,
-        source_refs=len(source_refs),
-        attribute_value_terms=len(term_records),
+        edition=edition, source_refs=0, attribute_value_terms=len(terms)
     )
 
 
-def _attribute_value_terms_from_document(
-    connection: sqlite3.Connection, edition: str, document: ParsedDocument
-) -> tuple[AttributeValueTerm, ...]:
-    section_by_xml_id = {
-        section.xml_id: section
-        for section in document.sections
-        if section.xml_id is not None
-    }
-    records: list[AttributeValueTerm] = []
-    for variablelist in document.variablelists:
-        term_kind = _value_term_kind(variablelist)
-        if term_kind is None:
-            continue
-        section = (
-            section_by_xml_id.get(variablelist.parent_xml_id)
-            if variablelist.parent_xml_id is not None
-            else None
-        )
-        data_element = _data_element_for_variablelist(
-            connection,
-            edition=edition,
-            variablelist=variablelist,
-            section_title=section.title if section is not None else None,
-            section_text=section.plain_text if section is not None else None,
-        )
-        attribute_use_ids = (
-            _attribute_use_ids_for_term_context(
-                connection,
-                edition=edition,
-                data_element_id=str(data_element["id"]),
-                data_element_tag=str(data_element["tag"]),
-                parent_xml_id=variablelist.parent_xml_id,
-            )
-            if data_element is not None
-            else ()
-        )
-        source_ref = SourceRef(
-            id=_value_term_source_ref_id(edition, document.part, variablelist),
-            edition_id=edition,
-            part=document.part,
-            section=variablelist.parent_xml_id,
-            xml_id=variablelist.xml_id,
-            title=variablelist.title,
-        )
-        for entry in variablelist.entries:
-            for term_index, value in enumerate(entry.terms):
-                targets = attribute_use_ids or (None,)
-                for context_index, attribute_use_id in enumerate(targets):
-                    records.append(
-                        AttributeValueTerm(
-                            id=_value_term_id(
-                                edition,
-                                document.part,
-                                variablelist,
-                                entry.entry_index,
-                                term_index,
-                                context_index,
-                            ),
-                            edition_id=edition,
-                            attribute_use_id=attribute_use_id,
-                            data_element_id=(
-                                str(data_element["id"])
-                                if data_element is not None
-                                else None
-                            ),
-                            context_label=_value_term_context_label(
-                                variablelist,
-                                section_title=(
-                                    section.title if section is not None else None
-                                ),
-                            ),
-                            term_kind=term_kind,
-                            value=value,
-                            meaning=entry.definition or None,
-                            source_ref=source_ref,
-                        )
-                    )
-    return tuple(records)
-
-
-def _insert_attribute_value_term(
-    connection: sqlite3.Connection, term: AttributeValueTerm
-) -> None:
-    connection.execute(
-        """
-        INSERT INTO attribute_value_term (
-          id, edition_id, attribute_use_id, data_element_id, context_label,
-          term_kind, value, meaning, source_ref_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            term.id,
-            term.edition_id,
-            term.attribute_use_id,
-            term.data_element_id,
-            term.context_label,
-            term.term_kind,
-            term.value,
-            term.meaning,
-            term.source_ref.id,
-        ),
-    )
-
-
-def _attribute_use_ids_for_term_context(
-    connection: sqlite3.Connection,
-    *,
-    edition: str,
-    data_element_id: str,
-    data_element_tag: str,
-    parent_xml_id: str | None,
-) -> tuple[str, ...]:
-    if parent_xml_id is None:
-        return ()
-    rows = connection.execute(
-        """
-        SELECT au.id
-        FROM attribute_use au
-        JOIN source_ref sr ON sr.id = au.source_ref_id
-        WHERE au.edition_id = ?
-          AND au.attribute_tag = ?
-          AND sr.section = ?
-        ORDER BY au.id
-        """,
-        (edition, data_element_tag, parent_xml_id),
-    ).fetchall()
-    if rows:
-        return tuple(str(row["id"]) for row in rows)
-
-    global_rows = connection.execute(
-        """
-        SELECT au.id
-        FROM attribute_use au
-        JOIN data_element de
-          ON de.edition_id = au.edition_id
-         AND de.tag = au.attribute_tag
-        WHERE au.edition_id = ?
-          AND de.id = ?
-        ORDER BY au.id
-        """,
-        (edition, data_element_id),
-    ).fetchall()
-    if len(global_rows) == 1:
-        return (str(global_rows[0]["id"]),)
-    return ()
-
-
-def _data_element_for_variablelist(
-    connection: sqlite3.Connection,
-    *,
-    edition: str,
-    variablelist: ParsedVariableList,
-    section_title: str | None,
-    section_text: str | None,
-) -> sqlite3.Row | None:
-    candidates = [
-        section_title,
-        variablelist.parent_xml_id,
-    ]
-    for candidate in candidates:
-        if not candidate:
-            continue
-        row = connection.execute(
-            """
-            SELECT id, tag
-            FROM data_element
-            WHERE edition_id = ?
-              AND (
-                lower(name) = lower(?)
-                OR lower(keyword) = lower(?)
-                OR tag = ?
-              )
-            ORDER BY is_range, tag
-            LIMIT 1
-            """,
-            (edition, candidate, candidate, candidate),
-        ).fetchone()
-        if row is not None:
-            return cast(sqlite3.Row, row)
-    return _data_element_mentioned_in_text(
-        connection,
-        edition=edition,
-        section_text=section_text,
-    )
-
-
-def _value_term_context_label(
-    variablelist: ParsedVariableList, *, section_title: str | None
-) -> str | None:
-    if section_title and variablelist.title:
-        return f"{section_title} - {variablelist.title}"
-    return variablelist.title or section_title or variablelist.parent_xml_id
-
-
-def _value_term_id(
-    edition: str,
-    part: str,
-    variablelist: ParsedVariableList,
-    entry_index: int,
-    term_index: int,
-    context_index: int,
-) -> str:
-    return (
-        f"{edition}.{part}.attribute_value_term."
-        f"{variablelist.xml_id or variablelist.ordinal}."
-        f"{entry_index}.{term_index}.{context_index}"
-    )
-
-
-def _value_term_kind(variablelist: ParsedVariableList) -> str | None:
-    title = normalize_text(variablelist.title or "").lower().rstrip(":")
-    if "enumerated value" in title:
+def value_term_kind(title: str | None) -> str | None:
+    """Return `enumerated_value` or `defined_term` for a list title."""
+    lowered = normalize_text(title or "").lower()
+    if "enumerated value" in lowered:
         return "enumerated_value"
-    if "defined term" in title:
+    if "defined term" in lowered:
         return "defined_term"
     return None
 
 
-def _value_term_source_ref_id(
-    edition: str, part: str, variablelist: ParsedVariableList
-) -> str:
-    return f"{edition}.{part}.value_terms.{variablelist.xml_id or variablelist.ordinal}"
+def _value_terms(
+    connection: sqlite3.Connection, edition: str, document: ParsedDocument
+) -> list[AttributeValueTerm]:
+    names = _element_names(connection, edition)
+    rows = _attribute_rows(connection, edition)
+    terms: list[AttributeValueTerm] = []
+    for variablelist in document.variablelists:
+        kind = value_term_kind(variablelist.title)
+        if kind is None or not variablelist.entries:
+            continue
+        for tag in _list_tags(variablelist, names):
+            attribute_use_id = None
+            if variablelist.row_tag is not None and variablelist.table_xml_id:
+                matches = rows.get((variablelist.table_xml_id, tag), [])
+                if matches:
+                    attribute_use_id = matches[
+                        min(variablelist.row_tag_index, len(matches) - 1)
+                    ]
+            order = 0
+            for entry in variablelist.entries:
+                for value in entry.terms:
+                    terms.append(
+                        AttributeValueTerm(
+                            id=f"{edition}.{document.part}.value_term."
+                            f"{variablelist.ordinal}.{tag}.{order}",
+                            edition_id=edition,
+                            attribute_tag=tag,
+                            attribute_use_id=attribute_use_id,
+                            table_id=variablelist.table_xml_id,
+                            section_id=variablelist.parent_xml_id,
+                            list_index=variablelist.ordinal,
+                            list_title=_list_title(variablelist),
+                            term_kind=kind,
+                            term_order=order,
+                            value=value,
+                            meaning=entry.definition or None,
+                        )
+                    )
+                    order += 1
+    return terms
 
 
-def _data_element_mentioned_in_text(
-    connection: sqlite3.Connection,
-    *,
-    edition: str,
-    section_text: str | None,
-) -> sqlite3.Row | None:
-    if not section_text:
-        return None
-    compact_text = _compact_value(section_text)
-    matches: list[tuple[int, sqlite3.Row]] = []
+def _list_title(variablelist: ParsedVariableList) -> str:
+    title = normalize_text(variablelist.title or "")
+    if variablelist.lead:
+        return f"{normalize_text(variablelist.lead).rstrip('.:')}. {title}"
+    return title
+
+
+def _list_tags(variablelist: ParsedVariableList, names: dict[str, str]) -> list[str]:
+    """Return the tags of the attributes a list gives values for."""
+    if variablelist.row_tag is not None:
+        tag = _tag(variablelist.row_tag)
+        if tag is not None:
+            return [tag]
+    subject = _QUALIFIER_RE.split(variablelist.title or "", maxsplit=1)[0]
+    tags = [
+        tag
+        for found in _TAG_IN_TEXT_RE.findall(subject)
+        if (tag := _tag(found)) is not None
+    ]
+    if tags:
+        return list(dict.fromkeys(tags))
+    title = _name_key(variablelist.section_title or "")
+    if title in names:
+        return [names[title]]
+    return list(
+        dict.fromkeys(
+            names[key]
+            for part in _NAME_SPLIT_RE.split(title)
+            if (key := part.strip()) in names
+        )
+    )
+
+
+def _element_names(connection: sqlite3.Connection, edition: str) -> dict[str, str]:
+    names: dict[str, str] = {}
     for row in connection.execute(
         """
-        SELECT id, tag, name
-        FROM data_element
-        WHERE edition_id = ?
-        ORDER BY tag
+        SELECT name, tag FROM data_element WHERE edition_id = ?
+        ORDER BY retired, is_range, tag
         """,
         (edition,),
     ):
-        needle = _compact_value(f"{row['name']} {row['tag']}")
-        index = compact_text.find(needle)
-        if index >= 0:
-            matches.append((index, row))
-    if not matches:
+        names.setdefault(_name_key(str(row["name"])), str(row["tag"]))
+    return names
+
+
+def _attribute_rows(
+    connection: sqlite3.Connection, edition: str
+) -> dict[tuple[str, str], list[str]]:
+    rows: dict[tuple[str, str], list[str]] = {}
+    for row in connection.execute(
+        """
+        SELECT sr.table_id, a.attribute_tag, a.id
+        FROM attribute_use a JOIN source_ref sr ON sr.id = a.source_ref_id
+        WHERE a.edition_id = ? AND a.row_kind = 'attribute'
+        ORDER BY a.owner_id, a.row_order
+        """,
+        (edition,),
+    ):
+        rows.setdefault((str(row["table_id"]), str(row["attribute_tag"])), []).append(
+            str(row["id"])
+        )
+    return rows
+
+
+def _tag(text: str) -> str | None:
+    try:
+        return normalize_tag(text)
+    except IdentifierValidationError:
         return None
-    return sorted(matches, key=lambda match: match[0])[0][1]
 
 
-def _compact_value(value: str) -> str:
-    return re.sub(r"\s+", "", normalize_text(value)).lower()
+def _name_key(name: str) -> str:
+    return normalize_text(name).replace("’", "'").lower()

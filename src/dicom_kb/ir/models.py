@@ -155,19 +155,27 @@ class AttributeUse(BaseModel):
 
 
 class AttributeValueTerm(BaseModel):
-    """A parsed enumerated value or defined term for an attribute context."""
+    """One enumerated value or defined term, and the list it belongs to.
+
+    A list sits either in a module or macro row's description (then
+    `attribute_use_id` names the row) or in a section that defines the
+    attribute (then only `section_id` is set).
+    """
 
     model_config = ConfigDict(frozen=True)
 
     id: str
     edition_id: str
+    attribute_tag: str
     attribute_use_id: str | None = None
-    data_element_id: str | None = None
-    context_label: str | None = None
+    table_id: str | None = None
+    section_id: str | None = None
+    list_index: int
+    list_title: str
     term_kind: str
+    term_order: int
     value: str
     meaning: str | None = None
-    source_ref: SourceRef
 
 
 class VRDefinition(BaseModel):
