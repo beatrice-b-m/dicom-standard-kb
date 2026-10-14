@@ -122,6 +122,10 @@ def _fixture_db(tmp_path: Path) -> Path:
     parsed_part04 = parse_part04(
         parse_docbook_xml(PS34_SOP_CLASSES_DOCBOOK, part="PS3.4"),
         edition="2026b",
+        iod_id_by_ref={
+            "sect_A.3": "2026b.iod.ct_image",
+            "sect_A.38": "2026b.iod.enhanced_ct_image",
+        },
     )
     import_part04(
         connection,
@@ -193,25 +197,24 @@ def _invoke(tmp_path: Path, *args: str) -> str:
     ("args", "expected"),
     [
         pytest.param(
-            ["lookup", "tag", "(0008,0060)"],
+            ["element", "(0010,0010)"],
             [
-                "**(0008,0060) Modality**\nKeyword `Modality` · VR CS · VM 1\n\n"
-                "Source: PS3.6 Table 6-1 (2026b)\n"
+                "**(0010,0010) Patient's Name** `PatientName` · VR PN · VM 1",
+                "| Patient Module | C.7.1.1, Table C.7-1 | 2 |  |",
+                "In IODs: CT Image.",
+                "Source: PS3.6 Table 6-1 (2026b)",
             ],
-            id="lookup tag",
+            id="element",
         ),
         pytest.param(
-            ["lookup", "tag", "0008,0060"],
-            ["malformed DICOM tag"],
-            id="validation error",
-        ),
-        pytest.param(
-            ["lookup", "tag", "(6002,3000)"],
-            [
-                "**(60xx,3000) Overlay Data**",
-                "Warning: concrete tag (6002,3000) matched range row (60xx,3000)",
-            ],
+            ["element", "(6002,3000)"],
+            ["**(60xx,3000) Overlay Data**"],
             id="range match",
+        ),
+        pytest.param(
+            ["element", "PatientNam"],
+            ["No data element is named 'PatientNam'. Closest: PatientName"],
+            id="element not found",
         ),
         pytest.param(
             ["lookup", "uid", "ExplicitVRBigEndian"],
@@ -280,36 +283,37 @@ def _invoke(tmp_path: Path, *args: str) -> str:
             id="search",
         ),
         pytest.param(
-            ["lookup", "iod", "CT Image"], ["**CT Image IOD** (Table A.3-1)"], id="iod"
-        ),
-        pytest.param(
-            ["lookup", "sop-class", "CT Image Storage"],
-            ["**CT Image Storage** 1.2.840.10008.5.1.4.1.1.2", "IOD: CT Image"],
-            id="sop class",
-        ),
-        pytest.param(
-            ["iod", "modules", "CT Image"],
-            ["| Image | Contrast/Bolus | C: Required if contrast media was used |"],
-            id="iod modules",
-        ),
-        pytest.param(
-            ["module", "attributes", "Patient", "--expand-macros"],
+            ["iod", "CT Image Storage"],
             [
-                "| >Referenced SOP Class UID | (0008,1150) | 1 |",
-                "| Include General Anatomy Optional Macro |",
-                "| Anatomic Region Sequence | (0008,2218) | 3 | Region. |",
+                "**CT Image IOD**",
+                "SOP Class: CT Image Storage `1.2.840.10008.5.1.4.1.1.2`",
+                "| Image | Contrast/Bolus | C.7.6.4 "
+                "| C: Required if contrast media was used |",
             ],
-            id="module attributes",
+            id="iod",
         ),
         pytest.param(
-            ["resolve", "attribute-context", "PatientName", "--iod", "CT Image"],
-            ["Effective Type: 2", "| CT Image | Patient | M | 2 |"],
-            id="attribute context",
+            ["iod", "CT Image", "--expand"],
+            [
+                "### Patient Module: M (C.7.1.1, Table C.7-1)",
+                "| PatientName | (0010,0010) | PN | 1 | 2 |  |",
+            ],
+            id="iod checklist",
         ),
         pytest.param(
-            ["context", "attribute", "PatientName", "--iod", "CT Image"],
-            ["Effective Type: 2"],
-            id="context alias",
+            ["module", "Patient"],
+            [
+                "**Patient Module** (C.7.1.1, Table C.7-1)",
+                "| >ReferencedSOPClassUID | (0008,1150) | UI | 1 | 1 |",
+                "| Include Table 10-7",
+                "| AnatomicRegionSequence | (0008,2218) | SQ | 1 | 3 | Region. |",
+            ],
+            id="module",
+        ),
+        pytest.param(
+            ["element", "PatientName", "--iod", "CT Image"],
+            ["| Patient Module | M | 2 |  |  | Patient name. |"],
+            id="element in iod",
         ),
     ],
 )
@@ -323,12 +327,11 @@ def test_cli_query_commands_print_markdown(
     assert not output.lstrip().startswith("{")
 
 
-def test_cli_lookup_tag_requires_existing_db(tmp_path: Path) -> None:
+def test_cli_element_requires_existing_db(tmp_path: Path) -> None:
     result = CliRunner().invoke(
         app,
         [
-            "lookup",
-            "tag",
+            "element",
             "Modality",
             "--edition",
             "2026b",
@@ -365,8 +368,7 @@ def test_cli_build_fixture_creates_default_db_for_lookups(tmp_path: Path) -> Non
     lookup_result = runner.invoke(
         app,
         [
-            "lookup",
-            "tag",
+            "element",
             "Modality",
             "--edition",
             "2026b",
@@ -414,8 +416,7 @@ def test_cli_fetch_registers_local_docbook_for_build(tmp_path: Path) -> None:
     lookup_result = runner.invoke(
         app,
         [
-            "lookup",
-            "tag",
+            "element",
             "Modality",
             "--cache-dir",
             str(cache_dir),
@@ -423,7 +424,7 @@ def test_cli_fetch_registers_local_docbook_for_build(tmp_path: Path) -> None:
     )
 
     assert lookup_result.exit_code == 0, lookup_result.output
-    assert "Keyword `Modality`" in lookup_result.output
+    assert "`Modality` · VR CS" in lookup_result.output
 
 
 def test_cli_fetch_downloads_official_docbook(

@@ -9,24 +9,23 @@ from typing import Any, cast
 from dicom_kb.query.answer_contracts import ToolResponse
 from dicom_kb.query.resolver import (
     explain_encoding_rule,
-    list_attributes_for_module,
-    list_modules_for_iod,
     lookup_code_meaning,
     lookup_context_group,
-    lookup_data_element,
     lookup_defined_terms,
     lookup_dicomweb_transaction,
     lookup_enumerated_values,
-    lookup_iod,
     lookup_media_type,
-    lookup_sop_class,
     lookup_sr_template,
     lookup_transfer_syntax,
     lookup_uid,
     lookup_vr,
     read_standard,
-    resolve_attribute_context,
     search_standard,
+)
+from dicom_kb.query.resolver.objects import (
+    element_usage,
+    iod_modules,
+    module_attributes,
 )
 
 from .schemas import MCP_TOOL_SPECS, MCPToolName
@@ -45,24 +44,9 @@ def dispatch_mcp_tool(
 ) -> ToolResponse:
     """Dispatch an MCP tool name into the public resolver layer."""
     handlers: dict[MCPToolName, Callable[[], ToolResponse]] = {
-        "dicom_lookup_data_element": lambda: lookup_data_element(
-            connection,
-            tag_or_keyword=str(arguments["tag_or_keyword"]),
-            edition=edition,
-        ),
         "dicom_lookup_uid": lambda: lookup_uid(
             connection,
             uid_or_keyword=str(arguments["uid_or_keyword"]),
-            edition=edition,
-        ),
-        "dicom_lookup_sop_class": lambda: lookup_sop_class(
-            connection,
-            uid_or_name_or_keyword=str(arguments["uid_or_name_or_keyword"]),
-            edition=edition,
-        ),
-        "dicom_lookup_iod": lambda: lookup_iod(
-            connection,
-            iod_name=str(arguments["iod_name"]),
             edition=edition,
         ),
         "dicom_lookup_enumerated_values": lambda: lookup_enumerated_values(
@@ -118,23 +102,24 @@ def dispatch_mcp_tool(
             scheme=_optional_string(arguments.get("scheme")),
             edition=edition,
         ),
-        "dicom_list_modules_for_iod": lambda: list_modules_for_iod(
+        "dicom_element": lambda: element_usage(
             connection,
-            iod_name=str(arguments["iod_name"]),
+            name=str(arguments["name"]),
             edition=edition,
+            iod=_optional_string(arguments.get("iod")),
         ),
-        "dicom_list_attributes_for_module": lambda: list_attributes_for_module(
+        "dicom_iod": lambda: iod_modules(
             connection,
-            module_name=str(arguments["module_name"]),
+            name=str(arguments["name"]),
             edition=edition,
-            expand_macros=bool(arguments.get("expand_macros", False)),
+            expand=bool(arguments.get("expand", False)),
+            page=int(arguments.get("page", 1)),
         ),
-        "dicom_resolve_attribute_context": lambda: resolve_attribute_context(
+        "dicom_module": lambda: module_attributes(
             connection,
-            attribute=str(arguments["attribute"]),
+            name=str(arguments["name"]),
             edition=edition,
-            iod_name=_optional_string(arguments.get("iod_name")),
-            sop_class=_optional_string(arguments.get("sop_class")),
+            page=int(arguments.get("page", 1)),
         ),
         "dicom_search": lambda: search_standard(
             connection,
@@ -156,37 +141,11 @@ def dispatch_mcp_tool(
 def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
     """Register all supported DICOM MCP tools on a FastMCP server."""
     for spec in MCP_TOOL_SPECS:
-        if spec["name"] == "dicom_lookup_data_element":
-
-            @_tool(server, name=spec["name"], description=spec["description"])
-            def dicom_lookup_data_element(tag_or_keyword: str) -> str:
-                return executor(
-                    "dicom_lookup_data_element",
-                    {"tag_or_keyword": tag_or_keyword},
-                )
-
-        elif spec["name"] == "dicom_lookup_uid":
+        if spec["name"] == "dicom_lookup_uid":
 
             @_tool(server, name=spec["name"], description=spec["description"])
             def dicom_lookup_uid(uid_or_keyword: str) -> str:
                 return executor("dicom_lookup_uid", {"uid_or_keyword": uid_or_keyword})
-
-        elif spec["name"] == "dicom_lookup_sop_class":
-
-            @_tool(server, name=spec["name"], description=spec["description"])
-            def dicom_lookup_sop_class(
-                uid_or_name_or_keyword: str,
-            ) -> str:
-                return executor(
-                    "dicom_lookup_sop_class",
-                    {"uid_or_name_or_keyword": uid_or_name_or_keyword},
-                )
-
-        elif spec["name"] == "dicom_lookup_iod":
-
-            @_tool(server, name=spec["name"], description=spec["description"])
-            def dicom_lookup_iod(iod_name: str) -> str:
-                return executor("dicom_lookup_iod", {"iod_name": iod_name})
 
         elif spec["name"] == "dicom_lookup_enumerated_values":
 
@@ -285,43 +244,25 @@ def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
                     {"code_value": code_value, "scheme": scheme},
                 )
 
-        elif spec["name"] == "dicom_list_modules_for_iod":
+        elif spec["name"] == "dicom_element":
 
             @_tool(server, name=spec["name"], description=spec["description"])
-            def dicom_list_modules_for_iod(iod_name: str) -> str:
-                return executor("dicom_list_modules_for_iod", {"iod_name": iod_name})
+            def dicom_element(name: str, iod: str | None = None) -> str:
+                return executor("dicom_element", {"name": name, "iod": iod})
 
-        elif spec["name"] == "dicom_list_attributes_for_module":
+        elif spec["name"] == "dicom_iod":
 
             @_tool(server, name=spec["name"], description=spec["description"])
-            def dicom_list_attributes_for_module(
-                module_name: str,
-                expand_macros: bool = False,
-            ) -> str:
+            def dicom_iod(name: str, expand: bool = False, page: int = 1) -> str:
                 return executor(
-                    "dicom_list_attributes_for_module",
-                    {
-                        "module_name": module_name,
-                        "expand_macros": expand_macros,
-                    },
+                    "dicom_iod", {"name": name, "expand": expand, "page": page}
                 )
 
-        elif spec["name"] == "dicom_resolve_attribute_context":
+        elif spec["name"] == "dicom_module":
 
             @_tool(server, name=spec["name"], description=spec["description"])
-            def dicom_resolve_attribute_context(
-                attribute: str,
-                iod_name: str | None = None,
-                sop_class: str | None = None,
-            ) -> str:
-                return executor(
-                    "dicom_resolve_attribute_context",
-                    {
-                        "attribute": attribute,
-                        "iod_name": iod_name,
-                        "sop_class": sop_class,
-                    },
-                )
+            def dicom_module(name: str, page: int = 1) -> str:
+                return executor("dicom_module", {"name": name, "page": page})
 
         elif spec["name"] == "dicom_search":
 

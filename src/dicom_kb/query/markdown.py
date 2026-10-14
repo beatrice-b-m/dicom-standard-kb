@@ -100,15 +100,6 @@ def _renderer_for(result: dict[str, Any]) -> Renderer:
     return _render_generic
 
 
-def _render_data_element(result: dict[str, Any]) -> list[str]:
-    retired = " (retired)" if result.get("retired") else ""
-    return [
-        f"**{result['tag']} {result['name']}**{retired}",
-        f"Keyword {_code(result.get('keyword'))} · VR {result.get('vr') or '-'}"
-        f" · VM {result.get('vm') or '-'}",
-    ]
-
-
 def _render_uid(result: dict[str, Any]) -> list[str]:
     retired = " (retired)" if result.get("retired") else ""
     lines = [f"**{result['uid_value']}** {result['uid_name']}{retired}"]
@@ -119,58 +110,6 @@ def _render_uid(result: dict[str, Any]) -> list[str]:
     if result.get("part"):
         facts.append(f"Defined in {result['part']}")
     return [*lines, " · ".join(facts)]
-
-
-def _render_iod(result: dict[str, Any]) -> list[str]:
-    return [f"**{result['name']} IOD** ({_section(result.get('section'))})"]
-
-
-def _render_iod_modules(result: dict[str, Any]) -> list[str]:
-    iod = result["iod"]
-    rows = [
-        {
-            "IE": module.get("information_entity"),
-            "Module": module.get("module_name"),
-            "Usage": _usage(module),
-            "Section": _section(module.get("section")),
-        }
-        for module in result["modules"]
-    ]
-    return [f"**{iod['name']} IOD** modules", "", *_table(rows)]
-
-
-def _render_module_attributes(result: dict[str, Any]) -> list[str]:
-    module = result["module"]
-    rows = []
-    for row in result["attributes"]:
-        nesting = ">" * int(row.get("sequence_depth") or 0)
-        if row.get("row_kind") == "include":
-            target = row.get("included_macro_name") or row.get("include_target_text")
-            rows.append({"Attribute": f"{nesting}Include {target}"})
-            continue
-        condition = row.get("condition") or {}
-        description = row.get("description_text") or ""
-        if condition.get("source_text") and condition["source_text"] not in description:
-            description = f"{description} {condition['source_text']}".strip()
-        rows.append(
-            {
-                "Attribute": f"{nesting}{row.get('attribute_name') or ''}",
-                "Tag": row.get("attribute_tag"),
-                "Type": row.get("type_designation"),
-                "Description": description,
-            }
-        )
-    return [f"**{module['name']}**", "", *_table(rows)]
-
-
-def _render_sop_class(result: dict[str, Any]) -> list[str]:
-    sop = result["sop_class"]
-    lines = [f"**{sop['name']}** {sop['uid_value']}"]
-    service = result.get("service_class")
-    if service:
-        lines.append(f"Service Class: {service['name']}")
-    lines += [f"IOD: {iod['iod_name']}" for iod in result.get("iods", [])]
-    return lines
 
 
 def _render_value_terms(result: dict[str, Any]) -> list[str]:
@@ -192,28 +131,6 @@ def _render_value_terms(result: dict[str, Any]) -> list[str]:
         for term in terms
     ]
     return [heading, "", *_table(rows)]
-
-
-def _render_attribute_context(result: dict[str, Any]) -> list[str]:
-    attribute = result["attribute"]
-    lines = _render_data_element(attribute)
-    if result.get("effective_type"):
-        lines.append(f"Effective Type: {result['effective_type']}")
-    if result.get("effective_type_explanation"):
-        lines.append(str(result["effective_type_explanation"]))
-    rows = [
-        {
-            "IOD": use.get("iod"),
-            "Module": use.get("module") or use.get("functional_group_macro"),
-            "Module usage": use.get("module_usage"),
-            "Type": use.get("type_designation"),
-            "Within": " > ".join(use.get("sequence_path") or []),
-            "Via macro": " > ".join(use.get("via_macro") or []),
-            "Condition": (use.get("condition") or {}).get("source_text"),
-        }
-        for use in result.get("uses", [])
-    ]
-    return [*lines, "", *_table(rows)]
 
 
 def _render_standard_text(result: dict[str, Any]) -> list[str]:
@@ -311,17 +228,11 @@ def _render_hits(result: dict[str, Any]) -> list[str]:
 _RENDERERS: tuple[tuple[frozenset[str], Renderer], ...] = (
     (frozenset({"markdown"}), _render_standard_markdown),
     (frozenset({"hits"}), _render_hits),
-    (frozenset({"iod", "modules"}), _render_iod_modules),
-    (frozenset({"module", "attributes"}), _render_module_attributes),
-    (frozenset({"sop_class", "iods"}), _render_sop_class),
-    (frozenset({"attribute", "uses"}), _render_attribute_context),
     (frozenset({"attribute", "terms"}), _render_value_terms),
     (frozenset({"text_excerpt", "tables", "part"}), _render_standard_text),
     (frozenset({"cid", "rows"}), _render_context_group),
     (frozenset({"tid", "rows"}), _render_sr_template),
-    (frozenset({"tag", "keyword", "vr", "vm"}), _render_data_element),
     (frozenset({"uid_value", "uid_type"}), _render_uid),
-    (frozenset({"name", "keyword", "iod_type"}), _render_iod),
 )
 
 
@@ -370,12 +281,6 @@ def _empty(value: Any) -> bool:
 
 def _code(value: Any) -> str:
     return f"`{value}`" if value else "-"
-
-
-def _usage(module: Mapping[str, Any]) -> str:
-    usage = str(module.get("usage") or "")
-    condition = module.get("usage_condition_text")
-    return f"{usage}: {condition}" if condition else usage
 
 
 def _kind(term_kind: Any) -> str:
