@@ -65,10 +65,7 @@ class _FakeFastMCP:
 
 def test_mcp_tool_names_match_supported_spec() -> None:
     assert MCP_TOOL_NAMES == (
-        "dicom_lookup_data_element",
         "dicom_lookup_uid",
-        "dicom_lookup_sop_class",
-        "dicom_lookup_iod",
         "dicom_lookup_enumerated_values",
         "dicom_lookup_defined_terms",
         "dicom_lookup_vr",
@@ -79,9 +76,9 @@ def test_mcp_tool_names_match_supported_spec() -> None:
         "dicom_lookup_sr_template",
         "dicom_lookup_context_group",
         "dicom_lookup_code_meaning",
-        "dicom_list_modules_for_iod",
-        "dicom_list_attributes_for_module",
-        "dicom_resolve_attribute_context",
+        "dicom_element",
+        "dicom_iod",
+        "dicom_module",
         "dicom_search",
         "dicom_read",
     )
@@ -130,14 +127,19 @@ def test_serve_mcp_stdio_runs_fastmcp_stdio_transport(
 
 def test_execute_mcp_tool_returns_compact_markdown(tmp_path: Path) -> None:
     payload = execute_mcp_tool(
-        "dicom_lookup_data_element",
-        {"tag_or_keyword": "Modality"},
+        "dicom_element",
+        {"name": "PatientName"},
         config=MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)),
     )
 
     assert payload == (
-        "**(0008,0060) Modality**\n"
-        "Keyword `Modality` · VR CS · VM 1\n"
+        "**(0010,0010) Patient's Name** `PatientName` · VR PN · VM 1\n"
+        "\n"
+        "| Used in | Reference | Type | Within |\n"
+        "|---|---|---|---|\n"
+        "| Patient Module | C.7.1.1, Table C.7-1 | 2 |  |\n"
+        "\n"
+        "In IODs: CT Image.\n"
         "\n"
         "Source: PS3.6 Table 6-1 (2026b)\n"
     )
@@ -147,14 +149,28 @@ def test_execute_mcp_tool_returns_compact_markdown(tmp_path: Path) -> None:
     ("tool", "arguments", "expected"),
     [
         (
-            "dicom_list_attributes_for_module",
-            {"module_name": "Patient", "expand_macros": True},
-            ["| Attribute | Tag | Type |", "Include", "Anatomic Region Sequence"],
+            "dicom_module",
+            {"name": "Patient"},
+            [
+                "| Attribute | Tag | VR | VM | Type |",
+                "Include",
+                "AnatomicRegionSequence",
+            ],
         ),
         (
-            "dicom_resolve_attribute_context",
-            {"attribute": "PatientName", "iod_name": "CT Image"},
-            ["Effective Type: 2", "| CT Image | Patient |"],
+            "dicom_module",
+            {"name": "Table 10-7"},
+            ["**General Anatomy Optional Macro** (Table 10-7)"],
+        ),
+        (
+            "dicom_iod",
+            {"name": "1.2.840.10008.5.1.4.1.1.2", "expand": True},
+            ["### Patient Module: M", "| PatientName | (0010,0010) | PN |"],
+        ),
+        (
+            "dicom_element",
+            {"name": "PatientName", "iod": "CT Image Storage"},
+            ["In the CT Image IOD:", "| Patient Module | M | 2 |"],
         ),
         (
             "dicom_lookup_vr",
@@ -225,12 +241,12 @@ def test_execute_mcp_tool_renders_each_answer_shape(
 
 def test_execute_mcp_tool_not_found_is_one_line(tmp_path: Path) -> None:
     payload = execute_mcp_tool(
-        "dicom_lookup_data_element",
-        {"tag_or_keyword": "(0008,9999)"},
+        "dicom_element",
+        {"name": "(0008,9999)"},
         config=MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)),
     )
 
-    assert payload == "No DICOM data element matched the input.\n"
+    assert payload == "No data element is named '(0008,9999)'.\n"
 
 
 def test_execute_mcp_tool_reports_missing_db(tmp_path: Path) -> None:
