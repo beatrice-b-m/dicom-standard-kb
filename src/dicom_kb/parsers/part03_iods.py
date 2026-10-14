@@ -27,7 +27,10 @@ MODULE_TABLE_TITLE_RE = re.compile(r"^(?P<name>.+?)\s+IOD\s+Modules?$", re.I)
 FUNCTIONAL_GROUP_TITLE_RE = re.compile(
     r"^(?P<name>.+?)\s+Functional\s+Group\s+Macros?$", re.I
 )
-MODULE_ATTR_TITLE_RE = re.compile(r"^(?P<name>.+?)\s+Module\s+Attributes?$", re.I)
+# "Patient Module Attributes", or the occasional "… Module Table" or "… Module".
+MODULE_ATTR_TITLE_RE = re.compile(
+    r"^(?P<name>.+?)\s+Module(?:\s+(?:Attributes?|Table))?$", re.I
+)
 MACRO_TITLE_RE = re.compile(r"^(?P<name>.+?\bMacro)\s+Attributes?$", re.I)
 DEPTH_RE = re.compile(r"^(?P<marks>>+)\s*(?P<name>.*)$")
 INCLUDE_TEXT_RE = re.compile(r"^>*\s*Include$", re.I)
@@ -58,25 +61,75 @@ def parse_part03(document: ParsedDocument, *, edition: str) -> Part03ParseResult
     conditions: list[Condition] = []
     warnings: list[ParserWarning] = []
 
+    module_tables: list[tuple[ParsedTable, Module]] = []
+    macro_tables: list[tuple[ParsedTable, Macro]] = []
     for table in document.tables:
         if _is_macro_attribute_table(table):
             macro = _macro_from_table(table, edition)
             macros[macro.id] = macro
+            macro_tables.append((table, macro))
+        elif _is_module_attribute_table(table):
+            module = _module_from_attribute_table(table, edition)
+            if module.id in modules:
+                # Two modules share a name; their tables tell them apart.
+                module = module.model_copy(
+                    update={"id": _id(edition, "module", table.xml_id or module.name)}
+                )
+            modules[module.id] = module
+            module_tables.append((table, module))
 
     macro_by_ref = _macro_ref_index(macros.values())
+    # An IOD names each module by a reference to the section that holds the
+    # module's table, which is sturdier than its name.
+    module_by_section: dict[str, Module] = {}
+    module_by_name: dict[str, Module] = {}
+    for _, module in module_tables:
+        if module.section:
+            module_by_section.setdefault(module.section, module)
+        module_by_name.setdefault(module.name.lower(), module)
+
+    for table, module in module_tables:
+        attribute_use_records, table_conditions = _parse_attribute_table(
+            table,
+            _headers(table),
+            edition,
+            owner_type="module",
+            owner_id=module.id,
+            macro_by_ref=macro_by_ref,
+            warnings=warnings,
+        )
+        attribute_uses.extend(attribute_use_records)
+        conditions.extend(table_conditions)
+    for table, macro in macro_tables:
+        attribute_use_records, table_conditions = _parse_attribute_table(
+            table,
+            _headers(table),
+            edition,
+            owner_type="macro",
+            owner_id=macro.id,
+            macro_by_ref=macro_by_ref,
+            warnings=warnings,
+        )
+        attribute_uses.extend(attribute_use_records)
+        conditions.extend(table_conditions)
 
     for table in document.tables:
         headers = _headers(table)
         if _is_iod_module_table(table, headers):
             iod = _iod_from_table(table, edition)
             iods[iod.id] = iod
-            module_use_records, table_modules, table_conditions = (
-                _parse_iod_module_table(table, headers, iod, edition)
+            module_use_records, table_conditions = _parse_iod_module_table(
+                table,
+                headers,
+                iod,
+                edition,
+                module_by_section=module_by_section,
+                module_by_name=module_by_name,
+                modules=modules,
+                warnings=warnings,
             )
             module_uses.extend(module_use_records)
             conditions.extend(table_conditions)
-            for module in table_modules:
-                modules.setdefault(module.id, module)
         elif _is_functional_group_table(headers):
             iod = _iod_from_table(table, edition)
             iods.setdefault(iod.id, iod)
@@ -86,33 +139,6 @@ def parse_part03(document: ParsedDocument, *, edition: str) -> Part03ParseResult
                 )
             )
             functional_group_uses.extend(functional_group_use_records)
-            conditions.extend(table_conditions)
-        elif _is_module_attribute_table(table):
-            module = _module_from_attribute_table(table, edition)
-            modules[module.id] = module
-            attribute_use_records, table_conditions = _parse_attribute_table(
-                table,
-                headers,
-                edition,
-                owner_type="module",
-                owner_id=module.id,
-                macro_by_ref=macro_by_ref,
-                warnings=warnings,
-            )
-            attribute_uses.extend(attribute_use_records)
-            conditions.extend(table_conditions)
-        elif _is_macro_attribute_table(table):
-            macro = _macro_from_table(table, edition)
-            attribute_use_records, table_conditions = _parse_attribute_table(
-                table,
-                headers,
-                edition,
-                owner_type="macro",
-                owner_id=macro.id,
-                macro_by_ref=macro_by_ref,
-                warnings=warnings,
-            )
-            attribute_uses.extend(attribute_use_records)
             conditions.extend(table_conditions)
 
     return Part03ParseResult(
@@ -153,13 +179,15 @@ def _is_functional_group_table(headers: dict[str, int]) -> bool:
 
 
 def _is_attribute_headers(headers: dict[str, int]) -> bool:
-    return "attribute name" in headers and "tag" in headers and "type" in headers
+    # Normalized IODs (print, worklist, procedure step) have no Type column.
+    return "attribute name" in headers and "tag" in headers
 
 
 def _is_module_attribute_table(table: ParsedTable) -> bool:
     return bool(
         table.title
         and MODULE_ATTR_TITLE_RE.match(table.title)
+        and not table.title.lower().startswith("example")
         and _is_attribute_headers(_headers(table))
     )
 
@@ -168,6 +196,7 @@ def _is_macro_attribute_table(table: ParsedTable) -> bool:
     return bool(
         table.title
         and MACRO_TITLE_RE.match(table.title)
+        and not table.title.lower().startswith("example")
         and _is_attribute_headers(_headers(table))
     )
 
@@ -177,10 +206,14 @@ def _parse_iod_module_table(
     headers: dict[str, int],
     iod: IOD,
     edition: str,
-) -> tuple[list[IODModuleUse], list[Module], list[Condition]]:
+    *,
+    module_by_section: dict[str, Module],
+    module_by_name: dict[str, Module],
+    modules: dict[str, Module],
+    warnings: list[ParserWarning],
+) -> tuple[list[IODModuleUse], list[Condition]]:
     source_ref = _source_ref(edition, table)
     uses: list[IODModuleUse] = []
-    modules: list[Module] = []
     conditions: list[Condition] = []
     last_ie: str | None = None
     information_entity_column = _information_entity_column(headers)
@@ -195,16 +228,35 @@ def _parse_iod_module_table(
         if not module_name:
             continue
 
-        reference = _reference_text(row, headers.get("reference"))
-        module = Module(
-            id=_id(edition, "module", module_name),
-            edition_id=edition,
-            name=module_name,
-            section=reference,
-            description=None,
-            source_ref=source_ref,
+        module, mismatch = _module_for_row(
+            row,
+            module_name,
+            headers.get("reference"),
+            module_by_section=module_by_section,
+            module_by_name=module_by_name,
         )
-        modules.append(module)
+        if mismatch is not None:
+            warnings.append(
+                _warning(
+                    table,
+                    row,
+                    f"module {module_name!r} references {mismatch!r}; "
+                    "used the module the row names",
+                )
+            )
+        if module is None:
+            reference = _reference_text(row, headers.get("reference"))
+            module = Module(
+                id=_id(edition, "module", module_name),
+                edition_id=edition,
+                name=module_name,
+                section=reference,
+                source_ref=source_ref,
+            )
+            modules.setdefault(module.id, module)
+            warnings.append(
+                _warning(table, row, f"module {module_name!r} has no attribute table")
+            )
         usage, condition = (
             _usage(_cell(row, headers["usage"])) if "usage" in headers else ("", None)
         )
@@ -230,7 +282,36 @@ def _parse_iod_module_table(
                 source_ref=source_ref,
             )
         )
-    return uses, modules, conditions
+    return uses, conditions
+
+
+def _module_for_row(
+    row: ParsedRow,
+    module_name: str,
+    reference_column: int | None,
+    *,
+    module_by_section: dict[str, Module],
+    module_by_name: dict[str, Module],
+) -> tuple[Module | None, str | None]:
+    """Find the module a row names, and the module it wrongly references."""
+    named = module_by_name.get(normalize_text(module_name).lower())
+    for cell in row.cells:
+        if cell.column != reference_column:
+            continue
+        for target in cell.xrefs:
+            module = module_by_section.get(target)
+            if module is None:
+                continue
+            # The reference wins unless it plainly points at another module
+            # (PS3.3 A.66 lists Enhanced Contrast/Bolus but links C.7.6.4).
+            if (
+                named is not None
+                and named.id != module.id
+                and module.name.lower() != normalize_text(module_name).lower()
+            ):
+                return named, module.name
+            return module, None
+    return named, None
 
 
 def _information_entity_column(headers: dict[str, int]) -> int | None:
@@ -327,13 +408,36 @@ def _parse_attribute_table(
             continue
         sequence_depth, attribute_name = _attribute_depth_and_name(raw_name)
         attribute_id = f"{owner_id}.attribute_use.{order}"
+        description = _optional_markdown(row, _description_column(headers))
+        tag = _normalized_tag_or_none(_cell(row, headers["tag"]))
+        if tag is None:
+            # A row with no tag is not an attribute: a heading such as "BASIC
+            # CODED ENTRY ATTRIBUTES", or prose such as "Include one or more
+            # Functional Group Macros". Keep it as text, in place.
+            uses.append(
+                AttributeUse(
+                    id=attribute_id,
+                    edition_id=edition,
+                    owner_type=owner_type,
+                    owner_id=owner_id,
+                    row_kind="text",
+                    attribute_name=attribute_name,
+                    description_text=description,
+                    sequence_depth=sequence_depth,
+                    row_order=order,
+                    source_ref=source_ref,
+                )
+            )
+            continue
         parent_id = stack.get(sequence_depth - 1) if sequence_depth > 0 else None
         stack[sequence_depth] = attribute_id
         for deeper_depth in [depth for depth in stack if depth > sequence_depth]:
             del stack[deeper_depth]
 
-        description = _optional_cell(row, _description_column(headers))
-        type_designation = _cell(row, headers["type"])
+        type_column = headers.get("type")
+        type_designation = (
+            normalize_text(_cell(row, type_column)) if type_column is not None else ""
+        )
         condition_record = _condition_from_text(
             f"{attribute_id}.condition",
             edition=edition,
@@ -350,10 +454,10 @@ def _parse_attribute_table(
                 owner_id=owner_id,
                 parent_attribute_use_id=parent_id,
                 row_kind="attribute",
-                attribute_tag=_normalized_tag_or_none(_cell(row, headers["tag"])),
+                attribute_tag=tag,
                 attribute_keyword=None,
                 attribute_name=attribute_name,
-                type_designation=type_designation,
+                type_designation=type_designation or None,
                 description_text=description,
                 condition_id=condition_record.id if condition_record else None,
                 sequence_depth=sequence_depth,
@@ -387,7 +491,7 @@ def _module_from_attribute_table(table: ParsedTable, edition: str) -> Module:
         id=_id(edition, "module", name),
         edition_id=edition,
         name=name,
-        section=table.xml_id,
+        section=table.parent_xml_id or table.xml_id,
         source_ref=_source_ref(edition, table),
     )
 
@@ -481,6 +585,15 @@ def _optional_cell(row: ParsedRow, column: int | None) -> str | None:
         return None
     value = normalize_text(_cell(row, column))
     return value or None
+
+
+def _optional_markdown(row: ParsedRow, column: int | None) -> str | None:
+    if column is None:
+        return None
+    for cell in row.cells:
+        if cell.column == column:
+            return cell.markdown.strip() or cell.text or None
+    return None
 
 
 def _reference_text(row: ParsedRow, column: int | None) -> str | None:

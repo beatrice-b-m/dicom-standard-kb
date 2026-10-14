@@ -33,6 +33,9 @@ class ParsedCell:
     colspan: int = 1
     rowspan: int = 1
     xrefs: tuple[str, ...] = ()
+    # The cell as one line of markdown: paragraphs and list items are kept
+    # apart by <br>, which `text` flattens away.
+    markdown: str = ""
 
 
 @dataclass(frozen=True)
@@ -158,14 +161,16 @@ def _parse_row(
             colspan = max(colspan, 1)
             rowspan = max(rowspan, 1)
         occupancy.mark(row_index, column, rowspan, colspan)
+        markdown = renderer.inline_text(entry)
         cells.append(
             ParsedCell(
-                text=plain_text(renderer.inline_text(entry)),
+                text=plain_text(markdown),
                 row=row_index,
                 column=column,
                 colspan=colspan,
                 rowspan=rowspan,
                 xrefs=tuple(_entry_refs(entry)),
+                markdown=markdown,
             )
         )
         column += colspan
