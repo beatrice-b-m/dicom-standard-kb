@@ -1,5 +1,12 @@
 from pathlib import Path
 
+from dicom_kb.cli.ingest import FIXTURE_EDITION
+
+# Edition labels for synthetic builds. Tests that don't care which edition they
+# use take EDITION; OTHER_EDITION is for tests that need two editions apart.
+EDITION = FIXTURE_EDITION
+OTHER_EDITION = "2000b"
+
 FIXTURE_DIR = Path(__file__).resolve().parent
 
 PS33_CT_IMAGE_DOCBOOK = (

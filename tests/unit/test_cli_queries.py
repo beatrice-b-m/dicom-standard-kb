@@ -34,6 +34,7 @@ from dicom_kb.sources.downloader import (
     official_docbook_xml_url,
 )
 from tests.fixtures_synthetic import (
+    EDITION,
     FIXTURE_DIR,
     PS33_CT_IMAGE_DOCBOOK,
     PS34_SOP_CLASSES_DOCBOOK,
@@ -61,26 +62,26 @@ def _fixture_db(tmp_path: Path) -> Path:
     apply_migrations(connection)
     parsed = parse_part06(
         parse_docbook_xml(PS36_REGISTRY_DOCBOOK, part="PS3.6"),
-        edition="2026b",
+        edition=EDITION,
     )
     import_part06(
         connection,
-        edition="2026b",
+        edition=EDITION,
         data_elements=parsed.data_elements,
         uid_registry_entries=parsed.uid_registry_entries,
     )
     part05_document = parse_docbook_xml(PS35_ENCODING_DOCBOOK, part="PS3.5")
     import_docbook_structure(
         connection,
-        edition="2026b",
+        edition=EDITION,
         document=part05_document,
     )
     import_transfer_syntax_details(
         connection,
-        edition="2026b",
+        edition=EDITION,
         transfer_syntax_details=parse_transfer_syntaxes(
             part05_document,
-            edition="2026b",
+            edition=EDITION,
             transfer_syntaxes=[
                 TransferSyntaxUID(uid=entry.uid_value, retired=entry.retired)
                 for entry in parsed.uid_registry_entries
@@ -91,13 +92,13 @@ def _fixture_db(tmp_path: Path) -> Path:
     part03_document = parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3")
     import_docbook_structure(
         connection,
-        edition="2026b",
+        edition=EDITION,
         document=part03_document,
     )
-    parsed_part03 = parse_part03(part03_document, edition="2026b")
+    parsed_part03 = parse_part03(part03_document, edition=EDITION)
     import_part03(
         connection,
-        edition="2026b",
+        edition=EDITION,
         iods=parsed_part03.iods,
         modules=parsed_part03.modules,
         macros=parsed_part03.macros,
@@ -108,20 +109,20 @@ def _fixture_db(tmp_path: Path) -> Path:
     )
     import_attribute_value_terms(
         connection,
-        edition="2026b",
+        edition=EDITION,
         document=part03_document,
     )
     parsed_part04 = parse_part04(
         parse_docbook_xml(PS34_SOP_CLASSES_DOCBOOK, part="PS3.4"),
-        edition="2026b",
+        edition=EDITION,
         iod_id_by_ref={
-            "sect_A.3": "2026b.iod.ct_image",
-            "sect_A.38": "2026b.iod.enhanced_ct_image",
+            "sect_A.3": f"{EDITION}.iod.ct_image",
+            "sect_A.38": f"{EDITION}.iod.enhanced_ct_image",
         },
     )
     import_part04(
         connection,
-        edition="2026b",
+        edition=EDITION,
         service_classes=parsed_part04.service_classes,
         sop_classes=parsed_part04.sop_classes,
         sop_class_iods=parsed_part04.sop_class_iods,
@@ -129,25 +130,25 @@ def _fixture_db(tmp_path: Path) -> Path:
     part16_document = parse_docbook_xml(PS316_CONTENT_MAPPING_DOCBOOK, part="PS3.16")
     import_docbook_structure(
         connection,
-        edition="2026b",
+        edition=EDITION,
         document=part16_document,
     )
-    parsed_part16 = parse_part16(part16_document, edition="2026b")
+    parsed_part16 = parse_part16(part16_document, edition=EDITION)
     import_sr_templates(
         connection,
-        edition="2026b",
+        edition=EDITION,
         templates=parsed_part16.sr_templates,
         rows=parsed_part16.sr_template_rows,
     )
     import_context_groups(
         connection,
-        edition="2026b",
+        edition=EDITION,
         context_groups=parsed_part16.context_groups,
         rows=parsed_part16.context_group_rows,
     )
     import_coded_concepts(
         connection,
-        edition="2026b",
+        edition=EDITION,
         coded_concepts=parsed_part16.coded_concepts,
     )
     connection.close()
@@ -156,7 +157,7 @@ def _fixture_db(tmp_path: Path) -> Path:
 
 def _invoke(tmp_path: Path, *args: str) -> str:
     result = CliRunner().invoke(
-        app, [*args, "--edition", "2026b", "--db", str(_fixture_db(tmp_path))]
+        app, [*args, "--edition", EDITION, "--db", str(_fixture_db(tmp_path))]
     )
     assert result.exit_code == 0, result.output
     return result.output
@@ -171,7 +172,7 @@ def _invoke(tmp_path: Path, *args: str) -> str:
                 "**(0010,0010) Patient's Name** `PatientName` · VR PN · VM 1",
                 "| Patient Module | C.7.1.1, Table C.7-1 | 2 |  |",
                 "In IODs: CT Image.",
-                "Source: PS3.6 Table 6-1 (2026b)",
+                f"Source: PS3.6 Table 6-1 ({EDITION})",
             ],
             id="element",
         ),
@@ -282,7 +283,7 @@ def test_cli_element_requires_existing_db(tmp_path: Path) -> None:
             "element",
             "Modality",
             "--edition",
-            "2026b",
+            EDITION,
             "--db",
             str(tmp_path / "missing.sqlite"),
         ],
@@ -301,17 +302,17 @@ def test_cli_build_fixture_creates_default_db_for_lookups(tmp_path: Path) -> Non
         [
             "build-fixture",
             "--edition",
-            "2026b",
+            EDITION,
             "--cache-dir",
             str(cache_dir),
         ],
     )
 
     assert build_result.exit_code == 0, build_result.output
-    db_path = cache_dir / "db" / "2026b.sqlite"
-    assert build_result.output.startswith(f"Built DICOM 2026b KB: {db_path}")
+    db_path = cache_dir / "db" / f"{EDITION}.sqlite"
+    assert build_result.output.startswith(f"Built DICOM {EDITION} KB: {db_path}")
     assert "gaps logged" in build_result.output
-    assert (cache_dir / "db" / "2026b.gaps.txt").exists()
+    assert (cache_dir / "db" / f"{EDITION}.gaps.txt").exists()
 
     lookup_result = runner.invoke(
         app,
@@ -319,7 +320,7 @@ def test_cli_build_fixture_creates_default_db_for_lookups(tmp_path: Path) -> Non
             "element",
             "Modality",
             "--edition",
-            "2026b",
+            EDITION,
             "--cache-dir",
             str(cache_dir),
         ],
@@ -338,7 +339,7 @@ def test_cli_fetch_registers_local_docbook_for_build(tmp_path: Path) -> None:
         [
             "fetch",
             "--edition",
-            "2026b",
+            EDITION,
             "--cache-dir",
             str(cache_dir),
             "--docbook-xml",
@@ -347,8 +348,10 @@ def test_cli_fetch_registers_local_docbook_for_build(tmp_path: Path) -> None:
     )
 
     assert fetch_result.exit_code == 0, fetch_result.output
-    assert fetch_result.output.startswith("Fetched DICOM 2026b: 1 parts")
-    assert (cache_dir / "artifacts/2026b/raw/source/docbook/part06/part06.xml").exists()
+    assert fetch_result.output.startswith(f"Fetched DICOM {EDITION}: 1 parts")
+    assert (
+        cache_dir / f"artifacts/{EDITION}/raw/source/docbook/part06/part06.xml"
+    ).exists()
 
     build_result = runner.invoke(
         app,
@@ -382,14 +385,13 @@ def test_cli_fetch_downloads_official_docbook(
     part_url = official_docbook_xml_url(base_url, "PS3.6")
     responses = {
         base_url: (
-            b'<a href="DocBookDICOM2026b_release_docbook_20260327091344.zip">'
-            b"docbook</a>"
-        ),
+            f'<a href="DocBookDICOM{EDITION}_release_docbook_20260327091344.zip">'
+            "docbook</a>"
+        ).encode(),
         part_url: b"<book><title>Part 6</title></book>",
     }
 
     def fake_urlopen(url: str, timeout: int) -> _FakeResponse:
-        assert timeout == 60
         return _FakeResponse(responses[url])
 
     monkeypatch.setattr("dicom_kb.sources.downloader.urlopen", fake_urlopen)
@@ -410,10 +412,10 @@ def test_cli_fetch_downloads_official_docbook(
     )
 
     assert result.exit_code == 0, result.output
-    assert result.output.startswith("Fetched DICOM 2026b: 1 parts")
-    assert "Next: dicom-kb build --edition 2026b" in result.output
+    assert result.output.startswith(f"Fetched DICOM {EDITION}: 1 parts")
+    assert f"Next: dicom-kb build --edition {EDITION}" in result.output
     assert (
-        cache_dir / "artifacts/2026b/raw/source/docbook/part06/part06.xml"
+        cache_dir / f"artifacts/{EDITION}/raw/source/docbook/part06/part06.xml"
     ).read_bytes() == responses[part_url]
 
     again = runner.invoke(
@@ -439,9 +441,9 @@ def test_cli_fetch_defaults_to_v2_docbook_parts(
     base_url = "https://dicom.example/current/"
     responses = {
         base_url: (
-            b'<a href="DocBookDICOM2026b_release_docbook_20260327091344.zip">'
-            b"docbook</a>"
-        ),
+            f'<a href="DocBookDICOM{EDITION}_release_docbook_20260327091344.zip">'
+            "docbook</a>"
+        ).encode(),
         **{
             official_docbook_xml_url(base_url, part): (
                 f"<book><title>{part}</title></book>".encode()
@@ -451,7 +453,6 @@ def test_cli_fetch_defaults_to_v2_docbook_parts(
     }
 
     def fake_urlopen(url: str, timeout: int) -> _FakeResponse:
-        assert timeout == 60
         return _FakeResponse(responses[url])
 
     monkeypatch.setattr("dicom_kb.sources.downloader.urlopen", fake_urlopen)

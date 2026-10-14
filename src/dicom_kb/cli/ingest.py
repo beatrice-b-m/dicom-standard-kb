@@ -35,13 +35,20 @@ from dicom_kb.sources.manifest import ManifestExistsError
 
 app = typer.Typer()
 
+# The synthetic fixture's edition label. It is a valid label that NEMA has never
+# published, so a fixture build can't overwrite or outrank a real edition's KB.
+FIXTURE_EDITION = "2000a"
+
 
 @app.command("build-fixture")
 def build_fixture(
     ctx: typer.Context,
     edition: Annotated[
         str | None,
-        typer.Option("--edition", help="Concrete synthetic fixture edition label."),
+        typer.Option(
+            "--edition",
+            help=f"Edition label for the fixture build (default {FIXTURE_EDITION}).",
+        ),
     ] = None,
     cache_dir: Annotated[
         Path | None,
@@ -60,7 +67,9 @@ def build_fixture(
     ] = False,
 ) -> None:
     """Build a small synthetic SQLite KB for offline development."""
-    resolved_edition = resolve_edition(ctx, edition, default="2026b")
+    # Only the flag picks the label: an exported DICOM_KB_EDITION or a profile
+    # edition names a real KB, which `--force` would replace with fixture data.
+    resolved_edition = edition or FIXTURE_EDITION
     resolved_cache_dir = resolve_cache_dir(ctx, cache_dir)
     resolved_db = resolve_db_path(ctx, db)
     artifacts = _synthetic_fixture_artifacts(resolved_edition)
@@ -262,11 +271,7 @@ def _synthetic_fixture_artifacts(edition: str) -> list[ArtifactRequest]:
         "PS3.4": fixture_dir / "synthetic_ps3_4_sop_classes_docbook.xml",
         "PS3.5": fixture_dir / "synthetic_ps3_5_encoding_docbook.xml",
         "PS3.6": fixture_dir / "synthetic_ps3_6_registry_docbook.xml",
-        "PS3.7": fixture_dir / "synthetic_ps3_7_messages_docbook.xml",
-        "PS3.8": fixture_dir / "synthetic_ps3_8_network_docbook.xml",
-        "PS3.10": fixture_dir / "synthetic_ps3_10_media_storage_docbook.xml",
         "PS3.16": fixture_dir / "synthetic_ps3_16_content_mapping_docbook.xml",
-        "PS3.18": fixture_dir / "synthetic_ps3_18_web_services_docbook.xml",
     }
     missing = [str(path) for path in fixtures.values() if not path.exists()]
     if missing:
