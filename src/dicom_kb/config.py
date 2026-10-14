@@ -23,6 +23,11 @@ class DicomKBConfig(BaseModel):
     artifact_dir: Path | None = None
     database_url: str | None = None
 
+    @field_validator("artifact_dir")
+    @classmethod
+    def _expand_artifact_dir(cls, value: Path | None) -> Path | None:
+        return value.expanduser() if value is not None else None
+
     @field_validator("database_url")
     @classmethod
     def _validate_database_url(cls, value: str | None) -> str | None:
@@ -80,15 +85,17 @@ def value_with_precedence[T](
 
 
 def sqlite_url_path(database_url: str) -> Path:
-    """Return a filesystem path from a validated sqlite:/// URL."""
-    parsed = urlparse(database_url)
-    if parsed.scheme != "sqlite" or not database_url.startswith("sqlite:///"):
+    """Return the file a sqlite:/// URL names.
+
+    As in SQLAlchemy, everything after `sqlite:///` is the path as written:
+    `sqlite:////data/kb.sqlite` is absolute, `sqlite:///kb.sqlite` is relative,
+    and `sqlite:///~/kb.sqlite` is under the home directory.
+    """
+    if not database_url.startswith("sqlite:///"):
         raise ConfigError("database_url must use sqlite:/// in v1")
-    if parsed.netloc:
-        raise ConfigError("database_url must use a local sqlite:/// path")
-    path = parsed.path
-    if path.startswith("//"):
-        path = path[1:]
+    path = database_url.removeprefix("sqlite:///")
+    if not path:
+        raise ConfigError("database_url must name a file after sqlite:///")
     return Path(path).expanduser()
 
 

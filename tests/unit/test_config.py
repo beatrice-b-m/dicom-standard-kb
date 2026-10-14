@@ -14,7 +14,7 @@ from dicom_kb.config import (
 )
 
 
-def test_load_config_profile_accepts_section17_shape(tmp_path: Path) -> None:
+def test_load_config_profile_reads_the_dicom_kb_section(tmp_path: Path) -> None:
     path = tmp_path / "dicom-kb.yaml"
     path.write_text(
         """
@@ -29,7 +29,7 @@ def test_load_config_profile_accepts_section17_shape(tmp_path: Path) -> None:
     config = load_config_profile(path)
 
     assert config.edition == "2026b"
-    assert config.artifact_dir == Path("~/dicom/artifacts")
+    assert config.artifact_dir == Path.home() / "dicom/artifacts"
     assert config.database_url == "sqlite:///~/dicom/db/2026b.sqlite"
 
 
@@ -111,6 +111,8 @@ def test_precedence_prefers_cli_then_env_then_config_then_default() -> None:
 
 def test_sqlite_url_path_supports_only_local_sqlite_urls() -> None:
     assert sqlite_url_path("sqlite:////tmp/dicom.sqlite") == Path("/tmp/dicom.sqlite")
+    assert sqlite_url_path("sqlite:///kb.sqlite") == Path("kb.sqlite")
+    assert sqlite_url_path("sqlite:///~/kb.sqlite") == Path.home() / "kb.sqlite"
     with pytest.raises(ConfigError, match="sqlite:///"):
         sqlite_url_path("postgresql:///dicom")
     with pytest.raises(ConfigError, match="sqlite:///"):
