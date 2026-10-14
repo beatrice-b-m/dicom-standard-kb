@@ -5,10 +5,7 @@ from __future__ import annotations
 from typing import Literal, TypedDict
 
 MCPToolName = Literal[
-    "dicom_lookup_data_element",
     "dicom_lookup_uid",
-    "dicom_lookup_sop_class",
-    "dicom_lookup_iod",
     "dicom_lookup_enumerated_values",
     "dicom_lookup_defined_terms",
     "dicom_lookup_vr",
@@ -19,18 +16,15 @@ MCPToolName = Literal[
     "dicom_lookup_sr_template",
     "dicom_lookup_context_group",
     "dicom_lookup_code_meaning",
-    "dicom_list_modules_for_iod",
-    "dicom_list_attributes_for_module",
-    "dicom_resolve_attribute_context",
+    "dicom_element",
+    "dicom_iod",
+    "dicom_module",
     "dicom_search",
     "dicom_read",
 ]
 
 MCP_TOOL_NAMES: tuple[MCPToolName, ...] = (
-    "dicom_lookup_data_element",
     "dicom_lookup_uid",
-    "dicom_lookup_sop_class",
-    "dicom_lookup_iod",
     "dicom_lookup_enumerated_values",
     "dicom_lookup_defined_terms",
     "dicom_lookup_vr",
@@ -41,9 +35,9 @@ MCP_TOOL_NAMES: tuple[MCPToolName, ...] = (
     "dicom_lookup_sr_template",
     "dicom_lookup_context_group",
     "dicom_lookup_code_meaning",
-    "dicom_list_modules_for_iod",
-    "dicom_list_attributes_for_module",
-    "dicom_resolve_attribute_context",
+    "dicom_element",
+    "dicom_iod",
+    "dicom_module",
     "dicom_search",
     "dicom_read",
 )
@@ -58,22 +52,8 @@ class MCPToolSpec(TypedDict):
 
 MCP_TOOL_SPECS: tuple[MCPToolSpec, ...] = (
     {
-        "name": "dicom_lookup_data_element",
-        "description": (
-            "Look up a DICOM PS3.6 data element by tag, range tag, or keyword."
-        ),
-    },
-    {
         "name": "dicom_lookup_uid",
         "description": "Look up a DICOM PS3.6 UID registry entry by UID or keyword.",
-    },
-    {
-        "name": "dicom_lookup_sop_class",
-        "description": "Look up a DICOM PS3.4 SOP Class and linked IOD records.",
-    },
-    {
-        "name": "dicom_lookup_iod",
-        "description": "Look up a DICOM PS3.3 IOD by name or keyword.",
     },
     {
         "name": "dicom_lookup_enumerated_values",
@@ -124,16 +104,33 @@ MCP_TOOL_SPECS: tuple[MCPToolSpec, ...] = (
         ),
     },
     {
-        "name": "dicom_list_modules_for_iod",
-        "description": "List PS3.3 modules used by an IOD.",
+        "name": "dicom_element",
+        "description": (
+            "Look up a data element by tag, keyword or name: VR, VM, retired "
+            "status, and the PS3.3 modules and macros that use it with their "
+            "Type. Pass iod to get its Type, nesting and conditions in one IOD."
+        ),
     },
     {
-        "name": "dicom_list_attributes_for_module",
-        "description": "List PS3.3 attribute rows for a module.",
+        "name": "dicom_iod",
+        "description": (
+            "Look up an IOD by name, or by SOP Class name, UID or keyword: its "
+            "SOP Classes and its modules with usage (M, C with the condition, "
+            "U), plus functional group macros for multi-frame IODs. With "
+            "expand=true, every attribute of every module with macros "
+            "expanded: the checklist for building or validating an instance. "
+            "Long answers come in pages; pass page to continue."
+        ),
     },
     {
-        "name": "dicom_resolve_attribute_context",
-        "description": "Resolve a DICOM attribute's effective PS3.3 type in context.",
+        "name": "dicom_module",
+        "description": (
+            "List a module's or macro's attributes with included macros "
+            "expanded in place: keyword, tag, VR, VM, Type and the full "
+            "description. Takes a name ('General Series', 'Code Sequence "
+            "Macro') or a table ('Table C.7-5a'). Long answers come in pages; "
+            "pass page to continue."
+        ),
     },
     {
         "name": "dicom_search",

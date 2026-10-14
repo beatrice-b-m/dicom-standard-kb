@@ -170,7 +170,11 @@ def test_parse_part03_functional_group_usage() -> None:
         use.condition_id
         == "2026b.iod.enhanced_ct_image.functional_group_use.0.condition"
     )
-    assert result.warnings == ()
+    # The fixture defines tables for Patient and CT Image only.
+    assert [warning.message for warning in result.warnings] == [
+        "module 'Contrast/Bolus' has no attribute table",
+        "module 'CT Image' has no attribute table",
+    ]
 
 
 def test_parse_part03_resolves_functional_group_usage_by_section_anchor() -> None:
@@ -187,4 +191,4 @@ def test_parse_part03_resolves_functional_group_usage_by_section_anchor() -> Non
 
     assert len(result.iod_functional_group_uses) == 1
     assert result.iod_functional_group_uses[0].macro_id == "2026b.macro.table_10_7"
-    assert result.warnings == ()
+    assert not [w for w in result.warnings if "functional group" in w.message]

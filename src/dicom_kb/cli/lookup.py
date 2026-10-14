@@ -17,13 +17,10 @@ from dicom_kb.cli.options import CacheDirectoryOption, DatabaseOption, EditionOp
 from dicom_kb.query.resolver import (
     lookup_code_meaning,
     lookup_context_group,
-    lookup_data_element,
     lookup_defined_terms,
     lookup_dicomweb_transaction,
     lookup_enumerated_values,
-    lookup_iod,
     lookup_media_type,
-    lookup_sop_class,
     lookup_sr_template,
     lookup_transfer_syntax,
     lookup_uid,
@@ -31,33 +28,6 @@ from dicom_kb.query.resolver import (
 )
 
 lookup_app = typer.Typer(help="Run exact lookups against a local SQLite KB.")
-
-
-@lookup_app.command("tag")
-def lookup_tag(
-    ctx: typer.Context,
-    tag_or_keyword: Annotated[
-        str,
-        typer.Argument(help="DICOM tag like (0008,0060), range tag, or keyword."),
-    ],
-    edition: EditionOption = None,
-    db: DatabaseOption = None,
-    cache_dir: CacheDirectoryOption = None,
-) -> None:
-    """Look up a PS3.6 data element by tag or keyword."""
-    resolved_edition = resolve_query_edition(ctx, edition, db=db, cache_dir=cache_dir)
-    with connect_query_db(
-        resolve_db_path(ctx, db),
-        cache_dir=resolve_cache_dir(ctx, cache_dir),
-        edition=resolved_edition,
-    ) as connection:
-        echo_response(
-            lookup_data_element(
-                connection,
-                tag_or_keyword=tag_or_keyword,
-                edition=resolved_edition,
-            )
-        )
 
 
 @lookup_app.command("uid")
@@ -276,60 +246,6 @@ def lookup_code_command(
                 connection,
                 code_value=code_value,
                 scheme=scheme,
-                edition=resolved_edition,
-            )
-        )
-
-
-@lookup_app.command("iod")
-def lookup_iod_command(
-    ctx: typer.Context,
-    iod_name: Annotated[
-        str,
-        typer.Argument(help="DICOM IOD name or keyword, for example 'CT Image'."),
-    ],
-    edition: EditionOption = None,
-    db: DatabaseOption = None,
-    cache_dir: CacheDirectoryOption = None,
-) -> None:
-    """Look up a PS3.3 IOD by name or keyword."""
-    resolved_edition = resolve_query_edition(ctx, edition, db=db, cache_dir=cache_dir)
-    with connect_query_db(
-        resolve_db_path(ctx, db),
-        cache_dir=resolve_cache_dir(ctx, cache_dir),
-        edition=resolved_edition,
-    ) as connection:
-        echo_response(
-            lookup_iod(
-                connection,
-                iod_name=iod_name,
-                edition=resolved_edition,
-            )
-        )
-
-
-@lookup_app.command("sop-class")
-def lookup_sop_class_command(
-    ctx: typer.Context,
-    uid_or_name_or_keyword: Annotated[
-        str,
-        typer.Argument(help="DICOM SOP Class UID, name, or UID keyword."),
-    ],
-    edition: EditionOption = None,
-    db: DatabaseOption = None,
-    cache_dir: CacheDirectoryOption = None,
-) -> None:
-    """Look up a PS3.4 SOP Class and linked IODs."""
-    resolved_edition = resolve_query_edition(ctx, edition, db=db, cache_dir=cache_dir)
-    with connect_query_db(
-        resolve_db_path(ctx, db),
-        cache_dir=resolve_cache_dir(ctx, cache_dir),
-        edition=resolved_edition,
-    ) as connection:
-        echo_response(
-            lookup_sop_class(
-                connection,
-                uid_or_name_or_keyword=uid_or_name_or_keyword,
                 edition=resolved_edition,
             )
         )

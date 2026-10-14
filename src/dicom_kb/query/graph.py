@@ -6,7 +6,6 @@ import sqlite3
 
 from dicom_kb.db.repositories import (
     AttributeUseRecord,
-    DataElementRepository,
     Part03Repository,
     Part04Repository,
 )
@@ -251,18 +250,6 @@ def attribute_context_uses(
                 if record.condition is not None:
                     refs.append(standard_ref(record.condition.source_ref))
     return uses, unique_refs(refs), warnings
-
-
-def find_attribute_element(
-    connection: sqlite3.Connection,
-    *,
-    attribute: str,
-    edition: str,
-) -> tuple[DataElement | None, str | None]:
-    """Resolve the attribute identifier through the PS3.6 dictionary."""
-    return DataElementRepository(connection).find_by_tag_or_keyword(
-        attribute, edition=edition
-    )
 
 
 def attribute_use_matches(element: DataElement, attribute_use: AttributeUse) -> bool:

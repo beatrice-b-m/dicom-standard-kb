@@ -7,7 +7,7 @@ from typing import Annotated
 
 import typer
 
-from dicom_kb.cli import graph, ingest, lookup, mcp, text
+from dicom_kb.cli import ingest, lookup, mcp, objects, text
 from dicom_kb.config import ConfigError, DicomKBConfig, load_config_profile
 from dicom_kb.metadata import LEGAL_NOTICE, __version__
 
@@ -18,11 +18,8 @@ app = typer.Typer(
 )
 app.add_typer(ingest.app)
 app.add_typer(text.app)
+app.add_typer(objects.app)
 app.add_typer(lookup.lookup_app, name="lookup")
-app.add_typer(graph.iod_app, name="iod")
-app.add_typer(graph.module_app, name="module")
-app.add_typer(graph.resolve_app, name="resolve")
-app.add_typer(graph.context_app, name="context")
 app.add_typer(text.explain_app, name="explain")
 app.add_typer(mcp.mcp_app, name="mcp")
 
