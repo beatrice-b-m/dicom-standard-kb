@@ -62,7 +62,7 @@ dicom.nema.org (about 125 MB); everything after that works offline:
 uv run dicom-kb fetch
 uv run dicom-kb build
 uv run dicom-kb element Modality
-uv run dicom-kb iod "CT Image" --expand
+uv run dicom-kb iod "CT Image" --type required
 uv run dicom-kb module "General Series"
 uv run dicom-kb values "Photometric Interpretation" --within "CT Image"
 uv run dicom-kb code "CID 4031"
@@ -74,9 +74,16 @@ uv run dicom-kb read OB
 
 `element` lists the modules and IODs that use a tag or keyword (add `--iod` for
 where it sits in one IOD). `iod` takes an IOD name or SOP Class name or UID and
-lists its modules; `--expand` turns that into the full attribute checklist.
-`module` takes a module or macro name or table (`Table 10-2`). Each macro is
-expanded the first time it appears and marked "listed above" after that.
+lists its modules; `--expand` turns that into the attribute checklist of its M
+and C modules, macros expanded in place. `--type` keeps attributes of some
+Types (`1,1C`, or `required` for 1/1C/2/2C) whose enclosing sequences are of
+those Types too, `--usage M,C,U` adds the U modules and `--module` keeps the
+modules it names. Each answer closes with a line counting what it left out.
+`module` takes a module or macro name or table (`Table 10-2`) and gives an
+outline: the module's own rows, each macro as one line with its size, and
+descriptions cut to their first sentence and condition. `--full` expands each
+macro the first time it appears, with full descriptions, and marks later
+includes "listed above"; `--type` filters as for `iod`.
 
 `values` gives an attribute's Enumerated Values and Defined Terms, whether the
 standard lists them in a table cell or in a section, and names the Baseline or
