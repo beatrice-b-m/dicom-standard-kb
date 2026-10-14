@@ -12,28 +12,23 @@ from dicom_kb.db.importers import (
     import_attribute_value_terms,
     import_coded_concepts,
     import_context_groups,
-    import_dicom_media_types,
-    import_dicomweb_transactions,
     import_docbook_structure,
     import_part03,
     import_part04,
     import_part06,
     import_sr_templates,
     import_transfer_syntax_details,
-    import_vr_definitions,
 )
 from dicom_kb.db.models import apply_migrations, connect_sqlite
 from dicom_kb.docbook.parser import parse_docbook_xml
 from dicom_kb.parsers.part03_iods import parse_part03
 from dicom_kb.parsers.part04_sop_classes import parse_part04
 from dicom_kb.parsers.part05_encoding import (
-    parse_part05,
-    transfer_syntax_details_from_uid_registry,
+    TransferSyntaxUID,
+    parse_transfer_syntaxes,
 )
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
-from dicom_kb.parsers.part10_media_storage import parse_part10
 from dicom_kb.parsers.part16_content_mapping import parse_part16
-from dicom_kb.parsers.part18_web_services import parse_part18
 from dicom_kb.sources.downloader import (
     DEFAULT_DOCBOOK_PARTS,
     official_docbook_xml_url,
@@ -44,9 +39,7 @@ from tests.fixtures_synthetic import (
     PS34_SOP_CLASSES_DOCBOOK,
     PS35_ENCODING_DOCBOOK,
     PS36_REGISTRY_DOCBOOK,
-    PS310_MEDIA_STORAGE_DOCBOOK,
     PS316_CONTENT_MAPPING_DOCBOOK,
-    PS318_WEB_SERVICES_DOCBOOK,
 )
 
 _RICH_BOX_CHARS = str.maketrans("", "", "\u256d\u2500\u256e\u2502\u2570\u256f")
@@ -82,19 +75,18 @@ def _fixture_db(tmp_path: Path) -> Path:
         edition="2026b",
         document=part05_document,
     )
-    parsed_part05 = parse_part05(part05_document, edition="2026b")
-    import_vr_definitions(
-        connection,
-        edition="2026b",
-        vr_definitions=parsed_part05.vr_definitions,
-    )
     import_transfer_syntax_details(
         connection,
         edition="2026b",
-        transfer_syntax_details=transfer_syntax_details_from_uid_registry(
+        transfer_syntax_details=parse_transfer_syntaxes(
+            part05_document,
             edition="2026b",
-            uid_registry_entries=parsed.uid_registry_entries,
-        ),
+            transfer_syntaxes=[
+                TransferSyntaxUID(uid=entry.uid_value, retired=entry.retired)
+                for entry in parsed.uid_registry_entries
+                if entry.uid_type == "Transfer Syntax"
+            ],
+        ).details,
     )
     part03_document = parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3")
     import_docbook_structure(
@@ -134,15 +126,6 @@ def _fixture_db(tmp_path: Path) -> Path:
         sop_classes=parsed_part04.sop_classes,
         sop_class_iods=parsed_part04.sop_class_iods,
     )
-    parsed_part10 = parse_part10(
-        parse_docbook_xml(PS310_MEDIA_STORAGE_DOCBOOK, part="PS3.10"),
-        edition="2026b",
-    )
-    import_dicom_media_types(
-        connection,
-        edition="2026b",
-        media_types=parsed_part10.media_types,
-    )
     part16_document = parse_docbook_xml(PS316_CONTENT_MAPPING_DOCBOOK, part="PS3.16")
     import_docbook_structure(
         connection,
@@ -166,23 +149,6 @@ def _fixture_db(tmp_path: Path) -> Path:
         connection,
         edition="2026b",
         coded_concepts=parsed_part16.coded_concepts,
-    )
-    part18_document = parse_docbook_xml(PS318_WEB_SERVICES_DOCBOOK, part="PS3.18")
-    import_docbook_structure(
-        connection,
-        edition="2026b",
-        document=part18_document,
-    )
-    parsed_part18 = parse_part18(part18_document, edition="2026b")
-    import_dicomweb_transactions(
-        connection,
-        edition="2026b",
-        transactions=parsed_part18.dicomweb_transactions,
-    )
-    import_dicom_media_types(
-        connection,
-        edition="2026b",
-        media_types=parsed_part18.media_types,
     )
     connection.close()
     return db_path
@@ -220,32 +186,19 @@ def _invoke(tmp_path: Path, *args: str) -> str:
             id="element not found",
         ),
         pytest.param(
-            ["lookup", "uid", "ExplicitVRBigEndian"],
+            ["read", "ExplicitVRBigEndian"],
             ["**1.2.840.10008.1.2.2** Explicit VR Big Endian (retired)"],
             id="uid",
         ),
         pytest.param(
-            ["lookup", "vr", "pn"], ["**Name:** Person Name", "Source: PS3.5"], id="vr"
+            ["read", "VR pn"],
+            ["**PN** Person Name", "Source: PS3.5 Table 6.2-1"],
+            id="vr",
         ),
         pytest.param(
-            ["lookup", "transfer-syntax", "ExplicitVRLittleEndian"],
-            ["**Explicit vr:** yes", "**Endian:** little"],
+            ["read", "ExplicitVRLittleEndian"],
+            ["| Explicit VR | Little Endian | Native | No |"],
             id="transfer syntax",
-        ),
-        pytest.param(
-            ["lookup", "media-type", "file"],
-            ["**Media type:** application/dicom", "Source: PS3.10"],
-            id="media type",
-        ),
-        pytest.param(
-            ["lookup", "media-type", "STOW-RS request"],
-            ["**Media type:** multipart/related", "Source: PS3.18"],
-            id="media type ps3.18",
-        ),
-        pytest.param(
-            ["lookup", "dicomweb", "RetrieveStudy"],
-            ["**Route template:** /studies/{studyInstanceUID}"],
-            id="dicomweb",
         ),
         pytest.param(
             ["code", "TID 1500"],
@@ -261,11 +214,6 @@ def _invoke(tmp_path: Path, *args: str) -> str:
             ["code", "CT", "--scheme", "DCM"],
             ['**(CT, DCM, "Computed Tomography")**', "In CID 29"],
             id="code",
-        ),
-        pytest.param(
-            ["explain", "encoding", "OB"],
-            ["OB is the Other Byte VR.", "- binary or text: binary"],
-            id="explain encoding",
         ),
         pytest.param(
             ["values", "PatientName"],

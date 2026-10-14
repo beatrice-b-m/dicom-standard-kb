@@ -13,10 +13,11 @@ Standard, official source artifacts, or a prebuilt knowledge base.
 
 Every section and table of all 20 published parts can be searched and read
 as markdown, with each cross reference kept as its target (`See Section
-C.7.3.1.1.1`, `BCID 7010`). Structured lookups (data elements, UIDs, IODs,
-modules, SOP Classes, attribute values, context groups and codes) cover PS3.3, PS3.4, PS3.5, PS3.6, PS3.10,
-PS3.16, and PS3.18. A warning appears only when an answer is missing something
-the source has.
+C.7.3.1.1.1`, `BCID 7010`). Structured lookups cover data elements and UIDs
+(PS3.6), IODs, modules, SOP Classes and attribute values (PS3.3, PS3.4),
+transfer syntaxes and VRs (PS3.5), and context groups, templates and codes
+(PS3.16). A warning appears only when an answer is missing something the
+source has.
 
 ## Install
 
@@ -67,6 +68,8 @@ uv run dicom-kb values "Photometric Interpretation" --within "CT Image"
 uv run dicom-kb code "CID 4031"
 uv run dicom-kb search "undefined length sequence delimitation"
 uv run dicom-kb read "PS3.5 7.5.2"
+uv run dicom-kb read 1.2.840.10008.1.2.4.50
+uv run dicom-kb read OB
 ```
 
 `element` lists the modules and IODs that use a tag or keyword (add `--iod` for
@@ -84,7 +87,13 @@ takes a CID (its codes, with included groups expanded once), a TID, or a code
 its PS3.16 Annex D definition when it has one, and the groups that list it.
 
 `read` takes a section, table, annex, CID or TID (`PS3.3 Table C.7-5a`,
-`Annex A`, `CID 7010`) and pages long answers at about 4k tokens.
+`Annex A`, `CID 7010`) and pages long answers at about 4k tokens. It also
+takes a UID, UID keyword or UID name and returns its PS3.6 registry entry; for
+a transfer syntax that adds its VR style, byte order, how it carries Pixel
+Data and whether it deflates, as PS3.5 Annex A states them, with the section
+that holds the full rules. A VR code (`OB`, or `VR OB`) returns its row of
+PS3.5 Table 6.2-1 and its Explicit VR header layout. Encoding rules beyond
+those facts are read as sections, e.g. `read "PS3.5 7.5.2"`.
 
 Files go under `~/.cache/dicom-standard-kb/`, with the database at
 `db/<edition>.sqlite`. Commands use the newest fetched or built edition unless

@@ -10,12 +10,6 @@ from dicom_kb.query.answer_contracts import ToolResponse
 from dicom_kb.query.resolver import (
     attribute_values,
     code_lookup,
-    explain_encoding_rule,
-    lookup_dicomweb_transaction,
-    lookup_media_type,
-    lookup_transfer_syntax,
-    lookup_uid,
-    lookup_vr,
     read_standard,
     search_standard,
 )
@@ -41,36 +35,6 @@ def dispatch_mcp_tool(
 ) -> ToolResponse:
     """Dispatch an MCP tool name into the public resolver layer."""
     handlers: dict[MCPToolName, Callable[[], ToolResponse]] = {
-        "dicom_lookup_uid": lambda: lookup_uid(
-            connection,
-            uid_or_keyword=str(arguments["uid_or_keyword"]),
-            edition=edition,
-        ),
-        "dicom_lookup_vr": lambda: lookup_vr(
-            connection,
-            vr=str(arguments["vr"]),
-            edition=edition,
-        ),
-        "dicom_lookup_transfer_syntax": lambda: lookup_transfer_syntax(
-            connection,
-            uid_or_keyword=str(arguments["uid_or_keyword"]),
-            edition=edition,
-        ),
-        "dicom_explain_encoding_rule": lambda: explain_encoding_rule(
-            connection,
-            topic=str(arguments["topic"]),
-            edition=edition,
-        ),
-        "dicom_lookup_media_type": lambda: lookup_media_type(
-            connection,
-            media_type_or_context=str(arguments["media_type_or_context"]),
-            edition=edition,
-        ),
-        "dicom_lookup_dicomweb_transaction": lambda: lookup_dicomweb_transaction(
-            connection,
-            name_or_route=str(arguments["name_or_route"]),
-            edition=edition,
-        ),
         "dicom_element": lambda: element_usage(
             connection,
             name=str(arguments["name"]),
@@ -124,56 +88,7 @@ def dispatch_mcp_tool(
 def register_mcp_tools(server: Any, executor: MCPToolExecutor) -> None:
     """Register all supported DICOM MCP tools on a FastMCP server."""
     for spec in MCP_TOOL_SPECS:
-        if spec["name"] == "dicom_lookup_uid":
-
-            @_tool(server, name=spec["name"], description=spec["description"])
-            def dicom_lookup_uid(uid_or_keyword: str) -> str:
-                return executor("dicom_lookup_uid", {"uid_or_keyword": uid_or_keyword})
-
-        elif spec["name"] == "dicom_lookup_vr":
-
-            @_tool(server, name=spec["name"], description=spec["description"])
-            def dicom_lookup_vr(vr: str) -> str:
-                return executor("dicom_lookup_vr", {"vr": vr})
-
-        elif spec["name"] == "dicom_lookup_transfer_syntax":
-
-            @_tool(server, name=spec["name"], description=spec["description"])
-            def dicom_lookup_transfer_syntax(uid_or_keyword: str) -> str:
-                return executor(
-                    "dicom_lookup_transfer_syntax",
-                    {"uid_or_keyword": uid_or_keyword},
-                )
-
-        elif spec["name"] == "dicom_explain_encoding_rule":
-
-            @_tool(server, name=spec["name"], description=spec["description"])
-            def dicom_explain_encoding_rule(topic: str) -> str:
-                return executor("dicom_explain_encoding_rule", {"topic": topic})
-
-        elif spec["name"] == "dicom_lookup_media_type":
-
-            @_tool(server, name=spec["name"], description=spec["description"])
-            def dicom_lookup_media_type(
-                media_type_or_context: str,
-            ) -> str:
-                return executor(
-                    "dicom_lookup_media_type",
-                    {"media_type_or_context": media_type_or_context},
-                )
-
-        elif spec["name"] == "dicom_lookup_dicomweb_transaction":
-
-            @_tool(server, name=spec["name"], description=spec["description"])
-            def dicom_lookup_dicomweb_transaction(
-                name_or_route: str,
-            ) -> str:
-                return executor(
-                    "dicom_lookup_dicomweb_transaction",
-                    {"name_or_route": name_or_route},
-                )
-
-        elif spec["name"] == "dicom_element":
+        if spec["name"] == "dicom_element":
 
             @_tool(server, name=spec["name"], description=spec["description"])
             def dicom_element(name: str, iod: str | None = None) -> str:

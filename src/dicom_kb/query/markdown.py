@@ -100,18 +100,6 @@ def _renderer_for(result: dict[str, Any]) -> Renderer:
     return _render_generic
 
 
-def _render_uid(result: dict[str, Any]) -> list[str]:
-    retired = " (retired)" if result.get("retired") else ""
-    lines = [f"**{result['uid_value']}** {result['uid_name']}{retired}"]
-    facts = [
-        f"Keyword {_code(result.get('uid_keyword'))}",
-        f"Type {result.get('uid_type') or '-'}",
-    ]
-    if result.get("part"):
-        facts.append(f"Defined in {result['part']}")
-    return [*lines, " · ".join(facts)]
-
-
 def _render_value_terms(result: dict[str, Any]) -> list[str]:
     attribute = result.get("attribute")
     heading = (
@@ -131,24 +119,6 @@ def _render_value_terms(result: dict[str, Any]) -> list[str]:
         for term in terms
     ]
     return [heading, "", *_table(rows)]
-
-
-def _render_standard_text(result: dict[str, Any]) -> list[str]:
-    lines = [
-        f"**{result['part']} {_section(result['section'])} {result['title'] or ''}**"
-    ]
-    lines += ["", str(result.get("text_excerpt") or "")]
-    tables = result.get("tables") or []
-    if tables:
-        lines += [
-            "",
-            "Tables: "
-            + "; ".join(
-                f"{_section(table['table_id'])} {table.get('title') or ''}".strip()
-                for table in tables
-            ),
-        ]
-    return lines
 
 
 def _render_context_group(result: dict[str, Any]) -> list[str]:
@@ -229,10 +199,8 @@ _RENDERERS: tuple[tuple[frozenset[str], Renderer], ...] = (
     (frozenset({"markdown"}), _render_standard_markdown),
     (frozenset({"hits"}), _render_hits),
     (frozenset({"attribute", "terms"}), _render_value_terms),
-    (frozenset({"text_excerpt", "tables", "part"}), _render_standard_text),
     (frozenset({"cid", "rows"}), _render_context_group),
     (frozenset({"tid", "rows"}), _render_sr_template),
-    (frozenset({"uid_value", "uid_type"}), _render_uid),
 )
 
 

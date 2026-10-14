@@ -8,7 +8,7 @@ import anyio
 import pytest
 
 from dicom_kb.mcp.server import MCP_TOOL_NAMES
-from tests.unit.test_cli_lookup import _fixture_db
+from tests.unit.test_cli_queries import _fixture_db
 
 mcp = pytest.importorskip("mcp")
 stdio = pytest.importorskip("mcp.client.stdio")
