@@ -48,8 +48,7 @@ Paths below are relative to `src/dicom_kb/`.
 | `db/importers/` | Persist records in domain transactions; extract attribute value terms. |
 | `db/repositories/` | Edition-filtered SQL lookups, joined records, and row conversion. |
 | `build.py` | Run each part's parse and import as a step, log gaps, publish a completed database. |
-| `query/resolver/` | Domain query responses behind the stable Python import surface; `standard.py` reads and searches the stored sections and tables; `objects.py` answers `dicom_element`, `dicom_iod` and `dicom_module`, expanding each macro once. |
-| `query/graph.py`, `query/conditions.py` | Attribute context traversal and condition parsing used by the value-term lookups. |
+| `query/resolver/` | Domain query responses behind the stable Python import surface; `standard.py` reads and searches the stored sections and tables; `objects.py` answers `dicom_element`, `dicom_iod` and `dicom_module`, expanding each macro once; `values.py` answers `dicom_values` and `codes.py` answers `dicom_code`. |
 | `query/answer_contracts.py`, `query/citations.py` | Resolver result shapes and source refs. |
 | `query/markdown.py` | Render every answer as compact markdown with one source line. |
 | `cli/` | Command modules, shared options, and invocation-scoped configuration. |
