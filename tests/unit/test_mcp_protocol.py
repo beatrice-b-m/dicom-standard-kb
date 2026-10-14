@@ -8,6 +8,7 @@ import anyio
 import pytest
 
 from dicom_kb.mcp.server import MCP_TOOL_NAMES
+from tests.fixtures_synthetic import EDITION
 from tests.unit.test_cli_queries import _fixture_db
 
 mcp = pytest.importorskip("mcp")
@@ -29,7 +30,7 @@ def test_mcp_stdio_protocol_with_official_client(tmp_path: Path) -> None:
                 "mcp",
                 "serve",
                 "--edition",
-                "2026b",
+                EDITION,
                 "--db",
                 str(db_path),
             ],
@@ -60,7 +61,7 @@ def test_mcp_stdio_protocol_with_official_client(tmp_path: Path) -> None:
                 "\n"
                 "No PS3.3 module or macro lists it.\n"
                 "\n"
-                "Source: PS3.6 Table 6-1 (2026b)\n"
+                f"Source: PS3.6 Table 6-1 ({EDITION})\n"
             )
 
             modules_result = await session.call_tool(

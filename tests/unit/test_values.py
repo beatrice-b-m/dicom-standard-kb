@@ -16,6 +16,7 @@ from dicom_kb.parsers.part03_iods import parse_part03
 from dicom_kb.parsers.part16_content_mapping import parse_part16
 from dicom_kb.query.markdown import render_markdown
 from dicom_kb.query.resolver import attribute_values, code_lookup
+from tests.fixtures_synthetic import EDITION
 
 # Values in a section the module points at, in a table cell, and in a list
 # item that says which Value it is for; CIDs on a Code Sequence Macro under
@@ -171,10 +172,10 @@ def _connection(tmp_path: Path) -> sqlite3.Connection:
     connection = connect_sqlite(tmp_path / "kb.sqlite")
     apply_migrations(connection)
     document = parse_docbook_xml(PS33, part="PS3.3")
-    parsed = parse_part03(document, edition="2026d")
+    parsed = parse_part03(document, edition=EDITION)
     import_part03(
         connection,
-        edition="2026d",
+        edition=EDITION,
         iods=parsed.iods,
         modules=parsed.modules,
         macros=parsed.macros,
@@ -185,7 +186,7 @@ def _connection(tmp_path: Path) -> sqlite3.Connection:
     )
     connection.execute(
         "INSERT INTO source_ref (id, edition_id, part, table_id) "
-        "VALUES ('ps36', '2026d', 'PS3.6', 'table_6-1')"
+        f"VALUES ('ps36', '{EDITION}', 'PS3.6', 'table_6-1')"
     )
     for tag, name, keyword, vr in [
         ("(0008,0008)", "Image Type", "ImageType", "CS"),
@@ -194,43 +195,43 @@ def _connection(tmp_path: Path) -> sqlite3.Connection:
         ("(0008,2218)", "Anatomic Region Sequence", "AnatomicRegionSequence", "SQ"),
     ]:
         connection.execute(
-            """
+            f"""
             INSERT INTO data_element (id, edition_id, tag, group_pattern,
               element_pattern, is_range, name, keyword, vr, vm, retired,
               source_ref_id)
-            VALUES (?, '2026d', ?, '', '', 0, ?, ?, ?, '1', 0, 'ps36')
+            VALUES (?, '{EDITION}', ?, '', '', 0, ?, ?, ?, '1', 0, 'ps36')
             """,
-            (f"2026d.{keyword}", tag, name, keyword, vr),
+            (f"{EDITION}.{keyword}", tag, name, keyword, vr),
         )
-    import_attribute_value_terms(connection, edition="2026d", document=document)
-    part16 = parse_part16(parse_docbook_xml(PS316, part="PS3.16"), edition="2026d")
+    import_attribute_value_terms(connection, edition=EDITION, document=document)
+    part16 = parse_part16(parse_docbook_xml(PS316, part="PS3.16"), edition=EDITION)
     import_sr_templates(
         connection,
-        edition="2026d",
+        edition=EDITION,
         templates=part16.sr_templates,
         rows=part16.sr_template_rows,
     )
     import_context_groups(
         connection,
-        edition="2026d",
+        edition=EDITION,
         context_groups=part16.context_groups,
         rows=part16.context_group_rows,
     )
     import_coded_concepts(
-        connection, edition="2026d", coded_concepts=part16.coded_concepts
+        connection, edition=EDITION, coded_concepts=part16.coded_concepts
     )
     return connection
 
 
 def _values(connection: sqlite3.Connection, name: str, **kwargs: object) -> str:
     return render_markdown(
-        attribute_values(connection, name=name, edition="2026d", **kwargs)  # type: ignore[arg-type]
+        attribute_values(connection, name=name, edition=EDITION, **kwargs)  # type: ignore[arg-type]
     )
 
 
 def _code(connection: sqlite3.Connection, query: str, **kwargs: object) -> str:
     return render_markdown(
-        code_lookup(connection, query=query, edition="2026d", **kwargs)  # type: ignore[arg-type]
+        code_lookup(connection, query=query, edition=EDITION, **kwargs)  # type: ignore[arg-type]
     )
 
 
@@ -246,7 +247,9 @@ def test_values_join_section_lists_to_the_modules_that_point_at_them(
     # The reference in a meaning keeps its target.
     assert "| MR | Magnetic Resonance, see Section C.2 |" in markdown
     assert "**Enumerated Values** in Thing Image Module: CT" in markdown
-    assert markdown.rstrip().endswith("Source: PS3.6 Table 6-1; PS3.3 C.1.1.1 (2026d)")
+    assert markdown.rstrip().endswith(
+        f"Source: PS3.6 Table 6-1; PS3.3 C.1.1.1 ({EDITION})"
+    )
 
 
 def test_values_within_a_module_keep_only_what_applies_there(tmp_path: Path) -> None:
@@ -290,7 +293,7 @@ def test_values_report_an_attribute_without_values(tmp_path: Path) -> None:
 
 
 def test_values_suggest_close_names(tmp_path: Path) -> None:
-    response = attribute_values(_connection(tmp_path), name="Modalty", edition="2026d")
+    response = attribute_values(_connection(tmp_path), name="Modalty", edition=EDITION)
 
     assert response.status == "not_found"
     assert response.result is not None
@@ -332,7 +335,7 @@ def test_code_knows_dcm_codes_no_group_lists(tmp_path: Path) -> None:
 
 
 def test_code_not_found_suggests_names(tmp_path: Path) -> None:
-    response = code_lookup(_connection(tmp_path), query="CT Anatomie", edition="2026d")
+    response = code_lookup(_connection(tmp_path), query="CT Anatomie", edition=EDITION)
 
     assert response.status == "not_found"
     assert response.result is not None

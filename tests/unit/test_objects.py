@@ -9,6 +9,7 @@ from dicom_kb.docbook.parser import parse_docbook_xml
 from dicom_kb.parsers.part03_iods import parse_part03
 from dicom_kb.query.markdown import render_markdown
 from dicom_kb.query.resolver import element_usage, iod_modules, module_attributes
+from tests.fixtures_synthetic import EDITION
 
 # A module that includes a coded-entry macro twice, a macro that includes
 # itself, heading rows, a module with no Type column, an IOD whose row names
@@ -110,10 +111,10 @@ PS33 = """\
 def _connection(tmp_path: Path) -> sqlite3.Connection:
     connection = connect_sqlite(tmp_path / "kb.sqlite")
     apply_migrations(connection)
-    parsed = parse_part03(parse_docbook_xml(PS33, part="PS3.3"), edition="2026d")
+    parsed = parse_part03(parse_docbook_xml(PS33, part="PS3.3"), edition=EDITION)
     import_part03(
         connection,
-        edition="2026d",
+        edition=EDITION,
         iods=parsed.iods,
         modules=parsed.modules,
         macros=parsed.macros,
@@ -124,7 +125,7 @@ def _connection(tmp_path: Path) -> sqlite3.Connection:
     )
     connection.execute(
         "INSERT INTO source_ref (id, edition_id, part, table_id) "
-        "VALUES ('ps36', '2026d', 'PS3.6', 'table_6-1')"
+        f"VALUES ('ps36', '{EDITION}', 'PS3.6', 'table_6-1')"
     )
     for tag, name, keyword, vr in [
         ("(0008,0060)", "Modality", "Modality", "CS"),
@@ -132,11 +133,11 @@ def _connection(tmp_path: Path) -> sqlite3.Connection:
         ("(0008,0121)", "Equivalent Code Sequence", "EquivalentCodeSequence", "SQ"),
     ]:
         connection.execute(
-            """
+            f"""
             INSERT INTO data_element (id, edition_id, tag, group_pattern,
               element_pattern, is_range, name, keyword, vr, vm, retired,
               source_ref_id)
-            VALUES (?, '2026d', ?, '', '', 0, ?, ?, ?, '1', 0, 'ps36')
+            VALUES (?, '{EDITION}', ?, '', '', 0, ?, ?, ?, '1', 0, 'ps36')
             """,
             (tag, tag, name, keyword, vr),
         )
@@ -150,7 +151,7 @@ def _markdown(response: object) -> str:
 def test_module_expands_each_macro_once_and_keeps_headings(tmp_path: Path) -> None:
     text = _markdown(
         module_attributes(
-            _connection(tmp_path), name="Thing Series", detail="full", edition="2026d"
+            _connection(tmp_path), name="Thing Series", detail="full", edition=EDITION
         )
     )
 
@@ -169,18 +170,18 @@ def test_module_expands_each_macro_once_and_keeps_headings(tmp_path: Path) -> No
     )
     assert "| >Include Table 8.8-1 (Code Sequence Macro) (listed above) |" in lines
     assert sum("| >CodeValue |" in line for line in lines) == 1
-    assert lines[-1] == "Source: PS3.3 Table C.1-1 (2026d)"
+    assert lines[-1] == f"Source: PS3.3 Table C.1-1 ({EDITION})"
 
 
 def test_module_is_found_by_table_and_macro_name(tmp_path: Path) -> None:
     connection = _connection(tmp_path)
     for name in ("Table 8.8-1", "8.8-1", "Code Sequence Macro", "code sequence"):
-        text = _markdown(module_attributes(connection, name=name, edition="2026d"))
+        text = _markdown(module_attributes(connection, name=name, edition=EDITION))
         assert text.startswith("**Code Sequence Macro** (Table 8.8-1)"), name
 
 
 def test_module_not_found_names_the_closest(tmp_path: Path) -> None:
-    response = module_attributes(_connection(tmp_path), name="Thing", edition="2026d")
+    response = module_attributes(_connection(tmp_path), name="Thing", edition=EDITION)
 
     assert response.status == "not_found"
     assert _markdown(response) == (
@@ -191,7 +192,7 @@ def test_module_not_found_names_the_closest(tmp_path: Path) -> None:
 
 def test_module_without_type_column_keeps_its_rows(tmp_path: Path) -> None:
     text = _markdown(
-        module_attributes(_connection(tmp_path), name="Worklist", edition="2026d")
+        module_attributes(_connection(tmp_path), name="Worklist", edition=EDITION)
     )
 
     assert "| Modality | (0008,0060) | CS | 1 |  | Kind of worklist. |" in text
@@ -200,7 +201,7 @@ def test_module_without_type_column_keeps_its_rows(tmp_path: Path) -> None:
 def test_iod_follows_the_row_name_when_its_reference_points_elsewhere(
     tmp_path: Path,
 ) -> None:
-    text = _markdown(iod_modules(_connection(tmp_path), name="Thing", edition="2026d"))
+    text = _markdown(iod_modules(_connection(tmp_path), name="Thing", edition=EDITION))
 
     assert "| Series | Thing Series | C.1, Table C.1-1 | M |" in text
     assert (
@@ -218,7 +219,7 @@ def test_iod_checklist_lists_modules_then_functional_groups(tmp_path: Path) -> N
             name="Thing IOD",
             expand=True,
             usage="M,C,U",
-            edition="2026d",
+            edition=EDITION,
         )
     )
 
@@ -236,7 +237,7 @@ def test_iod_checklist_lists_modules_then_functional_groups(tmp_path: Path) -> N
 def test_module_outline_keeps_macros_as_one_line(tmp_path: Path) -> None:
     connection = _connection(tmp_path)
     text = _markdown(
-        module_attributes(connection, name="Thing Series", edition="2026d")
+        module_attributes(connection, name="Thing Series", edition=EDITION)
     )
     lines = text.splitlines()
 
@@ -251,7 +252,7 @@ def test_module_outline_keeps_macros_as_one_line(tmp_path: Path) -> None:
         'dicom_module("Thing Series", detail="full").'
     )
     macro = _markdown(
-        module_attributes(connection, name="Code Sequence Macro", edition="2026d")
+        module_attributes(connection, name="Code Sequence Macro", edition=EDITION)
     )
     assert (
         "| CodeValue | (0008,0100) | SH | 1 | 1C | The code. Required if short. |"
@@ -262,7 +263,7 @@ def test_module_outline_keeps_macros_as_one_line(tmp_path: Path) -> None:
 def test_module_type_filter_leaves_out_optional_sequences(tmp_path: Path) -> None:
     text = _markdown(
         module_attributes(
-            _connection(tmp_path), name="Thing Series", types="1,1C", edition="2026d"
+            _connection(tmp_path), name="Thing Series", types="1,1C", edition=EDITION
         )
     )
 
@@ -283,7 +284,7 @@ def test_module_type_filter_expands_macros_in_kept_sequences(
             _connection(tmp_path),
             name="Enhanced Thing",
             types="required",
-            edition="2026d",
+            edition=EDITION,
         )
     )
     lines = text.splitlines()
@@ -302,7 +303,7 @@ def test_module_type_filter_expands_macros_in_kept_sequences(
 
 def test_module_rejects_an_unknown_type(tmp_path: Path) -> None:
     response = module_attributes(
-        _connection(tmp_path), name="Thing Series", types="1,4", edition="2026d"
+        _connection(tmp_path), name="Thing Series", types="1,4", edition=EDITION
     )
 
     assert response.status == "validation_error"
@@ -310,7 +311,7 @@ def test_module_rejects_an_unknown_type(tmp_path: Path) -> None:
 
 def test_iod_checklist_leaves_out_u_modules_and_names_them(tmp_path: Path) -> None:
     text = _markdown(
-        iod_modules(_connection(tmp_path), name="Thing", expand=True, edition="2026d")
+        iod_modules(_connection(tmp_path), name="Thing", expand=True, edition=EDITION)
     )
 
     assert "### Worklist" not in text
@@ -323,7 +324,7 @@ def test_iod_checklist_leaves_out_u_modules_and_names_them(tmp_path: Path) -> No
 def test_iod_module_filter_lists_only_that_module(tmp_path: Path) -> None:
     text = _markdown(
         iod_modules(
-            _connection(tmp_path), name="Thing", module="Worklist", edition="2026d"
+            _connection(tmp_path), name="Thing", module="Worklist", edition=EDITION
         )
     )
 
@@ -338,7 +339,7 @@ def test_iod_type_filter_lists_a_macro_where_it_is_first_shown(
     # The Code Sequence Macro first sits in Thing Series' optional sequences,
     # which the filter leaves out, so it is listed under Enhanced Thing.
     text = _markdown(
-        iod_modules(_connection(tmp_path), name="Thing", types="1,1C", edition="2026d")
+        iod_modules(_connection(tmp_path), name="Thing", types="1,1C", edition=EDITION)
     )
 
     enhanced = text.index("### Enhanced Thing")
@@ -350,11 +351,11 @@ def test_iod_type_filter_lists_a_macro_where_it_is_first_shown(
 def test_iod_checklist_pages(tmp_path: Path) -> None:
     connection = _connection(tmp_path)
     connection.executemany(
-        """
+        f"""
         INSERT INTO attribute_use (id, edition_id, owner_type, owner_id, row_kind,
           attribute_tag, attribute_name, type_designation, description_text,
           sequence_depth, row_order, source_ref_id)
-        SELECT 'filler.' || ?, '2026d', 'module', id, 'attribute', '(0008,0008)',
+        SELECT 'filler.' || ?, '{EDITION}', 'module', id, 'attribute', '(0008,0008)',
                'Image Type', '1C', ?, 0, 100 + ?, source_ref_id
         FROM module WHERE name = 'Enhanced Thing'
         """,
@@ -362,18 +363,18 @@ def test_iod_checklist_pages(tmp_path: Path) -> None:
     )
 
     first = _markdown(
-        iod_modules(connection, name="Thing", expand=True, edition="2026d")
+        iod_modules(connection, name="Thing", expand=True, edition=EDITION)
     )
     assert 'Next: dicom_iod("Thing", expand=true, page=2).' in first
     second = _markdown(
-        iod_modules(connection, name="Thing", expand=True, page=2, edition="2026d")
+        iod_modules(connection, name="Thing", expand=True, page=2, edition=EDITION)
     )
     assert second.startswith("| Attribute | Tag | VR | VM | Type | Description |")
 
 
 def test_element_lists_its_modules_and_iods(tmp_path: Path) -> None:
     text = _markdown(
-        element_usage(_connection(tmp_path), name="modality", edition="2026d")
+        element_usage(_connection(tmp_path), name="modality", edition=EDITION)
     )
 
     assert text.splitlines()[0] == "**(0008,0060) Modality** `Modality` · VR CS · VM 1"
@@ -385,7 +386,7 @@ def test_element_lists_its_modules_and_iods(tmp_path: Path) -> None:
 def test_element_in_an_iod_shows_nesting_and_macro(tmp_path: Path) -> None:
     text = _markdown(
         element_usage(
-            _connection(tmp_path), name="(0008,0100)", iod="Thing", edition="2026d"
+            _connection(tmp_path), name="(0008,0100)", iod="Thing", edition=EDITION
         )
     )
 

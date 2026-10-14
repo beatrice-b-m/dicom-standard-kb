@@ -25,7 +25,7 @@ from dicom_kb.sources.downloader import (
     official_artifact_destination,
     register_local_artifacts,
 )
-from tests.fixtures_synthetic import FIXTURE_DIR
+from tests.fixtures_synthetic import EDITION, FIXTURE_DIR
 
 SYNTHETIC_PARTS = {
     "PS3.3": "synthetic_ps3_3_ct_image_docbook.xml",
@@ -42,7 +42,7 @@ SYNTHETIC_PARTS = {
 
 def _register_synthetic_artifacts(cache_dir: Path) -> None:
     register_local_artifacts(
-        edition="2026b",
+        edition=EDITION,
         cache_dir=cache_dir,
         artifacts=[
             ArtifactRequest(
@@ -50,7 +50,7 @@ def _register_synthetic_artifacts(cache_dir: Path) -> None:
                 format=DOCBOOK_XML_FORMAT,
                 source=FIXTURE_DIR / filename,
                 destination=official_artifact_destination(
-                    "2026b",
+                    EDITION,
                     part=part,
                     artifact_format=DOCBOOK_XML_FORMAT,
                 ),
@@ -62,7 +62,7 @@ def _register_synthetic_artifacts(cache_dir: Path) -> None:
 
 def _register_synthetic_parts(cache_dir: Path, fixtures: dict[str, str]) -> None:
     register_local_artifacts(
-        edition="2026b",
+        edition=EDITION,
         cache_dir=cache_dir,
         artifacts=[
             ArtifactRequest(
@@ -70,7 +70,7 @@ def _register_synthetic_parts(cache_dir: Path, fixtures: dict[str, str]) -> None
                 format=DOCBOOK_XML_FORMAT,
                 source=FIXTURE_DIR / filename,
                 destination=official_artifact_destination(
-                    "2026b",
+                    EDITION,
                     part=part,
                     artifact_format=DOCBOOK_XML_FORMAT,
                 ),
@@ -93,10 +93,10 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
     cache_dir = tmp_path / "cache"
     _register_synthetic_artifacts(cache_dir)
 
-    summary = build_sqlite_database(edition="2026b", cache_dir=cache_dir)
+    summary = build_sqlite_database(edition=EDITION, cache_dir=cache_dir)
 
-    assert summary.edition == "2026b"
-    assert summary.db_path == default_db_path(cache_dir, "2026b")
+    assert summary.edition == EDITION
+    assert summary.db_path == default_db_path(cache_dir, EDITION)
     assert summary.db_path.exists()
     assert any("skipped malformed tag row" in warning for warning in summary.warnings)
     assert any("PS3.16 table_16-2" in warning for warning in summary.warnings)
@@ -145,7 +145,7 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
         "parse_warnings_by_part",
         "source_refs",
     }
-    assert metrics["edition"] == "2026b"
+    assert metrics["edition"] == EDITION
     assert metrics["parts_loaded"] == sorted(SYNTHETIC_PARTS)
     assert metrics["parse_warnings"] == len(summary.warnings)
     assert metrics["parse_warnings_by_part"] == {
@@ -166,28 +166,28 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
     assert metrics["xrefs_total"] >= metrics["xrefs_unresolved"]
 
     with _connect(summary.db_path) as connection:
-        tag_response = element_usage(connection, name="Modality", edition="2026b")
-        sop_response = iod_modules(connection, name="CT Image Storage", edition="2026b")
+        tag_response = element_usage(connection, name="Modality", edition=EDITION)
+        sop_response = iod_modules(connection, name="CT Image Storage", edition=EDITION)
         terms_response = attribute_values(
-            connection, name="PatientName", edition="2026b"
+            connection, name="PatientName", edition=EDITION
         )
         metadata = connection.execute(
             "SELECT metadata_json, schema_version FROM build_metadata "
             "WHERE edition_id = ?",
-            ("2026b",),
+            (EDITION,),
         ).fetchone()
         v2_parts = connection.execute(
             "SELECT DISTINCT part FROM doc_node "
             "WHERE edition_id = ? AND part NOT IN ('PS3.3', 'PS3.4', 'PS3.6') "
             "ORDER BY part",
-            ("2026b",),
+            (EDITION,),
         ).fetchall()
         v2_tables = connection.execute(
             "SELECT part, xml_id, markdown FROM doc_node "
             "WHERE edition_id = ? AND node_type = 'table' "
             "AND part NOT IN ('PS3.3', 'PS3.4', 'PS3.6') "
             "ORDER BY part, xml_id",
-            ("2026b",),
+            (EDITION,),
         ).fetchall()
         transfer_syntax_rows = connection.execute(
             """
@@ -196,7 +196,7 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
             WHERE edition_id = ?
             ORDER BY uid_value
             """,
-            ("2026b",),
+            (EDITION,),
         ).fetchall()
         sr_template_rows = connection.execute(
             """
@@ -209,7 +209,7 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
             WHERE template.edition_id = ?
             ORDER BY row.row_order
             """,
-            ("2026b",),
+            (EDITION,),
         ).fetchall()
         context_group_rows = connection.execute(
             """
@@ -223,7 +223,7 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
             WHERE context_group.edition_id = ?
             ORDER BY row.row_order
             """,
-            ("2026b",),
+            (EDITION,),
         ).fetchall()
         coded_concept_rows = connection.execute(
             """
@@ -233,7 +233,7 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
             WHERE edition_id = ?
             ORDER BY code_value
             """,
-            ("2026b",),
+            (EDITION,),
         ).fetchall()
 
     assert tag_response.status == "ok"
@@ -243,7 +243,7 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
     assert "| ALPHA | Alphabetic representation. |" in terms_response.result["markdown"]
     assert metadata["schema_version"] == "12"
     payload = json.loads(metadata["metadata_json"])
-    assert payload["edition"] == "2026b"
+    assert payload["edition"] == EDITION
     assert {row["part"] for row in v2_parts} == {
         "PS3.5",
         "PS3.7",
@@ -334,7 +334,7 @@ def test_build_sqlite_database_imports_manifest_docbook_and_metadata(
     ]
     assert set(payload["source_sha256"]) == {
         official_artifact_destination(
-            "2026b",
+            EDITION,
             part=part,
             artifact_format=DOCBOOK_XML_FORMAT,
         )
@@ -353,14 +353,14 @@ def test_build_reads_transfer_syntaxes_and_vrs_from_ps35(tmp_path: Path) -> None
         },
     )
 
-    summary = build_sqlite_database(edition="2026b", cache_dir=cache_dir)
+    summary = build_sqlite_database(edition=EDITION, cache_dir=cache_dir)
 
     assert not [w for w in summary.warnings if w.startswith("PS3.5")]
     with _connect(summary.db_path) as connection:
         transfer_syntax = read_standard(
-            connection, reference="ExplicitVRLittleEndian", edition="2026b"
+            connection, reference="ExplicitVRLittleEndian", edition=EDITION
         )
-        vr = read_standard(connection, reference="PN", edition="2026b")
+        vr = read_standard(connection, reference="PN", edition=EDITION)
 
     assert transfer_syntax.status == "ok"
     assert transfer_syntax.result is not None
@@ -386,7 +386,7 @@ def test_build_sqlite_database_imports_official_shape_part16_rows(
         {"PS3.16": "synthetic_ps3_16_official_shape_docbook.xml"},
     )
 
-    summary = build_sqlite_database(edition="2026b", cache_dir=cache_dir)
+    summary = build_sqlite_database(edition=EDITION, cache_dir=cache_dir)
 
     assert summary.metrics.parts_loaded == ("PS3.16",)
     # The fixture includes CID 34 without defining it; the gap is logged once.
@@ -416,7 +416,7 @@ def test_build_sqlite_database_imports_official_shape_part16_rows(
             WHERE template.edition_id = ?
             ORDER BY row.row_order
             """,
-            ("2026b",),
+            (EDITION,),
         ).fetchall()
         context_group_rows = connection.execute(
             """
@@ -431,7 +431,7 @@ def test_build_sqlite_database_imports_official_shape_part16_rows(
             WHERE context_group.edition_id = ?
             ORDER BY row.row_order
             """,
-            ("2026b",),
+            (EDITION,),
         ).fetchall()
         coded_concept_rows = connection.execute(
             """
@@ -443,7 +443,7 @@ def test_build_sqlite_database_imports_official_shape_part16_rows(
             WHERE concept.edition_id = ?
             ORDER BY concept.code_value
             """,
-            ("2026b",),
+            (EDITION,),
         ).fetchall()
 
     assert [dict(row) for row in sr_template_rows] == [
@@ -558,19 +558,19 @@ def test_build_sqlite_database_refuses_existing_db_without_force(
 ) -> None:
     cache_dir = tmp_path / "cache"
     _register_synthetic_artifacts(cache_dir)
-    build_sqlite_database(edition="2026b", cache_dir=cache_dir)
+    build_sqlite_database(edition=EDITION, cache_dir=cache_dir)
 
     with pytest.raises(DatabaseExistsError):
-        build_sqlite_database(edition="2026b", cache_dir=cache_dir)
+        build_sqlite_database(edition=EDITION, cache_dir=cache_dir)
 
 
 def test_build_metrics_aggregate_import_summaries() -> None:
     metrics = BuildMetrics.from_imports(
-        edition="2026b",
+        edition=EDITION,
         parts_loaded=("PS3.3", "PS3.6"),
         import_summaries=(
             ImportSummary(
-                edition="2026b",
+                edition=EDITION,
                 source_refs=3,
                 data_elements=2,
                 uid_registry_entries=1,
@@ -578,7 +578,7 @@ def test_build_metrics_aggregate_import_summaries() -> None:
                 xrefs_unresolved=1,
             ),
             ImportSummary(
-                edition="2026b",
+                edition=EDITION,
                 source_refs=5,
                 iods=1,
                 modules=2,
@@ -592,7 +592,7 @@ def test_build_metrics_aggregate_import_summaries() -> None:
     )
 
     assert metrics.as_jsonable() == {
-        "edition": "2026b",
+        "edition": EDITION,
         "parts_loaded": ["PS3.3", "PS3.6"],
         "data_elements": 2,
         "uids": 1,
@@ -633,7 +633,7 @@ def test_storage_error_does_not_publish_partial_database(
     monkeypatch.setattr(build, "import_part06", fail_import)
     with pytest.raises(build.BuildError):
         build_sqlite_database(
-            edition="2026b", cache_dir=cache_dir, db_path=target, force=existing
+            edition=EDITION, cache_dir=cache_dir, db_path=target, force=existing
         )
     assert target.read_bytes() == original if existing else not target.exists()
     assert list(tmp_path.glob(".kb.sqlite-*")) == []
@@ -651,7 +651,7 @@ def test_failed_import_step_is_logged_and_build_continues(
         raise ImportError("injected import failure")
 
     monkeypatch.setattr(build, "import_transfer_syntax_details", fail_import)
-    summary = build_sqlite_database(edition="2026b", cache_dir=cache_dir)
+    summary = build_sqlite_database(edition=EDITION, cache_dir=cache_dir)
 
     assert (
         "PS3.5 transfer syntax import skipped: injected import failure"
@@ -661,7 +661,7 @@ def test_failed_import_step_is_logged_and_build_continues(
     assert summary.metrics.parse_warnings_by_part["PS3.5"] >= 1
     connection = _connect(summary.db_path)
     try:
-        element = element_usage(connection, name="Modality", edition="2026b")
+        element = element_usage(connection, name="Modality", edition=EDITION)
         assert element.result is not None
     finally:
         connection.close()
@@ -679,7 +679,7 @@ def test_sop_classes_import_without_links_when_ps33_is_missing(
         },
     )
 
-    summary = build_sqlite_database(edition="2026b", cache_dir=cache_dir)
+    summary = build_sqlite_database(edition=EDITION, cache_dir=cache_dir)
 
     assert summary.metrics.sop_classes == 2
     with _connect(summary.db_path) as connection:
@@ -693,7 +693,7 @@ def test_successful_force_build_replaces_previous_database(tmp_path: Path) -> No
     target = tmp_path / "kb.sqlite"
     target.write_bytes(b"previous database")
     summary = build_sqlite_database(
-        edition="2026b",
+        edition=EDITION,
         cache_dir=cache_dir,
         db_path=target,
         force=True,
@@ -702,7 +702,7 @@ def test_successful_force_build_replaces_previous_database(tmp_path: Path) -> No
     connection = _connect(target)
     try:
         assert (
-            element_usage(connection, name="Modality", edition="2026b").result
+            element_usage(connection, name="Modality", edition=EDITION).result
             is not None
         )
     finally:

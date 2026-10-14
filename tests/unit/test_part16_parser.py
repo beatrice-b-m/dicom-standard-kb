@@ -13,6 +13,7 @@ from dicom_kb.db.models import apply_migrations, connect_sqlite
 from dicom_kb.docbook.parser import parse_docbook_xml
 from dicom_kb.parsers.part16_content_mapping import parse_part16
 from tests.fixtures_synthetic import (
+    EDITION,
     PS316_CONTENT_MAPPING_DOCBOOK,
     PS316_OFFICIAL_SHAPE_DOCBOOK,
 )
@@ -27,7 +28,7 @@ def _connection(tmp_path: Path) -> sqlite3.Connection:
 def test_parse_part16_classifies_sr_template_tables_and_warns_on_gaps() -> None:
     document = parse_docbook_xml(PS316_CONTENT_MAPPING_DOCBOOK, part="PS3.16")
 
-    result = parse_part16(document, edition="2026b")
+    result = parse_part16(document, edition=EDITION)
 
     assert [table.table_id for table in result.recognized_tables] == [
         "table_16-1",
@@ -117,7 +118,7 @@ def test_parse_part16_classifies_sr_template_tables_and_warns_on_gaps() -> None:
 def test_parse_part16_supports_official_shape_tid_and_cid_tables() -> None:
     document = parse_docbook_xml(PS316_OFFICIAL_SHAPE_DOCBOOK, part="PS3.16")
 
-    result = parse_part16(document, edition="2026b")
+    result = parse_part16(document, edition=EDITION)
 
     recognized_tables = [
         (table.table_id, table.table_kind) for table in result.recognized_tables
@@ -213,11 +214,11 @@ def test_import_sr_templates_persists_metadata_and_rows_with_source_refs(
 ) -> None:
     connection = _connection(tmp_path)
     document = parse_docbook_xml(PS316_CONTENT_MAPPING_DOCBOOK, part="PS3.16")
-    parsed = parse_part16(document, edition="2026b")
+    parsed = parse_part16(document, edition=EDITION)
 
     summary = import_sr_templates(
         connection,
-        edition="2026b",
+        edition=EDITION,
         templates=parsed.sr_templates,
         rows=parsed.sr_template_rows,
     )
@@ -237,7 +238,7 @@ def test_import_sr_templates_persists_metadata_and_rows_with_source_refs(
         WHERE template.edition_id = ?
         ORDER BY row.row_order
         """,
-        ("2026b",),
+        (EDITION,),
     ).fetchall()
     assert [dict(row) for row in rows] == [
         {
@@ -276,11 +277,11 @@ def test_import_context_groups_persists_metadata_and_rows_with_source_refs(
 ) -> None:
     connection = _connection(tmp_path)
     document = parse_docbook_xml(PS316_CONTENT_MAPPING_DOCBOOK, part="PS3.16")
-    parsed = parse_part16(document, edition="2026b")
+    parsed = parse_part16(document, edition=EDITION)
 
     summary = import_context_groups(
         connection,
-        edition="2026b",
+        edition=EDITION,
         context_groups=parsed.context_groups,
         rows=parsed.context_group_rows,
     )
@@ -301,7 +302,7 @@ def test_import_context_groups_persists_metadata_and_rows_with_source_refs(
         WHERE context_group.edition_id = ?
         ORDER BY row.row_order
         """,
-        ("2026b",),
+        (EDITION,),
     ).fetchall()
     assert [dict(row) for row in rows] == [
         {
@@ -340,11 +341,11 @@ def test_import_coded_concepts_persists_complete_context_group_codes(
 ) -> None:
     connection = _connection(tmp_path)
     document = parse_docbook_xml(PS316_CONTENT_MAPPING_DOCBOOK, part="PS3.16")
-    parsed = parse_part16(document, edition="2026b")
+    parsed = parse_part16(document, edition=EDITION)
 
     summary = import_coded_concepts(
         connection,
-        edition="2026b",
+        edition=EDITION,
         coded_concepts=parsed.coded_concepts,
     )
 
@@ -360,7 +361,7 @@ def test_import_coded_concepts_persists_complete_context_group_codes(
         WHERE concept.edition_id = ?
         ORDER BY concept.code_value
         """,
-        ("2026b",),
+        (EDITION,),
     ).fetchall()
     assert [dict(row) for row in rows] == [
         {
@@ -382,7 +383,7 @@ def test_part16_docbook_structure_persists_nodes_refs_and_table_markdown(
 
     summary = import_docbook_structure(
         connection,
-        edition="2026b",
+        edition=EDITION,
         document=document,
     )
 

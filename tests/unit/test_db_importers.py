@@ -21,6 +21,8 @@ from dicom_kb.parsers.part03_iods import parse_part03
 from dicom_kb.parsers.part04_sop_classes import parse_part04
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
 from tests.fixtures_synthetic import (
+    EDITION,
+    OTHER_EDITION,
     PS33_CT_IMAGE_DOCBOOK,
     PS34_SOP_CLASSES_DOCBOOK,
     PS36_REGISTRY_DOCBOOK,
@@ -36,12 +38,12 @@ def _connection(tmp_path: Path) -> sqlite3.Connection:
 def test_import_part06_and_lookup_tag_uid(tmp_path: Path) -> None:
     connection = _connection(tmp_path)
     parsed = parse_part06(
-        parse_docbook_xml(PS36_REGISTRY_DOCBOOK, part="PS3.6"), edition="2026b"
+        parse_docbook_xml(PS36_REGISTRY_DOCBOOK, part="PS3.6"), edition=EDITION
     )
 
     summary = import_part06(
         connection,
-        edition="2026b",
+        edition=EDITION,
         data_elements=parsed.data_elements,
         uid_registry_entries=parsed.uid_registry_entries,
     )
@@ -49,17 +51,17 @@ def test_import_part06_and_lookup_tag_uid(tmp_path: Path) -> None:
     assert summary.data_elements == 9
     assert summary.uid_registry_entries == 5
     element, warning = DataElementRepository(connection).find_by_tag_or_keyword(
-        "Modality", edition="2026b"
+        "Modality", edition=EDITION
     )
     assert warning is None
     assert element is not None
     assert element.tag == "(0008,0060)"
     assert element.source_ref.canonical_url == (
-        "https://dicom.nema.org/medical/dicom/2026b/output/chtml/part06/table_6-1.html"
+        f"https://dicom.nema.org/medical/dicom/{EDITION}/output/chtml/part06/table_6-1.html"
     )
 
     uid = UIDRepository(connection).find_by_uid_or_keyword(
-        "ExplicitVRLittleEndian", edition="2026b"
+        "ExplicitVRLittleEndian", edition=EDITION
     )
     assert uid is not None
     assert uid.uid_value == "1.2.840.10008.1.2.1"
@@ -73,7 +75,7 @@ def test_import_docbook_structure_persists_nodes_xrefs_and_table_markdown(
 
     summary = import_docbook_structure(
         connection,
-        edition="2026b",
+        edition=EDITION,
         document=document,
     )
 
@@ -114,7 +116,7 @@ def test_import_docbook_structure_persists_nodes_xrefs_and_table_markdown(
         ("table_10-7",),
     ).fetchone()
     assert xref["resolved"] == 1
-    assert xref["target_node_id"] == "2026b.PS3.3.table_10-7"
+    assert xref["target_node_id"] == f"{EDITION}.PS3.3.table_10-7"
     assert xref["resolution_warning"] is None
 
     table_markdown = connection.execute(
@@ -138,7 +140,7 @@ def test_import_docbook_structure_persists_nodes_xrefs_and_table_markdown(
         """,
         ('"Referenced" AND "Nested"',),
     ).fetchone()
-    assert fts_match["node_id"] == "2026b.PS3.3.table_C.7-1"
+    assert fts_match["node_id"] == f"{EDITION}.PS3.3.table_C.7-1"
 
 
 def test_import_docbook_structure_counts_unresolved_xrefs(tmp_path: Path) -> None:
@@ -157,7 +159,7 @@ def test_import_docbook_structure_counts_unresolved_xrefs(tmp_path: Path) -> Non
 
     summary = import_docbook_structure(
         connection,
-        edition="2026b",
+        edition=EDITION,
         document=document,
     )
 
@@ -168,17 +170,17 @@ def test_import_docbook_structure_counts_unresolved_xrefs(tmp_path: Path) -> Non
 def test_range_tag_lookup_returns_match_warning(tmp_path: Path) -> None:
     connection = _connection(tmp_path)
     parsed = parse_part06(
-        parse_docbook_xml(PS36_REGISTRY_DOCBOOK, part="PS3.6"), edition="2026b"
+        parse_docbook_xml(PS36_REGISTRY_DOCBOOK, part="PS3.6"), edition=EDITION
     )
     import_part06(
         connection,
-        edition="2026b",
+        edition=EDITION,
         data_elements=parsed.data_elements,
         uid_registry_entries=parsed.uid_registry_entries,
     )
 
     element, warning = DataElementRepository(connection).find_by_tag_or_keyword(
-        "(6002,3000)", edition="2026b"
+        "(6002,3000)", edition=EDITION
     )
 
     assert element is not None
@@ -189,14 +191,14 @@ def test_range_tag_lookup_returns_match_warning(tmp_path: Path) -> None:
 def test_import_rolls_back_on_duplicate_tags(tmp_path: Path) -> None:
     connection = _connection(tmp_path)
     parsed = parse_part06(
-        parse_docbook_xml(PS36_REGISTRY_DOCBOOK, part="PS3.6"), edition="2026b"
+        parse_docbook_xml(PS36_REGISTRY_DOCBOOK, part="PS3.6"), edition=EDITION
     )
     duplicate = parsed.data_elements[0].model_copy(update={"id": "duplicate"})
 
     with pytest.raises(ImportError):
         import_part06(
             connection,
-            edition="2026b",
+            edition=EDITION,
             data_elements=[*parsed.data_elements, duplicate],
             uid_registry_entries=parsed.uid_registry_entries,
         )
@@ -207,23 +209,23 @@ def test_import_rolls_back_on_duplicate_tags(tmp_path: Path) -> None:
 
 def test_imports_keep_editions_isolated(tmp_path: Path) -> None:
     connection = _connection(tmp_path)
-    parsed_2026b = parse_part06(
-        parse_docbook_xml(PS36_REGISTRY_DOCBOOK, part="PS3.6"), edition="2026b"
+    parsed_edition = parse_part06(
+        parse_docbook_xml(PS36_REGISTRY_DOCBOOK, part="PS3.6"), edition=EDITION
     )
-    parsed_2026c = parse_part06(
-        parse_docbook_xml(PS36_REGISTRY_DOCBOOK, part="PS3.6"), edition="2026c"
-    )
-    import_part06(
-        connection,
-        edition="2026b",
-        data_elements=parsed_2026b.data_elements,
-        uid_registry_entries=parsed_2026b.uid_registry_entries,
+    parsed_other_edition = parse_part06(
+        parse_docbook_xml(PS36_REGISTRY_DOCBOOK, part="PS3.6"), edition=OTHER_EDITION
     )
     import_part06(
         connection,
-        edition="2026c",
-        data_elements=parsed_2026c.data_elements,
-        uid_registry_entries=parsed_2026c.uid_registry_entries,
+        edition=EDITION,
+        data_elements=parsed_edition.data_elements,
+        uid_registry_entries=parsed_edition.uid_registry_entries,
+    )
+    import_part06(
+        connection,
+        edition=OTHER_EDITION,
+        data_elements=parsed_other_edition.data_elements,
+        uid_registry_entries=parsed_other_edition.uid_registry_entries,
     )
 
     count = connection.execute("SELECT count(*) FROM data_element").fetchone()[0]
@@ -233,12 +235,12 @@ def test_imports_keep_editions_isolated(tmp_path: Path) -> None:
 def test_import_part03_graph_records(tmp_path: Path) -> None:
     connection = _connection(tmp_path)
     parsed = parse_part03(
-        parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3"), edition="2026b"
+        parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3"), edition=EDITION
     )
 
     summary = import_part03(
         connection,
-        edition="2026b",
+        edition=EDITION,
         iods=parsed.iods,
         modules=parsed.modules,
         macros=parsed.macros,
@@ -267,13 +269,13 @@ def test_import_part03_graph_records(tmp_path: Path) -> None:
     ).fetchall()
     assert [dict(row) for row in conditions] == [
         {
-            "id": "2026b.iod.ct_image.module_use.1.condition",
+            "id": f"{EDITION}.iod.ct_image.module_use.1.condition",
             "raw_text": "Required if contrast media was used",
             "condition_kind": "required_if",
             "machine_status": "raw_text",
         },
         {
-            "id": "2026b.iod.enhanced_ct_image.functional_group_use.0.condition",
+            "id": f"{EDITION}.iod.enhanced_ct_image.functional_group_use.0.condition",
             "raw_text": "Required if anatomy is known",
             "condition_kind": "required_if",
             "machine_status": "raw_text",
@@ -288,14 +290,14 @@ def test_import_part03_graph_records(tmp_path: Path) -> None:
         WHERE imu.iod_id = ?
         ORDER BY imu.id
         """,
-        ("2026b.iod.ct_image",),
+        (f"{EDITION}.iod.ct_image",),
     ).fetchall()
     assert [tuple(row) for row in required_modules] == [
         ("Patient", "M", None),
         (
             "Contrast/Bolus",
             "C",
-            "2026b.iod.ct_image.module_use.1.condition",
+            f"{EDITION}.iod.ct_image.module_use.1.condition",
         ),
         ("CT Image", "M", None),
     ]
@@ -306,9 +308,9 @@ def test_import_part03_graph_records(tmp_path: Path) -> None:
         FROM attribute_use au
         WHERE au.owner_id = ? AND au.row_kind = 'include'
         """,
-        ("2026b.module.patient",),
+        (f"{EDITION}.module.patient",),
     ).fetchone()
-    assert include["included_macro_id"] == "2026b.macro.table_10_7"
+    assert include["included_macro_id"] == f"{EDITION}.macro.table_10_7"
     assert include["include_target_text"] == (
         'Include Table 10-7 "General Anatomy Optional Macro"'
     )
@@ -327,18 +329,18 @@ def test_import_part03_graph_records(tmp_path: Path) -> None:
 def test_import_part03_counts_unresolved_include_rows(tmp_path: Path) -> None:
     connection = _connection(tmp_path)
     source_ref = SourceRef(
-        id="2026b.test.source_ref",
-        edition_id="2026b",
+        id=f"{EDITION}.test.source_ref",
+        edition_id=EDITION,
         part="PS3.3",
         table_id="table_missing",
         xml_id="table_missing",
         title="Missing Include",
     )
     include = AttributeUse(
-        id="2026b.test.attribute_use.include",
-        edition_id="2026b",
+        id=f"{EDITION}.test.attribute_use.include",
+        edition_id=EDITION,
         owner_type="module",
-        owner_id="2026b.module.synthetic",
+        owner_id=f"{EDITION}.module.synthetic",
         row_kind="include",
         include_target_text='Include Table 99-1 "Missing Macro"',
         row_order=0,
@@ -347,7 +349,7 @@ def test_import_part03_counts_unresolved_include_rows(tmp_path: Path) -> None:
 
     summary = import_part03(
         connection,
-        edition="2026b",
+        edition=EDITION,
         iods=(),
         modules=(),
         macros=(),
@@ -364,18 +366,18 @@ def test_import_attribute_value_terms_links_attribute_context(tmp_path: Path) ->
     connection = _connection(tmp_path)
     document = parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3")
     parsed_part06 = parse_part06(
-        parse_docbook_xml(PS36_REGISTRY_DOCBOOK, part="PS3.6"), edition="2026b"
+        parse_docbook_xml(PS36_REGISTRY_DOCBOOK, part="PS3.6"), edition=EDITION
     )
-    parsed_part03 = parse_part03(document, edition="2026b")
+    parsed_part03 = parse_part03(document, edition=EDITION)
     import_part06(
         connection,
-        edition="2026b",
+        edition=EDITION,
         data_elements=parsed_part06.data_elements,
         uid_registry_entries=parsed_part06.uid_registry_entries,
     )
     import_part03(
         connection,
-        edition="2026b",
+        edition=EDITION,
         iods=parsed_part03.iods,
         modules=parsed_part03.modules,
         macros=parsed_part03.macros,
@@ -387,7 +389,7 @@ def test_import_attribute_value_terms_links_attribute_context(tmp_path: Path) ->
 
     summary = import_attribute_value_terms(
         connection,
-        edition="2026b",
+        edition=EDITION,
         document=document,
     )
 
@@ -420,14 +422,14 @@ def test_import_attribute_value_terms_links_attribute_context(tmp_path: Path) ->
 def test_import_part03_rolls_back_on_duplicate_iods(tmp_path: Path) -> None:
     connection = _connection(tmp_path)
     parsed = parse_part03(
-        parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3"), edition="2026b"
+        parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3"), edition=EDITION
     )
     duplicate = parsed.iods[0].model_copy(update={"id": "duplicate"})
 
     with pytest.raises(ImportError):
         import_part03(
             connection,
-            edition="2026b",
+            edition=EDITION,
             iods=[*parsed.iods, duplicate],
             modules=parsed.modules,
             macros=parsed.macros,
@@ -442,19 +444,19 @@ def test_import_part03_rolls_back_on_duplicate_iods(tmp_path: Path) -> None:
 
 
 IOD_REFS = {
-    "sect_A.3": "2026b.iod.ct_image",
-    "sect_A.38": "2026b.iod.enhanced_ct_image",
+    "sect_A.3": f"{EDITION}.iod.ct_image",
+    "sect_A.38": f"{EDITION}.iod.enhanced_ct_image",
 }
 
 
 def test_import_part04_sop_class_records(tmp_path: Path) -> None:
     connection = _connection(tmp_path)
     parsed_part03 = parse_part03(
-        parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3"), edition="2026b"
+        parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3"), edition=EDITION
     )
     import_part03(
         connection,
-        edition="2026b",
+        edition=EDITION,
         iods=parsed_part03.iods,
         modules=parsed_part03.modules,
         macros=parsed_part03.macros,
@@ -465,13 +467,13 @@ def test_import_part04_sop_class_records(tmp_path: Path) -> None:
     )
     parsed_part04 = parse_part04(
         parse_docbook_xml(PS34_SOP_CLASSES_DOCBOOK, part="PS3.4"),
-        edition="2026b",
+        edition=EDITION,
         iod_id_by_ref=IOD_REFS,
     )
 
     summary = import_part04(
         connection,
-        edition="2026b",
+        edition=EDITION,
         service_classes=parsed_part04.service_classes,
         sop_classes=parsed_part04.sop_classes,
         sop_class_iods=parsed_part04.sop_class_iods,
@@ -500,14 +502,14 @@ def test_import_part04_rolls_back_without_referenced_iods(tmp_path: Path) -> Non
     connection = _connection(tmp_path)
     parsed_part04 = parse_part04(
         parse_docbook_xml(PS34_SOP_CLASSES_DOCBOOK, part="PS3.4"),
-        edition="2026b",
+        edition=EDITION,
         iod_id_by_ref=IOD_REFS,
     )
 
     with pytest.raises(ImportError):
         import_part04(
             connection,
-            edition="2026b",
+            edition=EDITION,
             service_classes=parsed_part04.service_classes,
             sop_classes=parsed_part04.sop_classes,
             sop_class_iods=parsed_part04.sop_class_iods,

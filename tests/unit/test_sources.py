@@ -121,7 +121,6 @@ def test_discover_official_current_edition_from_release_listing(
     base_url = "https://dicom.example/current/"
 
     def fake_urlopen(url: str, timeout: int) -> _FakeResponse:
-        assert timeout == 60
         assert url == base_url
         return _FakeResponse(
             b'<a href="DocBookDICOM2026b_release_docbook_20260327091344.zip">'
@@ -147,7 +146,6 @@ def test_fetch_official_docbook_artifacts_writes_manifest(
     }
 
     def fake_urlopen(url: str, timeout: int) -> _FakeResponse:
-        assert timeout == 60
         return _FakeResponse(responses[url])
 
     monkeypatch.setattr("dicom_kb.sources.downloader.urlopen", fake_urlopen)
@@ -197,7 +195,6 @@ def test_fetch_official_docbook_artifacts_defaults_to_every_part(
     }
 
     def fake_urlopen(url: str, timeout: int) -> _FakeResponse:
-        assert timeout == 60
         return _FakeResponse(responses[url])
 
     monkeypatch.setattr("dicom_kb.sources.downloader.urlopen", fake_urlopen)

@@ -1,12 +1,12 @@
 from dicom_kb.docbook.parser import parse_docbook_xml
 from dicom_kb.ir.validators import IdentifierValidationError, normalize_tag, tag_matches
 from dicom_kb.parsers.part06_data_dictionary import parse_part06
-from tests.fixtures_synthetic import PS36_REGISTRY_DOCBOOK
+from tests.fixtures_synthetic import EDITION, PS36_REGISTRY_DOCBOOK
 
 
 def test_parse_part06_data_elements_and_range_tags() -> None:
     result = parse_part06(
-        parse_docbook_xml(PS36_REGISTRY_DOCBOOK, part="PS3.6"), edition="2026b"
+        parse_docbook_xml(PS36_REGISTRY_DOCBOOK, part="PS3.6"), edition=EDITION
     )
 
     modality = result.data_elements[0]
@@ -40,7 +40,7 @@ def test_parse_part06_data_elements_and_range_tags() -> None:
 
 def test_parse_part06_uid_registry_and_zero_width_keywords() -> None:
     result = parse_part06(
-        parse_docbook_xml(PS36_REGISTRY_DOCBOOK, part="PS3.6"), edition="2026b"
+        parse_docbook_xml(PS36_REGISTRY_DOCBOOK, part="PS3.6"), edition=EDITION
     )
 
     uid = result.uid_registry_entries[0]

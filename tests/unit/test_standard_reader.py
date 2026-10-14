@@ -12,6 +12,7 @@ from dicom_kb.docbook.targets import TargetIndex
 from dicom_kb.query.markdown import render_markdown
 from dicom_kb.query.resolver import read_standard, search_standard
 from dicom_kb.query.resolver.standard import paginate
+from tests.fixtures_synthetic import EDITION
 
 NS = (
     'xmlns="http://docbook.org/ns/docbook" '
@@ -114,7 +115,7 @@ def _connection(tmp_path: Path) -> sqlite3.Connection:
     for part, xml in sources.items():
         import_docbook_structure(
             connection,
-            edition="2026d",
+            edition=EDITION,
             document=parse_docbook_xml(xml, part=part, targets=targets),
         )
     return connection
@@ -122,7 +123,7 @@ def _connection(tmp_path: Path) -> sqlite3.Connection:
 
 def _read(connection: sqlite3.Connection, ref: str, page: int = 1) -> str:
     return render_markdown(
-        read_standard(connection, reference=ref, edition="2026d", page=page)
+        read_standard(connection, reference=ref, edition=EDITION, page=page)
     )
 
 
@@ -140,7 +141,7 @@ def test_read_section_includes_tables_and_subsections_that_fit(
         "**Table 7.5-1: Sequence of Undefined Length**\n"
         "| Tag | Meaning |\n|---|---|\n"
         "| (FFFE,E0DD) | Sequence Delimitation Item |\n\n"
-        "Source: PS3.5 Section 7.5 (2026d)\n"
+        f"Source: PS3.5 Section 7.5 ({EDITION})\n"
     )
 
 
@@ -204,7 +205,7 @@ def test_search_ranks_normative_text_before_informative(tmp_path: Path) -> None:
         search_standard(
             _connection(tmp_path),
             query="undefined length delimitation",
-            edition="2026d",
+            edition=EDITION,
         )
     )
     lines = markdown.splitlines()
@@ -223,7 +224,7 @@ def test_search_falls_back_to_any_word_and_filters_by_part(tmp_path: Path) -> No
     connection = _connection(tmp_path)
 
     markdown = render_markdown(
-        search_standard(connection, query="normalized zebra", edition="2026d")
+        search_standard(connection, query="normalized zebra", edition=EDITION)
     )
     assert markdown.startswith(
         "No section or table contains every word; closest matches:"
@@ -231,10 +232,10 @@ def test_search_falls_back_to_any_word_and_filters_by_part(tmp_path: Path) -> No
     assert "| PS3.7 Section 7.5.2 | DIMSE-N Services |" in markdown
 
     filtered = search_standard(
-        connection, query="delimitation", edition="2026d", part="PS3.7"
+        connection, query="delimitation", edition=EDITION, part="PS3.7"
     )
     assert filtered.status == "not_found"
-    invalid = search_standard(connection, query="x", edition="2026d", part="3.7x")
+    invalid = search_standard(connection, query="x", edition=EDITION, part="3.7x")
     assert invalid.status == "validation_error"
 
 
@@ -258,7 +259,7 @@ def test_read_picks_the_node_whose_id_spells_a_repeated_label(
     # The parameter table shares the label, so its handle is its id.
     parameters = _read(connection, "PS3.16 table_TID_300_Parameters")
     assert parameters.startswith("**Table TID 300: Parameters**")
-    assert "Source: PS3.16 table_TID_300_Parameters (2026d)" in parameters
+    assert f"Source: PS3.16 table_TID_300_Parameters ({EDITION})" in parameters
 
 
 def test_read_falls_back_to_an_exact_title(tmp_path: Path) -> None:

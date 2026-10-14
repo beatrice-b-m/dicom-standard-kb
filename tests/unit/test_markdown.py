@@ -1,9 +1,10 @@
 from dicom_kb.query.answer_contracts import StandardRef, tool_response
 from dicom_kb.query.markdown import render_markdown, source_line
+from tests.fixtures_synthetic import EDITION
 
 
 def _ref(part: str, anchor: str | None, section: str | None = None) -> StandardRef:
-    return StandardRef(part=part, anchor=anchor, section=section, edition="2026d")
+    return StandardRef(part=part, anchor=anchor, section=section, edition=EDITION)
 
 
 def test_source_line_names_tables_sections_and_cids() -> None:
@@ -17,14 +18,14 @@ def test_source_line_names_tables_sections_and_cids() -> None:
 
     assert source_line(refs) == (
         "Source: PS3.3 Table C.7-9; PS3.3 C.7.3.1; PS3.16 CID 29; "
-        "PS3.16 TID 1500 (2026d)"
+        f"PS3.16 TID 1500 ({EDITION})"
     )
 
 
 def test_source_line_caps_long_lists() -> None:
     refs = [_ref("PS3.3", f"table_C.{index}-1") for index in range(8)]
 
-    assert source_line(refs).endswith("Table C.4-1 and 3 more (2026d)")
+    assert source_line(refs).endswith(f"Table C.4-1 and 3 more ({EDITION})")
 
 
 def test_tables_drop_internal_ids_and_empty_columns_and_escape_pipes() -> None:
@@ -32,8 +33,8 @@ def test_tables_drop_internal_ids_and_empty_columns_and_escape_pipes() -> None:
         status="ok",
         result={
             "items": [
-                {"id": "2026d.x.1", "name": "a|b", "unused": None},
-                {"id": "2026d.x.2", "name": "c", "unused": ""},
+                {"id": f"{EDITION}.x.1", "name": "a|b", "unused": None},
+                {"id": f"{EDITION}.x.2", "name": "c", "unused": ""},
             ]
         },
     )
