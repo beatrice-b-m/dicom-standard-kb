@@ -1,11 +1,11 @@
 from dicom_kb.docbook.parser import parse_docbook_xml
 from dicom_kb.parsers.part03_iods import parse_part03
-from tests.fixtures_synthetic import PS33_CT_IMAGE_DOCBOOK
+from tests.fixtures_synthetic import EDITION, PS33_CT_IMAGE_DOCBOOK
 
 
 def test_parse_part03_ct_iod_modules_and_usage() -> None:
     result = parse_part03(
-        parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3"), edition="2026b"
+        parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3"), edition=EDITION
     )
 
     assert [iod.name for iod in result.iods] == [
@@ -22,12 +22,12 @@ def test_parse_part03_ct_iod_modules_and_usage() -> None:
     assert contrast_use.information_entity == "Image"
     assert contrast_use.usage == "C"
     assert contrast_use.usage_condition_text == "Required if contrast media was used"
-    assert contrast_use.condition_id == "2026b.iod.ct_image.module_use.1.condition"
+    assert contrast_use.condition_id == f"{EDITION}.iod.ct_image.module_use.1.condition"
     assert contrast_use.source_ref.table_id == "table_A.3-1"
 
     assert [condition.id for condition in result.conditions] == [
-        "2026b.iod.ct_image.module_use.1.condition",
-        "2026b.iod.enhanced_ct_image.functional_group_use.0.condition",
+        f"{EDITION}.iod.ct_image.module_use.1.condition",
+        f"{EDITION}.iod.enhanced_ct_image.functional_group_use.0.condition",
     ]
     assert result.conditions[0].raw_text == "Required if contrast media was used"
     assert result.conditions[0].condition_kind == "required_if"
@@ -65,7 +65,7 @@ def test_parse_part03_accepts_ie_header_alias() -> None:
 </book>
 """
 
-    result = parse_part03(parse_docbook_xml(xml, part="PS3.3"), edition="2026b")
+    result = parse_part03(parse_docbook_xml(xml, part="PS3.3"), edition=EDITION)
 
     assert [iod.name for iod in result.iods] == ["CT Image"]
     assert result.iod_module_uses[0].information_entity == "Patient"
@@ -98,7 +98,7 @@ def test_parse_part03_registers_iod_table_without_ie_or_usage() -> None:
 </book>
 """
 
-    result = parse_part03(parse_docbook_xml(xml, part="PS3.3"), edition="2026b")
+    result = parse_part03(parse_docbook_xml(xml, part="PS3.3"), edition=EDITION)
 
     assert [iod.name for iod in result.iods] == ["Inventory Creation"]
     assert result.iod_module_uses[0].usage == ""
@@ -106,11 +106,13 @@ def test_parse_part03_registers_iod_table_without_ie_or_usage() -> None:
 
 def test_parse_part03_module_macro_attributes_and_include_rows() -> None:
     result = parse_part03(
-        parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3"), edition="2026b"
+        parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3"), edition=EDITION
     )
 
     patient_attrs = [
-        row for row in result.attribute_uses if row.owner_id == "2026b.module.patient"
+        row
+        for row in result.attribute_uses
+        if row.owner_id == f"{EDITION}.module.patient"
     ]
     assert [row.row_kind for row in patient_attrs] == [
         "attribute",
@@ -123,13 +125,15 @@ def test_parse_part03_module_macro_attributes_and_include_rows() -> None:
     assert patient_attrs[2].sequence_depth == 1
 
     include = patient_attrs[3]
-    assert include.included_macro_id == "2026b.macro.table_10_7"
+    assert include.included_macro_id == f"{EDITION}.macro.table_10_7"
     assert include.include_target_text == (
         'Include Table 10-7 "General Anatomy Optional Macro"'
     )
 
     macro_attrs = [
-        row for row in result.attribute_uses if row.owner_id == "2026b.macro.table_10_7"
+        row
+        for row in result.attribute_uses
+        if row.owner_id == f"{EDITION}.macro.table_10_7"
     ]
     assert macro_attrs[0].attribute_name == "Anatomic Region Sequence"
     assert macro_attrs[0].source_ref.part == "PS3.3"
@@ -141,15 +145,18 @@ def test_parse_part03_creates_conditions_for_conditional_attribute_rows() -> Non
         "<entry>1C</entry><entry>Required if patient identity is known.</entry>",
     )
 
-    result = parse_part03(parse_docbook_xml(xml, part="PS3.3"), edition="2026b")
+    result = parse_part03(parse_docbook_xml(xml, part="PS3.3"), edition=EDITION)
 
     patient_name = result.attribute_uses[0]
     assert patient_name.type_designation == "1C"
-    assert patient_name.condition_id == "2026b.module.patient.attribute_use.0.condition"
+    assert (
+        patient_name.condition_id
+        == f"{EDITION}.module.patient.attribute_use.0.condition"
+    )
     condition = next(
         item
         for item in result.conditions
-        if item.id == "2026b.module.patient.attribute_use.0.condition"
+        if item.id == f"{EDITION}.module.patient.attribute_use.0.condition"
     )
     assert condition.raw_text == "Required if patient identity is known."
     assert condition.condition_kind == "required_if"
@@ -158,17 +165,17 @@ def test_parse_part03_creates_conditions_for_conditional_attribute_rows() -> Non
 
 def test_parse_part03_functional_group_usage() -> None:
     result = parse_part03(
-        parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3"), edition="2026b"
+        parse_docbook_xml(PS33_CT_IMAGE_DOCBOOK, part="PS3.3"), edition=EDITION
     )
 
     assert len(result.iod_functional_group_uses) == 1
     use = result.iod_functional_group_uses[0]
-    assert use.macro_id == "2026b.macro.table_10_7"
+    assert use.macro_id == f"{EDITION}.macro.table_10_7"
     assert use.usage == "C"
     assert use.usage_condition_text == "Required if anatomy is known"
     assert (
         use.condition_id
-        == "2026b.iod.enhanced_ct_image.functional_group_use.0.condition"
+        == f"{EDITION}.iod.enhanced_ct_image.functional_group_use.0.condition"
     )
     # The fixture defines tables for Patient and CT Image only.
     assert [warning.message for warning in result.warnings] == [
@@ -187,8 +194,8 @@ def test_parse_part03_resolves_functional_group_usage_by_section_anchor() -> Non
         "<entry>C - Required if anatomy is known</entry>",
     )
 
-    result = parse_part03(parse_docbook_xml(xml, part="PS3.3"), edition="2026b")
+    result = parse_part03(parse_docbook_xml(xml, part="PS3.3"), edition=EDITION)
 
     assert len(result.iod_functional_group_uses) == 1
-    assert result.iod_functional_group_uses[0].macro_id == "2026b.macro.table_10_7"
+    assert result.iod_functional_group_uses[0].macro_id == f"{EDITION}.macro.table_10_7"
     assert not [w for w in result.warnings if "functional group" in w.message]

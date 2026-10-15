@@ -5,6 +5,7 @@ from __future__ import annotations
 import sqlite3
 
 from dicom_kb.db.importers._shared import (
+    ImportConflictError,
     ImportSummary,
     _insert_source_ref,
     _unique_source_refs,
@@ -39,7 +40,7 @@ def import_docbook_structure(
             for xref in xrefs:
                 _insert_xref(connection, xref)
     except sqlite3.IntegrityError as exc:
-        raise ImportError(
+        raise ImportConflictError(
             f"failed to import DocBook structure for {edition} {document.part}"
         ) from exc
 

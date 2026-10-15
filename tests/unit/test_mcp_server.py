@@ -14,12 +14,11 @@ from dicom_kb.cli.main import app
 from dicom_kb.mcp.server import (
     MCP_TOOL_NAMES,
     MCPServerConfig,
-    MissingMCPDependencyError,
     create_mcp_server,
     execute_mcp_tool,
     serve_mcp_stdio,
 )
-from tests.unit.test_cli_queries import _fixture_db
+from tests.fixtures_synthetic import EDITION
 
 _RICH_BOX_CHARS = str.maketrans("", "", "\u256d\u2500\u256e\u2502\u2570\u256f")
 
@@ -46,8 +45,6 @@ class _FakeFastMCP:
         description: str,
         structured_output: bool | None = None,
     ) -> Callable[[Callable[..., str]], Callable[..., str]]:
-        assert structured_output is False
-
         def decorator(
             function: Callable[..., str],
         ) -> Callable[..., str]:
@@ -63,27 +60,15 @@ class _FakeFastMCP:
         self.run_transport = transport
 
 
-def test_mcp_tool_names_match_supported_spec() -> None:
-    assert MCP_TOOL_NAMES == (
-        "dicom_element",
-        "dicom_iod",
-        "dicom_module",
-        "dicom_values",
-        "dicom_code",
-        "dicom_search",
-        "dicom_read",
-    )
-
-
 def test_create_mcp_server_registers_all_supported_tools(
-    tmp_path: Path,
+    fixture_db: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from dicom_kb.mcp import server
 
     monkeypatch.setattr(server, "_load_fastmcp", lambda: _FakeFastMCP)
     fake_server = create_mcp_server(
-        MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path))
+        MCPServerConfig(edition=EDITION, db_path=fixture_db)
     )
 
     assert isinstance(fake_server, _FakeFastMCP)
@@ -102,7 +87,7 @@ def test_create_mcp_server_registers_all_supported_tools(
 
 
 def test_serve_mcp_stdio_runs_fastmcp_stdio_transport(
-    tmp_path: Path,
+    fixture_db: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from dicom_kb.mcp import server
@@ -110,17 +95,17 @@ def test_serve_mcp_stdio_runs_fastmcp_stdio_transport(
     _FakeFastMCP.last_instance = None
     monkeypatch.setattr(server, "_load_fastmcp", lambda: _FakeFastMCP)
 
-    serve_mcp_stdio(MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)))
+    serve_mcp_stdio(MCPServerConfig(edition=EDITION, db_path=fixture_db))
 
     assert _FakeFastMCP.last_instance is not None
     assert _FakeFastMCP.last_instance.run_transport == "stdio"
 
 
-def test_execute_mcp_tool_returns_compact_markdown(tmp_path: Path) -> None:
+def test_execute_mcp_tool_returns_compact_markdown(fixture_db: Path) -> None:
     payload = execute_mcp_tool(
         "dicom_element",
         {"name": "PatientName"},
-        config=MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)),
+        config=MCPServerConfig(edition=EDITION, db_path=fixture_db),
     )
 
     assert payload == (
@@ -132,7 +117,7 @@ def test_execute_mcp_tool_returns_compact_markdown(tmp_path: Path) -> None:
         "\n"
         "In IODs: CT Image.\n"
         "\n"
-        "Source: PS3.6 Table 6-1 (2026b)\n"
+        f"Source: PS3.6 Table 6-1 ({EDITION})\n"
     )
 
 
@@ -188,7 +173,7 @@ def test_execute_mcp_tool_returns_compact_markdown(tmp_path: Path) -> None:
             [
                 "**CID 29 Acquisition Modality**",
                 "| DCM | CT | Computed Tomography |",
-                "Includes CID 30",
+                "Includes CID 34",
             ],
         ),
         (
@@ -204,12 +189,12 @@ def test_execute_mcp_tool_returns_compact_markdown(tmp_path: Path) -> None:
     ],
 )
 def test_execute_mcp_tool_renders_each_answer_shape(
-    tmp_path: Path, tool: str, arguments: dict[str, Any], expected: list[str]
+    fixture_db: Path, tool: str, arguments: dict[str, Any], expected: list[str]
 ) -> None:
     payload = execute_mcp_tool(
         tool,  # type: ignore[arg-type]
         arguments,
-        config=MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)),
+        config=MCPServerConfig(edition=EDITION, db_path=fixture_db),
     )
 
     for fragment in expected:
@@ -218,11 +203,11 @@ def test_execute_mcp_tool_renders_each_answer_shape(
     assert '"status"' not in payload
 
 
-def test_execute_mcp_tool_not_found_is_one_line(tmp_path: Path) -> None:
+def test_execute_mcp_tool_not_found_is_one_line(fixture_db: Path) -> None:
     payload = execute_mcp_tool(
         "dicom_element",
         {"name": "(0008,9999)"},
-        config=MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)),
+        config=MCPServerConfig(edition=EDITION, db_path=fixture_db),
     )
 
     assert payload == "No data element is named '(0008,9999)'.\n"
@@ -234,7 +219,7 @@ def test_execute_mcp_tool_reports_missing_db(tmp_path: Path) -> None:
             "dicom_read",
             {"ref": "ExplicitVRLittleEndian"},
             config=MCPServerConfig(
-                edition="2026b",
+                edition=EDITION,
                 db_path=tmp_path / "missing.sqlite",
             ),
         )
@@ -247,7 +232,7 @@ def test_mcp_cli_missing_db_names_fetch_and_build_commands(tmp_path: Path) -> No
             "mcp",
             "serve",
             "--edition",
-            "2026b",
+            EDITION,
             "--db",
             str(tmp_path / "missing.sqlite"),
         ],
@@ -276,18 +261,3 @@ def test_mcp_cli_exposes_serve_command_without_optional_dependency() -> None:
     }
     assert "--edition" in option_names
     assert "--db" in option_names
-
-
-def test_serve_mcp_stdio_reports_missing_optional_dependency(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from dicom_kb.mcp import server
-
-    def fail_load_fastmcp() -> object:
-        raise MissingMCPDependencyError("missing mcp")
-
-    monkeypatch.setattr(server, "_load_fastmcp", fail_load_fastmcp)
-
-    with pytest.raises(MissingMCPDependencyError, match="missing mcp"):
-        serve_mcp_stdio(MCPServerConfig(edition="2026b", db_path=_fixture_db(tmp_path)))

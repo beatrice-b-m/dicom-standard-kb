@@ -8,7 +8,7 @@ from dicom_kb.parsers.part05_encoding import (
     TransferSyntaxUID,
     parse_transfer_syntaxes,
 )
-from tests.fixtures_synthetic import PS35_ENCODING_DOCBOOK
+from tests.fixtures_synthetic import EDITION, PS35_ENCODING_DOCBOOK
 
 _UIDS = (
     TransferSyntaxUID("1.2.840.10008.1.2", retired=False),
@@ -44,7 +44,7 @@ _RTV_PS322 = """<book xmlns="http://docbook.org/ns/docbook"
 def _parse() -> dict[str, tuple[str, str, str, str | None, str]]:
     result = parse_transfer_syntaxes(
         parse_docbook_xml(PS35_ENCODING_DOCBOOK, part="PS3.5"),
-        edition="2026b",
+        edition=EDITION,
         transfer_syntaxes=_UIDS,
     )
     assert result.warnings == ()
@@ -102,7 +102,7 @@ def test_retired_syntax_without_a_section_is_skipped_silently() -> None:
 def test_current_syntax_without_a_section_is_a_warning() -> None:
     result = parse_transfer_syntaxes(
         parse_docbook_xml(PS35_ENCODING_DOCBOOK, part="PS3.5"),
-        edition="2026b",
+        edition=EDITION,
         transfer_syntaxes=[TransferSyntaxUID("1.2.840.10008.1.2.9", retired=False)],
     )
 
@@ -116,10 +116,10 @@ def test_rtv_syntax_takes_the_metadata_encoding_from_ps322() -> None:
     uids = [TransferSyntaxUID("1.2.840.10008.1.2.7.1", retired=False)]
     document = parse_docbook_xml(_RTV_PS35, part="PS3.5")
 
-    without = parse_transfer_syntaxes(document, edition="2026b", transfer_syntaxes=uids)
+    without = parse_transfer_syntaxes(document, edition=EDITION, transfer_syntaxes=uids)
     with_ps322 = parse_transfer_syntaxes(
         document,
-        edition="2026b",
+        edition=EDITION,
         transfer_syntaxes=uids,
         rtv_document=parse_docbook_xml(_RTV_PS322, part="PS3.22"),
     )

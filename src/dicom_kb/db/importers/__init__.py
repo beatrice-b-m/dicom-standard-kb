@@ -1,6 +1,6 @@
 """Stable imports for transactional IR importers."""
 
-from dicom_kb.db.importers._shared import ImportSummary
+from dicom_kb.db.importers._shared import ImportConflictError, ImportSummary
 from dicom_kb.db.importers.documents import import_docbook_structure
 from dicom_kb.db.importers.encoding import import_transfer_syntax_details
 from dicom_kb.db.importers.graph import import_part03, import_part04
@@ -14,6 +14,7 @@ from dicom_kb.db.importers.terminology import (
 from dicom_kb.db.importers.value_terms import import_attribute_value_terms
 
 __all__ = [
+    "ImportConflictError",
     "ImportSummary",
     "import_attribute_value_terms",
     "import_build_metadata",

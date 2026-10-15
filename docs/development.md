@@ -31,8 +31,22 @@ Tests under `tests/unit/` use synthetic fixtures and temporary databases.
 `tests/integration_requires_dicom_download/` runs smoke checks against a KB
 built locally from the current NEMA edition (`dicom-kb fetch` then
 `dicom-kb build`). It uses the newest build in `DICOM_KB_CACHE_DIR` unless
-`DICOM_KB_TEST_EDITION` names one; run it with `make test-integration`.
+`DICOM_KB_TEST_EDITION` names one; run it with `make test-integration`, which
+fails (rather than skips) when no KB is built.
 Always validate against the current edition from NEMA, never an older mirror.
+
+Writing tests:
+
+- Unit tests run with the `DICOM_KB_*` variables cleared and the network
+  blocked (`tests/unit/conftest.py`), so they never touch a real KB.
+- Use `EDITION` (or `OTHER_EDITION`) from `tests.fixtures_synthetic` instead of
+  an edition literal, unless the label itself is what the test checks.
+- Read-only tests take the shared `fixture_db`, a KB built once from
+  `SYNTHETIC_PARTS` by `build_sqlite_database`. Don't hand-assemble a KB by
+  calling importers in your own order.
+- Assert what an agent relies on (tag, VR, type, usage, the CID a value list
+  names), not exact prose, table numbers, row counts or column sets. Integration
+  tests especially: section and table numbers move between editions.
 
 ## Code map
 
@@ -99,8 +113,9 @@ Tables 7.1-1 and 7.1-2.
   terms need explicit regression cases. Enumerated values and defined terms
   stay distinct. A null effective type is not permission to infer a requirement.
 - Prefer synthetic, minimal DocBook fixtures under `tests/fixtures_synthetic/`.
-  Include official-shaped table layouts, malformed rows, and unresolved links
-  relevant to the parser change. Attributed excerpts follow the policy in
+  Copy the table layouts NEMA actually publishes (check the current source);
+  don't invent a layout and teach the parser to read it. Include malformed rows
+  and unresolved links relevant to the parser change. Attributed excerpts follow the policy in
   `tests/fixtures_minimal_attributed/README.md`.
 - For a new entity, update IR, a numbered migration, its importer and repository,
   resolver, CLI/MCP surfaces as appropriate, and affected contract tests.

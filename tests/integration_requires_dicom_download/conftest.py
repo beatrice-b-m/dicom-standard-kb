@@ -66,4 +66,15 @@ def manifest(cache_dir: Path, edition: str) -> SourceManifest:
 
 
 def _missing_prerequisite(message: str) -> NoReturn:
+    # `make test-integration` sets DICOM_KB_REQUIRE_KB so a missing KB fails
+    # the run; a plain `pytest` over the whole tree skips these tests instead.
+    if os.environ.get("DICOM_KB_REQUIRE_KB"):
+        pytest.fail(message, pytrace=False)
     pytest.skip(message)
+
+
+def pytest_report_header() -> str:
+    cache_dir = _cache_dir()
+    return (
+        f"dicom-kb integration: edition {_discover_edition(cache_dir)} in {cache_dir}"
+    )

@@ -1,17 +1,17 @@
 from dicom_kb.docbook.parser import parse_docbook_xml
 from dicom_kb.parsers.part04_sop_classes import parse_part04
-from tests.fixtures_synthetic import PS34_SOP_CLASSES_DOCBOOK
+from tests.fixtures_synthetic import EDITION, PS34_SOP_CLASSES_DOCBOOK
 
 IOD_REFS = {
-    "sect_A.3": "2026b.iod.ct_image",
-    "sect_A.38": "2026b.iod.enhanced_ct_image",
+    "sect_A.3": f"{EDITION}.iod.ct_image",
+    "sect_A.38": f"{EDITION}.iod.enhanced_ct_image",
 }
 
 
 def test_parse_part04_sop_classes_and_iod_edges() -> None:
     result = parse_part04(
         parse_docbook_xml(PS34_SOP_CLASSES_DOCBOOK, part="PS3.4"),
-        edition="2026b",
+        edition=EDITION,
         iod_id_by_ref=IOD_REFS,
     )
 
@@ -27,8 +27,8 @@ def test_parse_part04_sop_classes_and_iod_edges() -> None:
         "1.2.840.10008.5.1.4.1.1.2.1",
     ]
     assert [edge.iod_id for edge in result.sop_class_iods] == [
-        "2026b.iod.ct_image",
-        "2026b.iod.enhanced_ct_image",
+        f"{EDITION}.iod.ct_image",
+        f"{EDITION}.iod.enhanced_ct_image",
     ]
     assert result.sop_class_iods[0].resolution == "parsed"
     assert result.sop_class_iods[0].source_ref.part == "PS3.4"
@@ -38,12 +38,14 @@ def test_parse_part04_sop_classes_and_iod_edges() -> None:
 def test_parse_part04_logs_a_sop_class_whose_iod_reference_misses() -> None:
     result = parse_part04(
         parse_docbook_xml(PS34_SOP_CLASSES_DOCBOOK, part="PS3.4"),
-        edition="2026b",
-        iod_id_by_ref={"sect_A.3": "2026b.iod.ct_image"},
+        edition=EDITION,
+        iod_id_by_ref={"sect_A.3": f"{EDITION}.iod.ct_image"},
     )
 
     # The name is never used to guess the IOD.
-    assert [edge.iod_id for edge in result.sop_class_iods] == ["2026b.iod.ct_image"]
+    assert [edge.iod_id for edge in result.sop_class_iods] == [
+        f"{EDITION}.iod.ct_image"
+    ]
     assert [sop.name for sop in result.sop_classes] == [
         "CT Image Storage",
         "Enhanced CT Image Storage",
@@ -82,10 +84,10 @@ def test_parse_part04_prefers_iod_reference_map() -> None:
 
     result = parse_part04(
         parse_docbook_xml(xml, part="PS3.4"),
-        edition="2026b",
-        iod_id_by_ref={"sect_A.26": "2026b.iod.digital_x_ray_image"},
+        edition=EDITION,
+        iod_id_by_ref={"sect_A.26": f"{EDITION}.iod.digital_x_ray_image"},
     )
 
     assert [edge.iod_id for edge in result.sop_class_iods] == [
-        "2026b.iod.digital_x_ray_image"
+        f"{EDITION}.iod.digital_x_ray_image"
     ]

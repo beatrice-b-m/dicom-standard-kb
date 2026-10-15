@@ -5,17 +5,13 @@ from pathlib import Path
 from typing import Any
 
 import anyio
-import pytest
 
 from dicom_kb.mcp.server import MCP_TOOL_NAMES
-from tests.unit.test_cli_queries import _fixture_db
-
-mcp = pytest.importorskip("mcp")
-stdio = pytest.importorskip("mcp.client.stdio")
+from tests.fixtures_synthetic import EDITION
 
 
-def test_mcp_stdio_protocol_with_official_client(tmp_path: Path) -> None:
-    db_path = _fixture_db(tmp_path)
+def test_mcp_stdio_protocol_with_official_client(fixture_db: Path) -> None:
+    db_path = fixture_db
 
     async def run_client() -> None:
         from mcp import ClientSession
@@ -29,7 +25,7 @@ def test_mcp_stdio_protocol_with_official_client(tmp_path: Path) -> None:
                 "mcp",
                 "serve",
                 "--edition",
-                "2026b",
+                EDITION,
                 "--db",
                 str(db_path),
             ],
@@ -55,13 +51,10 @@ def test_mcp_stdio_protocol_with_official_client(tmp_path: Path) -> None:
                 {"name": "Modality"},
             )
             assert element_result.structuredContent is None
-            assert _tool_text(element_result) == (
-                "**(0008,0060) Modality** `Modality` · VR CS · VM 1\n"
-                "\n"
-                "No PS3.3 module or macro lists it.\n"
-                "\n"
-                "Source: PS3.6 Table 6-1 (2026b)\n"
-            )
+            element_text = _tool_text(element_result)
+            assert element_text.startswith("**(0008,0060) Modality**")
+            assert "VR CS · VM 1" in element_text
+            assert "Source: PS3.6 Table 6-1" in element_text
 
             modules_result = await session.call_tool(
                 "dicom_iod",

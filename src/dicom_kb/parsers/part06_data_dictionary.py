@@ -40,11 +40,13 @@ def parse_part06(document: ParsedDocument, *, edition: str) -> Part06ParseResult
         elif _is_uid_table(headers):
             uids.extend(_parse_uid_table(table, headers, edition, warnings))
 
-    warnings.extend(_duplicate_warnings("data element tag", data_elements, "tag"))
-    warnings.extend(_duplicate_warnings("UID value", uids, "uid_value"))
+    # A repeated tag or UID would abort the whole PS3.6 import on its unique
+    # key, and every data element and UID with it. Keep the first and log it.
     return Part06ParseResult(
-        data_elements=tuple(data_elements),
-        uid_registry_entries=tuple(uids),
+        data_elements=_first_of_each(
+            data_elements, "tag", "data element tag", warnings
+        ),
+        uid_registry_entries=_first_of_each(uids, "uid_value", "UID value", warnings),
         warnings=tuple(warnings),
     )
 
@@ -161,10 +163,23 @@ def _optional_cell(row: ParsedRow, column: int | None) -> str | None:
     return value or None
 
 
+_KNOWN_COLUMNS = frozenset(
+    {"tag", "name", "keyword", "vr", "vm"}
+    | {"uid value", "uid name", "uid keyword", "uid type", "part"}
+    | {"normative reference"}
+)
+
+
 def _retired_column(headers: dict[str, int]) -> int | None:
-    if "retired" in headers:
-        return headers["retired"]
-    return headers.get("")
+    """Return the column that marks retired rows ("RET"), if the table has one.
+
+    NEMA leaves its header blank today; any column that isn't one of the
+    known ones counts, so naming it later doesn't silently un-retire rows.
+    """
+    for key, column in headers.items():
+        if key not in _KNOWN_COLUMNS:
+            return column
+    return None
 
 
 def _key(value: str) -> str:
@@ -187,7 +202,8 @@ def _has_retired_marker(value: str | None) -> bool:
 def _strip_retired_marker(value: str | None) -> str | None:
     if value is None:
         return None
-    return normalize_text(value.replace("(Retired)", "").replace("RET", ""))
+    without_note = value.replace("(Retired)", "")
+    return normalize_text(" ".join(t for t in without_note.split() if t != "RET"))
 
 
 def _source_ref(edition: str, table: ParsedTable) -> SourceRef:
@@ -211,21 +227,21 @@ def _warning(table: ParsedTable, row: ParsedRow, message: str) -> ParserWarning:
     )
 
 
-def _duplicate_warnings(
-    label: str, records: list[DataElement] | list[UIDRegistryEntry], field: str
-) -> list[ParserWarning]:
-    seen: set[str] = set()
-    warnings: list[ParserWarning] = []
+def _first_of_each[R: (DataElement, UIDRegistryEntry)](
+    records: list[R], field: str, label: str, warnings: list[ParserWarning]
+) -> tuple[R, ...]:
+    kept: dict[str, R] = {}
     for record in records:
         value = getattr(record, field)
-        if value in seen:
+        if value in kept:
             warnings.append(
                 ParserWarning(
                     part="PS3.6",
                     table_id=record.source_ref.table_id,
                     row_index=None,
-                    message=f"duplicate {label}: {value}",
+                    message=f"duplicate {label} {value}; kept the first",
                 )
             )
-        seen.add(value)
-    return warnings
+        else:
+            kept[value] = record
+    return tuple(kept.values())

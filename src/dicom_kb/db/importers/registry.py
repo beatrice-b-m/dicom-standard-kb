@@ -6,6 +6,7 @@ import sqlite3
 from collections.abc import Iterable
 
 from dicom_kb.db.importers._shared import (
+    ImportConflictError,
     ImportSummary,
     _insert_source_ref,
     _unique_source_refs,
@@ -40,7 +41,9 @@ def import_part06(
             for uid in uids:
                 _insert_uid(connection, uid)
     except sqlite3.IntegrityError as exc:
-        raise ImportError(f"failed to import PS3.6 records for {edition}") from exc
+        raise ImportConflictError(
+            f"failed to import PS3.6 records for {edition}"
+        ) from exc
 
     return ImportSummary(
         edition=edition,
